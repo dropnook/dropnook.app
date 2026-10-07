@@ -64,7 +64,7 @@
     "q1": "Does anything go to a cloud?",
     "a1": "No. Everything stays on your server. Only what you share as a link can be reached from outside — and only by whoever has that link.",
     "q2": "Is it free?",
-    "a2": "Yes — free and open source under the AGPL-3.0. No account, no subscription, no telemetry. If it is useful to you, you can say thanks with a <a href=\"https://www.paypal.com/paypalme/vipermark2\">donation via PayPal</a> — ideally 5 € or more, since PayPal keeps a fixed fee of every payment.",
+    "a2": "Yes — free and open source under the AGPL-3.0. No account, no subscription, no telemetry. If it is useful to you, you can say thanks with a <a href=\"https://www.paypal.com/paypalme/vipermark2\">donation via PayPal</a> — ideally $5 or more, since PayPal keeps a fixed fee of every payment.",
     "q3": "Do my devices need an app?",
     "a3": "No. Any current browser is enough — on phones, tablets and computers alike.",
     "q4": "Do I need Unraid?",
