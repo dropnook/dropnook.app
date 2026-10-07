@@ -5,6 +5,7 @@
   --line:#D6DFE3; --accent:#0B6E75; --accent-ink:#075056; --accent-soft:#DFEFF0; --public:#B45309;
   --on-accent:#FFFFFF; --shadow:0 24px 60px -28px rgba(18,27,33,.45), 0 4px 14px -8px rgba(18,27,33,.18);
   --no:#C93A2E; --yes:#1E8A43; --yes-soft:#EAF6EE;
+  --other-bg:#EFF5F2; --other-ink:#3F4947; --other-head:#006A60;   /* "other solutions": LocalSend's colours */
   --radius:14px; color-scheme:light;
 }
 @media (prefers-color-scheme: dark){
@@ -13,6 +14,7 @@
     --line:#24313A; --accent:#54C0C4; --accent-ink:#8CD9DC; --accent-soft:#13302F; --public:#F0A54A;
     --on-accent:#08161A; --shadow:0 24px 60px -28px rgba(0,0,0,.9), 0 4px 14px -8px rgba(0,0,0,.6);
     --no:#F07167; --yes:#4CC77A; --yes-soft:#11261A;
+    --other-bg:#131E1C; --other-ink:#A0B0AD; --other-head:#82D5C8;
     color-scheme:dark;
   }
 }
@@ -21,6 +23,7 @@
   --line:#24313A; --accent:#54C0C4; --accent-ink:#8CD9DC; --accent-soft:#13302F; --public:#F0A54A;
   --on-accent:#08161A; --shadow:0 24px 60px -28px rgba(0,0,0,.9), 0 4px 14px -8px rgba(0,0,0,.6);
   --no:#F07167; --yes:#4CC77A; --yes-soft:#11261A;
+  --other-bg:#131E1C; --other-ink:#A0B0AD; --other-head:#82D5C8;
   color-scheme:dark;
 }
 :root[data-theme="light"]{color-scheme:light}
@@ -105,13 +108,13 @@ h1{font-size:clamp(2.3rem, 5.2vw, 3.7rem); font-weight:780; letter-spacing:-.03e
      border-radius:var(--radius); overflow:hidden; box-shadow:var(--shadow)}
 .why-head, .why li{display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1.15fr)}
 .why-head > span{padding:12px 20px 12px 56px; font-size:12.5px; font-weight:700; letter-spacing:.07em;
-               text-transform:uppercase; color:var(--muted)}
+               text-transform:uppercase; color:var(--other-head); background:var(--other-bg)}
 .why-head > span + span{color:var(--yes); background:var(--yes-soft)}
 .why-head .dn{color:var(--ink)}   /* the name in its two colours, as everywhere */
 .why ul{list-style:none; margin:0; padding:0}
 .why li{border-top:1px solid var(--line)}
 .why p{position:relative; margin:0; padding:15px 20px 15px 56px; font-size:15.5px; line-height:1.45}
-.why .no{color:var(--muted)}
+.why .no{color:var(--other-ink); background:var(--other-bg)}
 .why .yes{color:var(--ink); font-weight:600; background:var(--yes-soft)}
 .why p::before{content:""; position:absolute; left:20px; top:14px; width:22px; height:22px; border-radius:50%;
                background:var(--no) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round'%3E%3Cpath d='m8 8 8 8M16 8l-8 8'/%3E%3C/svg%3E") center/13px no-repeat}

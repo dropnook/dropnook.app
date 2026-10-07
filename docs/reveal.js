@@ -4,7 +4,7 @@
 document.addEventListener('DOMContentLoaded', () => {
   if (matchMedia('(prefers-reduced-motion: reduce)').matches || !('IntersectionObserver' in window)) return;
   const items = [...document.querySelectorAll(
-    'main section h2, main section .sub, .why, .card, .compare, .shots > a, .diagram, .checks li, .steps li, #faq details')]
+    'main section h2, main section .sub, .why-head, .why li, .card, .colours, .compare, .shots > a, .diagram, .checks li, .steps li, #faq details')]
     .filter((el) => el.getBoundingClientRect().top > innerHeight);
   const io = new IntersectionObserver((entries) => {
     entries.filter((e) => e.isIntersecting).forEach((entry, i) => {
