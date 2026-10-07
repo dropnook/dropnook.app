@@ -293,6 +293,10 @@ Portuguese, Russian, Spanish and Turkish. To change wording or add a language
 for yourself, put a file into `lang/` in the appdata folder — see
 [`lang/README.md`](lang/README.md).
 
+**On another device** — the QR button in the header (on computers and tablets)
+shows Drop's address as a QR code: point the phone's camera at it, and the page
+opens there.
+
 **Light and dark** follow the system. ☀ and ☾ next to *Help* pick one by hand;
 a second click on the chosen one goes back to automatic. Each browser remembers
 its choice.

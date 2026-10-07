@@ -24,6 +24,8 @@
   "ui.theme_light": "Apparence : claire",
   "ui.theme_dark": "Apparence : sombre",
   "ui.theme_again": "cliquez à nouveau pour automatique",
+  "ui.qr_open": "Ouvrir sur un autre appareil",
+  "ui.qr_hint": "Scannez-le avec l’appareil photo du téléphone — fonctionne sur votre réseau domestique ou via VPN.",
   "ui.help_missing": "Le texte d’aide n’a pas pu être chargé.",
   "ui.close": "Fermer",
   "ui.cancel": "Annuler",

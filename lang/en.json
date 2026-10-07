@@ -24,6 +24,8 @@
   "ui.theme_light": "Appearance: light",
   "ui.theme_dark": "Appearance: dark",
   "ui.theme_again": "click again for automatic",
+  "ui.qr_open": "Open on another device",
+  "ui.qr_hint": "Scan it with the phone’s camera — works in your home network or over VPN.",
   "ui.help_missing": "The help text could not be loaded.",
   "ui.close": "Close",
   "ui.cancel": "Cancel",

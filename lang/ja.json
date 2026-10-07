@@ -23,6 +23,8 @@
   "ui.theme_light": "表示: ライト",
   "ui.theme_dark": "表示: ダーク",
   "ui.theme_again": "もう一度クリックで自動",
+  "ui.qr_open": "別のデバイスで開く",
+  "ui.qr_hint": "スマートフォンのカメラで読み取ってください。自宅のネットワークか VPN 経由で使えます。",
   "ui.help_missing": "ヘルプを読み込めませんでした。",
   "ui.close": "閉じる",
   "ui.cancel": "キャンセル",

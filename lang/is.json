@@ -24,6 +24,8 @@
   "ui.theme_light": "Útlit: ljóst",
   "ui.theme_dark": "Útlit: dökkt",
   "ui.theme_again": "smelltu aftur fyrir sjálfvirkt",
+  "ui.qr_open": "Opna í öðru tæki",
+  "ui.qr_hint": "Skannaðu hann með myndavél símans — virkar á heimanetinu eða um VPN.",
   "ui.help_missing": "Ekki tókst að hlaða hjálpartextanum.",
   "ui.close": "Loka",
   "ui.cancel": "Hætta við",

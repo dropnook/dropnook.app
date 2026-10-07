@@ -23,6 +23,8 @@
   "ui.theme_light": "Aparência: clara",
   "ui.theme_dark": "Aparência: escura",
   "ui.theme_again": "clique de novo para automática",
+  "ui.qr_open": "Abrir noutro dispositivo",
+  "ui.qr_hint": "Leia-o com a câmara do telemóvel — funciona na rede doméstica ou por VPN.",
   "ui.help_missing": "Não foi possível carregar o texto de ajuda.",
   "ui.close": "Fechar",
   "ui.cancel": "Cancelar",

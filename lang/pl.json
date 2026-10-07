@@ -25,6 +25,8 @@
   "ui.theme_light": "Wygląd: jasny",
   "ui.theme_dark": "Wygląd: ciemny",
   "ui.theme_again": "kliknij ponownie, aby wybrać automatyczny",
+  "ui.qr_open": "Otwórz na innym urządzeniu",
+  "ui.qr_hint": "Zeskanuj aparatem telefonu — działa w sieci domowej lub przez VPN.",
   "ui.help_missing": "Nie udało się wczytać pomocy.",
   "ui.close": "Zamknij",
   "ui.cancel": "Anuluj",

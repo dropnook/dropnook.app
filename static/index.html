@@ -23,6 +23,7 @@
   <div class="header-right">
     <span class="space" id="space"></span>
     <button class="btn plain" id="btn-shares" type="button" hidden><span data-i18n="ui.shares"></span><span class="count" id="shares-count"></span></button>
+    <button class="btn plain icon" id="btn-qr" type="button" data-i18n-aria-label="ui.qr_open"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="6" height="6" rx="1"/><rect x="14.5" y="3.5" width="6" height="6" rx="1"/><rect x="3.5" y="14.5" width="6" height="6" rx="1"/><path d="M14.5 14.5h2.5v2.5M20.5 14.5v.01M14.5 20.5h2.5M20.5 18v2.5"/></svg></button>
     <div class="theme-switch" id="theme-switch" role="group">
       <button type="button" data-mode="light"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8"/></svg></button><button type="button" data-mode="dark"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"/></svg></button>
     </div>
@@ -98,6 +99,7 @@
 <!-- Toasts -->
 <div class="toasts" id="toasts" aria-live="polite"></div>
 
+<script src="/static/qrcode.js"></script>
 <script src="/static/app.js"></script>
 </body>
 </html>

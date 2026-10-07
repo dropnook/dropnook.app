@@ -23,6 +23,8 @@
   "ui.theme_light": "Görünüm: açık",
   "ui.theme_dark": "Görünüm: koyu",
   "ui.theme_again": "otomatik için tekrar tıklayın",
+  "ui.qr_open": "Başka bir cihazda aç",
+  "ui.qr_hint": "Telefonun kamerasıyla tarayın — ev ağınızda veya VPN üzerinden çalışır.",
   "ui.help_missing": "Yardım metni yüklenemedi.",
   "ui.close": "Kapat",
   "ui.cancel": "İptal",

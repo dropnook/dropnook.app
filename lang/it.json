@@ -23,6 +23,8 @@
   "ui.theme_light": "Aspetto: chiaro",
   "ui.theme_dark": "Aspetto: scuro",
   "ui.theme_again": "clicca di nuovo per automatico",
+  "ui.qr_open": "Apri su un altro dispositivo",
+  "ui.qr_hint": "Inquadralo con la fotocamera del telefono: funziona nella rete di casa o via VPN.",
   "ui.help_missing": "Impossibile caricare il testo di aiuto.",
   "ui.close": "Chiudi",
   "ui.cancel": "Annulla",

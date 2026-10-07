@@ -23,6 +23,8 @@
   "ui.theme_light": "Utseende: lyst",
   "ui.theme_dark": "Utseende: mørkt",
   "ui.theme_again": "klikk igjen for automatisk",
+  "ui.qr_open": "Åpne på en annen enhet",
+  "ui.qr_hint": "Skann den med kameraet på telefonen — virker i hjemmenettet eller via VPN.",
   "ui.help_missing": "Hjelpeteksten kunne ikke lastes.",
   "ui.close": "Lukk",
   "ui.cancel": "Avbryt",

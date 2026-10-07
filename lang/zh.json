@@ -23,6 +23,8 @@
   "ui.theme_light": "外观：浅色",
   "ui.theme_dark": "外观：深色",
   "ui.theme_again": "再次点击改为自动",
+  "ui.qr_open": "在其他设备上打开",
+  "ui.qr_hint": "用手机相机扫描——在家庭网络中或通过 VPN 均可使用。",
   "ui.help_missing": "无法加载帮助内容。",
   "ui.close": "关闭",
   "ui.cancel": "取消",

@@ -1712,6 +1712,23 @@ function chooseTheme(mode) {
   applyTheme(theme);
 }
 
+// ------------------------------------------------------------------ QR code
+// The address of this page as a QR code, for the phone's camera. Only Drop in
+// the home network has it; drop-share serves nothing of this page.
+function showQr() {
+  const url = location.origin + '/';
+  const box = el('div', 'qr');
+  const code = el('div', 'qr-code');
+  try {
+    const qr = qrcode(0, 'M');
+    qr.addData(url);
+    qr.make();
+    code.innerHTML = qr.createSvgTag({ cellSize: 4, margin: 4, scalable: true });
+  } catch (e) { code.hidden = true; }
+  box.append(code, el('div', 'qr-url', url), el('p', 'qr-hint', t('ui.qr_hint')));
+  dialog({ title: t('ui.qr_open'), content: box, buttons: [{ text: t('ui.close') }] });
+}
+
 // ------------------------------------------------------------------ Help
 async function showHelp() {
   let html = '';
@@ -1847,6 +1864,8 @@ function stopAllSaves() {
 // ------------------------------------------------------------------ Start
 function wireButtons() {
   $('#btn-help').onclick = showHelp;
+  $('#btn-qr').onclick = showQr;
+  $('#btn-qr').title = t('ui.qr_open');
   document.querySelectorAll('#theme-switch button').forEach((b) => { b.onclick = () => chooseTheme(b.dataset.mode); });
   systemDark.addEventListener('change', () => applyTheme(currentTheme()));
   // Switched in another tab: follow along.

@@ -23,6 +23,8 @@
   "ui.theme_light": "화면 모드: 라이트",
   "ui.theme_dark": "화면 모드: 다크",
   "ui.theme_again": "다시 클릭하면 자동",
+  "ui.qr_open": "다른 기기에서 열기",
+  "ui.qr_hint": "휴대폰 카메라로 스캔하세요. 집 네트워크나 VPN에서 사용할 수 있습니다.",
   "ui.help_missing": "도움말을 불러오지 못했습니다.",
   "ui.close": "닫기",
   "ui.cancel": "취소",

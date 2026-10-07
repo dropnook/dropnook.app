@@ -306,6 +306,10 @@ Türkisch. Um Texte zu ändern oder eine Sprache für dich hinzuzufügen, legst 
 eine Datei in `lang/` im appdata-Ordner ab — siehe
 [`lang/README.md`](lang/README.md).
 
+**Auf einem anderen Gerät** — der QR-Knopf oben (auf Computer und Tablet) zeigt
+die Adresse von Drop als QR-Code: Handy-Kamera darauf richten, und die Seite
+öffnet sich dort.
+
 **Hell und dunkel** folgen dem System. Mit ☀ und ☾ neben *Hilfe* wählst du
 von Hand; ein zweiter Klick auf die gewählte Seite stellt wieder auf
 automatisch. Jeder Browser merkt sich seine Wahl.

@@ -23,6 +23,8 @@
   "ui.theme_light": "Weergave: licht",
   "ui.theme_dark": "Weergave: donker",
   "ui.theme_again": "klik nogmaals voor automatisch",
+  "ui.qr_open": "Openen op een ander apparaat",
+  "ui.qr_hint": "Scan hem met de camera van je telefoon — werkt in je thuisnetwerk of via VPN.",
   "ui.help_missing": "De helptekst kon niet worden geladen.",
   "ui.close": "Sluiten",
   "ui.cancel": "Annuleren",
