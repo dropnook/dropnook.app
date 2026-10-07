@@ -67,7 +67,7 @@ host with Docker Compose, too: see [Without Unraid](docs/DEVELOPMENT.md#without-
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/diagram/architecture-en-dark.webp">
-    <img src="docs/diagram/architecture-en-light.webp" alt="Devices in your network reach drop directly. From the internet, requests go through your reverse proxy (HTTPS on 443) to drop-share on port 80. drop-share reads only the shares folder; drop refuses anything that comes through a proxy." width="100%">
+    <img src="docs/diagram/architecture-en-light.webp" alt="Architecture: devices in your network reach drop directly at drop.yourdomain.com, whose DNS entry points to drop's LAN address. drop and the optional drop-share run as two separate containers with their own LAN addresses: drop as root with only four capabilities, drop-share as user 99:100 without any capability on a read-only file system. drop reads and writes the whole data share; drop-share sees only shares/, read-only. A shared file is a hard link in shares/files to the same inode as the original — no copy. From the internet, requests go through your reverse proxy to drop-share on port 80; drop refuses anything that comes through a proxy." width="100%">
   </picture>
 </p>
 
@@ -83,9 +83,9 @@ listed under [What Drop expects from your reverse proxy](#what-drop-expects-from
 * **Two free addresses** in your LAN, one for `drop`, one for `drop-share`.
 * **Your own domain** with two names — without one, Drop works by IP address,
   just without sharing to the internet and without HTTPS:
-  * `drop.yourdomain.com` → the address of `drop`, as a local DNS entry in your
-    router or DNS server (or as a public DNS record — a private address there
-    is harmless).
+  * `drop.yourdomain.com` → the LAN address of `drop` — simplest as a DNS
+    record at your domain hoster (a private address there is harmless), or as
+    a local DNS entry in your router or DNS server.
   * `drop-share.yourdomain.com` → your public IP address (with a changing IP:
     dynamic DNS).
 * **A reverse proxy** reachable from the internet, for sharing.
@@ -176,6 +176,23 @@ and `drop-share`:
 ```
 Drop — public part on port 80, shares only, from /data/shares
 ```
+
+> **Tip: HTTPS in your network, too.** If `drop` says `Starting on port 80
+> without TLS`, it runs on plain `http://`. That works — but browsers then warn
+> about or block downloads ("insecure download"), pictures cannot be copied,
+> and the share menu on Android stays closed. Two things make it HTTPS:
+>
+> 1. **The name:** at your domain hoster, add a DNS record `drop` → the LAN
+>    address of `drop` (type A, e.g. `192.168.1.20`). A private address in
+>    public DNS is harmless — it only works inside your network. If the name
+>    does not resolve at home, your router's DNS rebind protection blocks it:
+>    allow `drop.yourdomain.com` there (FRITZ!Box: *Home Network → Network →
+>    Network Settings → DNS Rebind Protection*). A local DNS entry in your
+>    router or Pi-hole/AdGuard works just as well.
+> 2. **The certificate:** Drop usually finds your reverse proxy's certificate
+>    by itself — see [HTTPS in your network](#https-in-your-network).
+>
+> Then open `https://drop.yourdomain.com`, not the IP address.
 
 ### 5. Try Drop out
 

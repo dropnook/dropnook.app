@@ -184,6 +184,13 @@ h1{font-size:clamp(2.3rem, 5.2vw, 3.7rem); font-weight:780; letter-spacing:-.03e
 .steps li::before{content:counter(step); display:grid; place-items:center; width:34px; height:34px; border-radius:50%;
           background:var(--accent-soft); color:var(--accent-ink); font-weight:750; margin-bottom:14px}
 .steps p{color:var(--ink-2); margin:8px 0 0; font-size:15.5px}
+.tip{max-width:820px; margin:22px auto 0; padding:14px 20px 14px 52px; position:relative; font-size:15.5px;
+     color:var(--ink-2); background:var(--surface); border:1px solid var(--line); border-radius:var(--radius)}
+.tip::before{content:"i"; position:absolute; left:18px; top:15px; width:22px; height:22px; border-radius:50%;
+     display:grid; place-items:center; background:var(--accent); color:var(--on-accent);
+     font:700 14px/1 Georgia,"Times New Roman",serif; font-style:italic}
+.tip code{font-size:.88em; white-space:nowrap}
+.tip b{color:var(--ink)}
 
 /* ---------------------------------------------------------------- FAQ */
 details{background:var(--surface); border:1px solid var(--line); border-radius:12px; margin:12px 0; padding:0 20px}

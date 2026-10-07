@@ -41,7 +41,7 @@
     "s6": "17 languages",
     "how.title": "Two containers, one <em>clear boundary</em>",
     "how.text": "<b>drop</b> holds your files and texts and is reachable only in your network. <b>drop-share</b> serves the share links to the internet — and sees nothing but what you shared. Your reverse proxy and your certificates stay yours.",
-    "how.alt": "Devices in your network reach drop directly. From the internet, requests go through your reverse proxy to drop-share, which reads only the shares folder; drop refuses anything that comes through a proxy.",
+    "how.alt": "Architecture: devices in your network reach drop directly at drop.yourdomain.com, whose DNS entry points to drop's LAN address. drop and the optional drop-share run as two separate containers with their own LAN addresses: drop as root with only four capabilities, drop-share as user 99:100 without any capability on a read-only file system. drop reads and writes the whole data share; drop-share sees only shares/, read-only. A shared file is a hard link in shares/files to the same inode as the original — no copy. From the internet, requests go through your reverse proxy to drop-share on port 80; drop refuses anything that comes through a proxy.",
     "sec.title": "<em>Private</em> by design",
     "sec1.title": "Drop stays in your network.",
     "sec1.text": "Drop itself refuses anything that comes through a proxy — even a misconfigured one. Only drop-share faces the internet, and all it can see is what you shared.",
@@ -127,7 +127,8 @@
     "a6": "Yes, if you want: up to five users in <code>compose.yaml</code>, each with a name, a PIN and a colour. Everyone signs in once per device and then switches between their own area — only they see it — and the shared one. Without users, everyone simply shares everything.",
     "s7": "Light and dark",
     "s8": "Five colours",
-    "s9": "Users with their own area"
+    "s9": "Users with their own area",
+    "inst.tip": "<b>Tip: HTTPS in your home network, too.</b> Over plain http://, browsers warn about or block downloads and pictures cannot be copied. At your domain hoster, point <code>drop</code> to drop’s LAN address (e.g. <code>drop → 192.168.1.20</code>) — Drop then finds your reverse proxy’s certificate by itself."
   },
   "de": {
     "meta.title": "Dropnook — Instant-Share fürs Heimnetz",
@@ -171,7 +172,7 @@
     "s6": "17 Sprachen",
     "how.title": "Zwei Container, eine <em>klare Grenze</em>",
     "how.text": "<b>drop</b> hält deine Dateien und Texte und ist nur im Heimnetz erreichbar. <b>drop-share</b> liefert die Freigabe-Links ins Internet aus — und sieht nichts ausser dem, was du geteilt hast. Reverse Proxy und Zertifikate bleiben deine Sache.",
-    "how.alt": "Geräte im Heimnetz erreichen drop direkt. Aus dem Internet gehen Anfragen über deinen Reverse Proxy zu drop-share, das nur den Ordner shares liest; drop weist alles ab, was über einen Proxy kommt.",
+    "how.alt": "Architektur: Geräte im Heimnetz erreichen drop direkt unter drop.deinedomain.com, dessen DNS-Eintrag auf die LAN-Adresse von drop zeigt. drop und das optionale drop-share laufen als zwei getrennte Container mit eigenen LAN-Adressen: drop als root mit nur vier Capabilities, drop-share als Benutzer 99:100 ohne jede Capability auf einem nur lesbaren Dateisystem. drop liest und schreibt den ganzen Daten-Share; drop-share sieht nur shares/, nur lesend. Eine geteilte Datei ist ein Hardlink in shares/files auf dieselbe Inode wie das Original — keine Kopie. Aus dem Internet gehen Anfragen über deinen Reverse Proxy zu drop-share auf Port 80; drop weist alles ab, was über einen Proxy kommt.",
     "sec.title": "<em>Privat</em> von Grund auf",
     "sec1.title": "Drop bleibt in deinem Netz.",
     "sec1.text": "Drop selbst weist alles ab, was über einen Proxy kommt — auch über einen falsch eingestellten. Ins Internet schaut nur drop-share, und das sieht nur, was du geteilt hast.",
@@ -257,6 +258,7 @@
     "a6": "Ja, wenn du willst: bis zu fünf Benutzer in der <code>compose.yaml</code>, jeder mit Name, PIN und Farbe. Jeder meldet sich einmal pro Gerät an und wechselt dann zwischen seinem eigenen Bereich — nur er sieht ihn — und dem gemeinsamen. Ohne Benutzer teilen einfach alle alles.",
     "s7": "Hell und dunkel",
     "s8": "Fünf Farben",
-    "s9": "Benutzer mit eigenem Bereich"
+    "s9": "Benutzer mit eigenem Bereich",
+    "inst.tip": "<b>Tipp: Auch im Heimnetz mit HTTPS.</b> Über einfaches http:// warnen Browser bei Downloads oder blockieren sie, und Bilder lassen sich nicht kopieren. Beim Domain-Hoster <code>drop</code> auf die LAN-Adresse von drop zeigen lassen (z. B. <code>drop → 192.168.1.20</code>) — dann findet Drop das Zertifikat deines Reverse Proxys von selbst."
   }
 }

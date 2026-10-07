@@ -69,7 +69,7 @@ auf jedem anderen Linux-Rechner mit Docker Compose: siehe
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/diagram/architecture-de-dark.webp">
-    <img src="docs/diagram/architecture-de-light.webp" alt="Geräte im Heimnetz erreichen drop direkt. Aus dem Internet gehen Anfragen über deinen Reverse Proxy (HTTPS auf 443) zu drop-share auf Port 80. drop-share liest nur den Ordner shares; drop weist alles ab, was über einen Proxy kommt." width="100%">
+    <img src="docs/diagram/architecture-de-light.webp" alt="Architektur: Geräte im Heimnetz erreichen drop direkt unter drop.deinedomain.com, dessen DNS-Eintrag auf die LAN-Adresse von drop zeigt. drop und das optionale drop-share laufen als zwei getrennte Container mit eigenen LAN-Adressen: drop als root mit nur vier Capabilities, drop-share als Benutzer 99:100 ohne jede Capability auf einem nur lesbaren Dateisystem. drop liest und schreibt den ganzen Daten-Share; drop-share sieht nur shares/, nur lesend. Eine geteilte Datei ist ein Hardlink in shares/files auf dieselbe Inode wie das Original — keine Kopie. Aus dem Internet gehen Anfragen über deinen Reverse Proxy zu drop-share auf Port 80; drop weist alles ab, was über einen Proxy kommt." width="100%">
   </picture>
 </p>
 
@@ -86,9 +86,9 @@ steht.
 * **Zwei freie Adressen** in deinem LAN, eine für `drop`, eine für `drop-share`.
 * **Eine eigene Domain** mit zwei Namen — ohne geht Drop über die IP-Adresse,
   nur ohne Teilen ins Internet und ohne HTTPS:
-  * `drop.deinedomain.com` → die Adresse von `drop`, als lokaler DNS-Eintrag in
-    deinem Router oder DNS-Server (oder als öffentlicher DNS-Eintrag — eine
-    private Adresse dort ist harmlos).
+  * `drop.deinedomain.com` → die LAN-Adresse von `drop` — am einfachsten als
+    DNS-Eintrag beim Domain-Hoster (eine private Adresse dort ist harmlos),
+    oder als lokaler DNS-Eintrag in deinem Router oder DNS-Server.
   * `drop-share.deinedomain.com` → deine öffentliche IP-Adresse (bei wechselnder IP:
     dynamisches DNS).
 * **Einen Reverse Proxy**, der aus dem Internet erreichbar ist, fürs Teilen.
@@ -181,6 +181,24 @@ und `drop-share`:
 ```
 Drop — public part on port 80, shares only, from /data/shares
 ```
+
+> **Tipp: Auch im Heimnetz mit HTTPS.** Meldet `drop` `Starting on port 80
+> without TLS`, läuft es über einfaches `http://`. Das geht — aber Browser
+> warnen dann bei Downloads oder blockieren sie („unsicherer Download“), Bilder
+> lassen sich nicht kopieren, und das Teilen-Menü unter Android bleibt zu. Zwei
+> Dinge machen es zu HTTPS:
+>
+> 1. **Der Name:** Beim Domain-Hoster einen DNS-Eintrag `drop` → LAN-Adresse
+>    von `drop` anlegen (Typ A, z. B. `192.168.1.20`). Eine private Adresse im
+>    öffentlichen DNS schadet nicht — sie funktioniert nur in deinem Netz. Löst
+>    der Name zu Hause nicht auf, blockt ihn der DNS-Rebind-Schutz deines
+>    Routers: `drop.deinedomain.com` dort erlauben (FRITZ!Box: *Heimnetz →
+>    Netzwerk → Netzwerkeinstellungen → DNS-Rebind-Schutz*). Ein lokaler
+>    DNS-Eintrag im Router oder in Pi-hole/AdGuard geht genauso.
+> 2. **Das Zertifikat:** Meist findet Drop das Zertifikat deines Reverse
+>    Proxys von selbst — siehe [HTTPS im Heimnetz](#https-im-heimnetz).
+>
+> Danach `https://drop.deinedomain.com` öffnen, nicht die IP-Adresse.
 
 ### 5. Drop ausprobieren
 

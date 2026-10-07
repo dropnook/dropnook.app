@@ -315,7 +315,7 @@
     <p class="sub wide"><b>drop</b> hält deine Dateien und Texte und ist nur im Heimnetz erreichbar. <b>drop-share</b> liefert die Freigabe-Links ins Internet aus — und sieht nichts ausser dem, was du geteilt hast. Reverse Proxy und Zertifikate bleiben deine Sache.</p>
     <picture class="diagram">
       <source media="(prefers-color-scheme: dark)" srcset="../diagram/architecture-de-dark.webp">
-      <img src="../diagram/architecture-de-light.webp" width="2000" height="925" loading="lazy" alt="Geräte im Heimnetz erreichen drop direkt. Aus dem Internet gehen Anfragen über deinen Reverse Proxy zu drop-share, das nur den Ordner shares liest; drop weist alles ab, was über einen Proxy kommt.">
+      <img src="../diagram/architecture-de-light.webp" width="2000" height="1230" loading="lazy" alt="Architektur: Geräte im Heimnetz erreichen drop direkt unter drop.deinedomain.com, dessen DNS-Eintrag auf die LAN-Adresse von drop zeigt. drop und das optionale drop-share laufen als zwei getrennte Container mit eigenen LAN-Adressen: drop als root mit nur vier Capabilities, drop-share als Benutzer 99:100 ohne jede Capability auf einem nur lesbaren Dateisystem. drop liest und schreibt den ganzen Daten-Share; drop-share sieht nur shares/, nur lesend. Eine geteilte Datei ist ein Hardlink in shares/files auf dieselbe Inode wie das Original — keine Kopie. Aus dem Internet gehen Anfragen über deinen Reverse Proxy zu drop-share auf Port 80; drop weist alles ab, was über einen Proxy kommt.">
     </picture>
   </div>
 </section>
@@ -340,6 +340,7 @@
       <li><h3>compose.yaml einrichten</h3><p>Die <code>compose.yaml</code> übernehmen und zwei freie IP-Adressen eintragen.</p></li>
       <li><h3>Starten</h3><p><code>docker compose up -d</code> — danach <code>drop.deinedomain.com</code> auf jedem Gerät im Heimnetz öffnen.</p></li>
     </ol>
+    <p class="tip"><b>Tipp: Auch im Heimnetz mit HTTPS.</b> Über einfaches http:// warnen Browser bei Downloads oder blockieren sie, und Bilder lassen sich nicht kopieren. Beim Domain-Hoster <code>drop</code> auf die LAN-Adresse von drop zeigen lassen (z. B. <code>drop → 192.168.1.20</code>) — dann findet Drop das Zertifikat deines Reverse Proxys von selbst.</p>
     <p class="ctas center"><a class="btn" href="https://github.com/dropnook/dropnook.app/blob/main/README.de.md#installation">Ganze Anleitung auf GitHub</a></p>
     <p class="sub center">Kein Unraid? <span class="dn">Drop<span>nook</span></span> läuft auf jedem Linux-Rechner mit Docker Compose — <a href="https://github.com/dropnook/dropnook.app/blob/main/docs/DEVELOPMENT.md#without-unraid">so geht’s</a>.</p>
   </div>
