@@ -15,6 +15,7 @@
       repo: 'View on GitHub →', prev: 'Previous screenshot', next: 'Next screenshot', all: 'All screenshots',
       keys: 'Click the picture to zoom in, move the mouse to look around · ← → to browse.',
       touch: 'Tap the picture to zoom in, swipe to browse.',
+      back: '← Home', home: '../',
       title: 'Dropnook — screenshots', dir: '../screenshots/', readme: 'https://github.com/dropnook/dropnook.app',
     },
     de: {
@@ -30,6 +31,7 @@
       repo: 'Auf GitHub ansehen →', prev: 'Vorheriges Bild', next: 'Nächstes Bild', all: 'Alle Bilder',
       keys: 'Klick aufs Bild vergrössert, mit der Maus umsehen · ← → zum Blättern.',
       touch: 'Tippen vergrössert, wischen blättert.',
+      back: '← Startseite', home: '../de/',
       title: 'Dropnook — Bilder', dir: '../screenshots/de/', readme: 'https://github.com/dropnook/dropnook.app/blob/main/README.de.md',
     },
   };
@@ -47,6 +49,9 @@
     document.title = t.title;
     document.getElementById('repo').textContent = t.repo;
     document.getElementById('repo').href = t.readme;
+    document.getElementById('back').textContent = t.back;
+    document.getElementById('back').href = t.home;
+    document.getElementById('home').href = t.home;
     document.getElementById('prev').setAttribute('aria-label', t.prev);
     document.getElementById('next').setAttribute('aria-label', t.next);
     document.getElementById('thumbs').setAttribute('aria-label', t.all);

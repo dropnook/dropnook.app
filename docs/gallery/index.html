@@ -67,18 +67,21 @@
   .langs button[aria-pressed="true"]{background:var(--accent); color:var(--surface)}
   .hint{font-size:13px; color:var(--muted); text-align:center; padding-bottom:16px}
   .hint .touch{display:none}
+  .hint a{color:var(--accent); text-decoration:none; font-weight:600}
+  .hint a:hover{text-decoration:underline}
   @media (hover:none){ .hint .keys{display:none} .hint .touch{display:inline} }
   @media (max-width:640px){
     header{padding:12px 16px} header img{height:24px}
     main{justify-content:flex-start; padding-top:24px}
     .nav{width:40px; height:40px; font-size:22px} .prev{left:8px} .next{right:8px}
-    .thumbs button{width:84px}
+    .thumbs{gap:8px}
+    .thumbs button{width:calc(25% - 6px); max-width:84px}   /* four in a row: 7 pictures in 4 + 3 */
   }
 </style>
 </head>
 <body>
 <header>
-  <a href="../" class="home"><picture>
+  <a href="../" class="home" id="home"><picture>
     <source media="(prefers-color-scheme: dark)" srcset="../title-dark.svg">
     <img src="../title-light.svg" alt="Dropnook — home">
   </picture></a>
@@ -86,7 +89,7 @@
     <div class="langs" role="group" aria-label="Language">
       <button type="button" data-lang="en">EN</button><button type="button" data-lang="de">DE</button>
     </div>
-    <a id="repo" href="https://github.com/dropnook/dropnook.app">View on GitHub →</a>
+    <a id="back" href="../">← Home</a>
   </div>
 </header>
 <main>
@@ -98,6 +101,7 @@
   <p class="caption" id="caption" aria-live="polite"></p>
   <nav class="thumbs" id="thumbs" aria-label="All screenshots"></nav>
   <p class="hint"><span class="keys" id="hint-keys"></span><span class="touch" id="hint-touch"></span></p>
+  <p class="hint"><a id="repo" href="https://github.com/dropnook/dropnook.app">View on GitHub →</a></p>
 </main>
 <script src="gallery.js"></script>
 </body>
