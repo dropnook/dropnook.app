@@ -1,0 +1,207 @@
+# Tests the Dropnook image and publishes it to the GitHub Container Registry:
+#
+#   Actions → Image → Run workflow, version 1.2.3
+#                             →  ghcr.io/<owner>/<repo>:1.2.3, :1.2, :1, :latest,
+#                                then tag v1.2.3 and a GitHub release for it
+#   release v1.2.3 published  →  the same images (for releases made by hand)
+#   push to main              →  ghcr.io/<owner>/<repo>:edge
+#   every Monday              →  the latest release rebuilt on a fresh base image,
+#                                for its security updates: :1.2, :1, :latest
+#                                (:1.2.3 stays as released). Skipped when the base
+#                                image has not changed since the last build.
+#                                By hand: Run workflow with "rebuild" ticked.
+#
+# Nothing is published unless .github/smoke-test.sh passes against the image.
+#
+# The first image ever published is private on GitHub; set the package to
+# public once (Packages → <repo> → Package settings → Change visibility).
+name: Image
+
+on:
+  release:
+    types: [published]
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 3 * * 1"   # Mondays 03:17 UTC: security updates of the base image
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release this version, e.g. 1.2.3 (empty: just build the branch)"
+        required: false
+        default: ""
+      rebuild:
+        description: "Rebuild the latest release on a fresh base image (security updates)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write          # only used to create the tag and release
+  packages: write
+
+concurrency:
+  group: image-${{ github.event_name }}-${{ github.ref }}-${{ inputs.version }}
+  cancel-in-progress: true
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    env:
+      IMAGE: ghcr.io/${{ github.repository_owner }}/dropnook
+      BASE: python:3.13-slim           # keep in step with FROM in the Dockerfile
+      RELEASE_TAG: ${{ inputs.version && format('v{0}', inputs.version) || '' }}
+      SCHEDULED: ${{ github.event_name == 'schedule' || inputs.rebuild == true }}
+    steps:
+      - name: Which release to rebuild
+        if: env.SCHEDULED == 'true'
+        id: latest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          [ -z "$RELEASE_TAG" ] || { echo "::error::Either a version or rebuild, not both"; exit 1; }
+          tag=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)
+          echo "Latest release: $tag"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      # The code to build: the latest release when scheduled, else this commit.
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ steps.latest.outputs.tag || github.sha }}
+
+      # What the labels say: the commit and version actually built.
+      - name: Source
+        id: src
+        env:
+          VERSION: ${{ env.RELEASE_TAG || steps.latest.outputs.tag }}
+        run: |
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          if [ -n "$VERSION" ]; then echo "version=${VERSION#v}" >> "$GITHUB_OUTPUT"; fi
+
+      # The test script as it is now — an older release may not have it yet.
+      - uses: actions/checkout@v5
+        with:
+          path: ci
+          sparse-checkout: .github
+
+      - name: Check the version
+        if: env.RELEASE_TAG != ''
+        run: |
+          echo "$RELEASE_TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$' \
+            || { echo "::error::Version must look like 1.2.3"; exit 1; }
+          if git ls-remote --exit-code --tags origin "refs/tags/$RELEASE_TAG" > /dev/null; then
+            echo "::error::$RELEASE_TAG exists already"; exit 1
+          fi
+
+      - name: Check the code
+        run: |
+          python3 -m py_compile main.py healthcheck.py
+          sh -n entrypoint.sh
+          for f in lang/*.json; do python3 -m json.tool "$f" > /dev/null || exit 1; done
+
+      - name: Base image
+        id: base
+        run: |
+          for attempt in 1 2 3; do
+            digest=$(docker buildx imagetools inspect "$BASE" --format '{{json .Manifest}}' | jq -r .digest) && break
+            sleep 20
+          done
+          [ -n "$digest" ] || { echo "::error::Cannot read the digest of $BASE"; exit 1; }
+          echo "$BASE is $digest"
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
+      - name: Anything new?
+        if: env.SCHEDULED == 'true'
+        id: fresh
+        run: |
+          built=$(docker buildx imagetools inspect "${IMAGE,,}:latest" \
+            --format '{{ index (index .Image "linux/amd64").Config.Labels "org.opencontainers.image.base.digest" }}' \
+            2>/dev/null || true)
+          if [ "$built" = "${{ steps.base.outputs.digest }}" ] && [ "${{ github.event_name }}" = schedule ]; then
+            echo "The base image has not changed since the last build — nothing to do."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: docker/setup-qemu-action@v3
+        if: steps.fresh.outputs.skip != 'true'
+      - uses: docker/setup-buildx-action@v3
+        if: steps.fresh.outputs.skip != 'true'
+
+      - uses: docker/login-action@v3
+        if: steps.fresh.outputs.skip != 'true'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Registry names are lower case, account names need not be.
+      - name: Image name
+        id: names
+        run: echo "image=${IMAGE,,}" >> "$GITHUB_OUTPUT"
+
+      - id: meta
+        if: steps.fresh.outputs.skip != 'true'
+        uses: docker/metadata-action@v5
+        env:
+          VERSION: ${{ env.RELEASE_TAG || steps.latest.outputs.tag }}
+        with:
+          images: ${{ steps.names.outputs.image }}
+          flavor: latest=false
+          tags: |
+            type=semver,pattern={{version}},value=${{ env.VERSION }},enable=${{ env.SCHEDULED != 'true' }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ env.VERSION }}
+            type=semver,pattern={{major}},value=${{ env.VERSION }}
+            type=raw,value=latest,enable=${{ github.event_name == 'release' || env.VERSION != '' }}
+            type=edge,branch=main,enable=${{ env.SCHEDULED != 'true' }}
+          labels: |
+            org.opencontainers.image.title=Dropnook
+            org.opencontainers.image.description=Instant sharing for your home network, with expiring links to the internet
+            org.opencontainers.image.licenses=AGPL-3.0-only
+            org.opencontainers.image.base.name=docker.io/library/${{ env.BASE }}
+            org.opencontainers.image.base.digest=${{ steps.base.outputs.digest }}
+            org.opencontainers.image.revision=${{ steps.src.outputs.sha }}
+            ${{ steps.src.outputs.version && format('org.opencontainers.image.version={0}', steps.src.outputs.version) || '' }}
+
+      # First for this machine only, to test it; the cache makes the real
+      # build below reuse every layer of it.
+      - name: Build for the test
+        if: steps.fresh.outputs.skip != 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          pull: true
+          load: true
+          tags: drop:ci
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Test
+        if: steps.fresh.outputs.skip != 'true'
+        run: bash ci/.github/smoke-test.sh drop:ci
+
+      - name: Build and publish
+        if: steps.fresh.outputs.skip != 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          pull: true
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Only after the images are out. A release created with GITHUB_TOKEN does
+      # not start this workflow a second time.
+      - name: Create the tag and release
+        if: env.RELEASE_TAG != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # .github/release-notes/v1.2.3.md, if there, goes above the generated changelog.
+          notes=".github/release-notes/$RELEASE_TAG.md"
+          if [ -f "$notes" ]; then set -- --notes-file "$notes"; fi
+          gh release create "$RELEASE_TAG" --target "$GITHUB_SHA" \
+            --title "Dropnook ${RELEASE_TAG#v}" --generate-notes "$@"

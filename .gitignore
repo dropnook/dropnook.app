@@ -1,0 +1,11 @@
+# macOS / SMB leftovers
+.DS_Store
+._*
+.smbdelete*
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Unfinished uploads (normally under /data, listed here just in case)
+.upload-*.part

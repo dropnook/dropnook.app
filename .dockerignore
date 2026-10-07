@@ -1,0 +1,9 @@
+.git
+.github
+.gitignore
+.dockerignore
+compose-projects-drop/
+README.md
+**/__pycache__
+docs/
+ci/

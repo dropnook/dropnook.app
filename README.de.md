@@ -1,0 +1,404 @@
+<h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/title-dark.svg">
+    <img src="docs/title-light.svg" alt="Dropnook" height="44">
+  </picture>
+</h1>
+
+[English](README.md) · **Deutsch** · [dropnook.app](https://dropnook.app/de/)
+
+**Instant-Share fürs Heimnetz — wie AirDrop, nur für jedes Gerät.** Einen
+Text oder eine Datei vom Handy auf den PC bringen, von Windows zum Mac, von
+Android zum iPhone: eine Webseite öffnen, hineinziehen, und es ist sofort auf
+jedem anderen Gerät. Ohne App, ohne Login, ohne Cloud — alles bleibt auf deinem
+eigenen Server.
+
+Muss etwas aus dem Haus? Einzelne Dateien oder Texte über einen Link teilen,
+der von selbst abläuft, auf Wunsch mit Passwort. Ausgeliefert wird er von einem
+zweiten, abgeschotteten Container — Drop selbst ist aus dem Internet nie
+erreichbar.
+
+*Dropnook™* heisst das Projekt; auf deinen Geräten heisst es einfach *Drop* — die
+Seite nennt sich nach deinem Server „Tower Drop“.
+
+<p align="center">
+  <a href="https://dropnook.app/gallery/?lang=de"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/de/slideshow-dark.webp"><img src="docs/screenshots/de/slideshow-light.webp" alt="Drop in Bildern: Textfelder und Dateien, Teilen ins Internet, was öffentlich ist, die Seite des Empfängers, die Ansicht auf dem Handy, andere Sprachen, hell und dunkel" width="100%"></picture></a>
+</p>
+
+<p align="center">
+  <a href="https://dropnook.app/gallery/?lang=de#1" title="Text und Dateien"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/de/1-overview-dark-thumb.webp"><img src="docs/screenshots/de/1-overview-light-thumb.webp" alt="Text und Dateien" width="32%"></picture></a>
+  <a href="https://dropnook.app/gallery/?lang=de#2" title="Teilen"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/de/2-share-dark-thumb.webp"><img src="docs/screenshots/de/2-share-light-thumb.webp" alt="Teilen" width="32%"></picture></a>
+  <a href="https://dropnook.app/gallery/?lang=de#3" title="Was öffentlich ist"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/de/3-shares-dark-thumb.webp"><img src="docs/screenshots/de/3-shares-light-thumb.webp" alt="Was öffentlich ist" width="32%"></picture></a>
+  <a href="https://dropnook.app/gallery/?lang=de#4" title="Ansicht des Empfängers"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/de/4-public-dark-thumb.webp"><img src="docs/screenshots/de/4-public-light-thumb.webp" alt="Ansicht des Empfängers" width="32%"></picture></a>
+  <a href="https://dropnook.app/gallery/?lang=de#5" title="Handy"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/de/5-phone-dark-thumb.webp"><img src="docs/screenshots/de/5-phone-light-thumb.webp" alt="Handy" width="32%"></picture></a>
+  <a href="https://dropnook.app/gallery/?lang=de#6" title="17 Sprachen"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/de/6-languages-dark-thumb.webp"><img src="docs/screenshots/de/6-languages-light-thumb.webp" alt="17 Sprachen" width="32%"></picture></a>
+</p>
+
+<p align="center"><sub><a href="https://dropnook.app/gallery/?lang=de">Galerie öffnen</a> — mit Pfeilen blättern, mit einem Klick hineinzoomen.</sub></p>
+
+* Textfelder mit Wort-, Zeichen- und Linkzählung; ungespeicherter Text übersteht
+  Neuladen und Verbindungsabbrüche.
+* Uploads jeder Grösse — fortsetzbar, mit Fortschritt für alle sichtbar.
+* Die Seite heisst „`<Servername>` Drop“, der Name kommt live aus Unraid.
+* Screenshots direkt aus der Zwischenablage mit Strg+V; Bilder mit Vorschau,
+  Grossansicht und *Kopieren* in die Zwischenablage eines anderen Computers.
+* 17 Sprachen, automatisch nach dem Browser.
+
+| | |
+|---|---|
+| Container | `drop` (Drop selbst, nur im Heimnetz) und `drop-share` (Freigabe-Links, Internet) |
+| Image | `ghcr.io/dropnook/dropnook:1` |
+| Daten | der Unraid-Share `drop` → `files/`, `texts/`, `shares/` |
+| Drop | `https://drop.deinedomain.com` — im Heimnetz |
+| Freigabe-Links | `https://drop-share.deinedomain.com/k7m3x-9pq2r` — von überall |
+
+`deinedomain.com` steht überall für deine eigene Domain.
+
+Gemacht für Unraid, und diese Anleitung ist für Unraid — Drop läuft aber auch
+auf jedem anderen Linux-Rechner mit Docker Compose: siehe
+[Without Unraid](docs/DEVELOPMENT.md#without-unraid) (auf Englisch).
+
+## So hängt alles zusammen
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/diagram/architecture-de-dark.webp">
+    <img src="docs/diagram/architecture-de-light.webp" alt="Geräte im Heimnetz erreichen drop direkt. Aus dem Internet gehen Anfragen über deinen Reverse Proxy (HTTPS auf 443) zu drop-share auf Port 80. drop-share liest nur den Ordner shares; drop weist alles ab, was über einen Proxy kommt." width="100%">
+  </picture>
+</p>
+
+Reverse Proxy und Zertifikate bleiben deine Sache — Drop erwartet nur, was unter
+[Was Drop von deinem Reverse Proxy erwartet](#was-drop-von-deinem-reverse-proxy-erwartet)
+steht.
+
+## Was du brauchst
+
+* **Einen Server mit Docker.** Empfohlen, und so zeigt es diese Anleitung:
+  **Unraid** mit dem Plugin **Compose Manager Plus** (*Apps* → danach suchen →
+  *Install*). Jeder andere Linux-Rechner mit Docker Compose geht auch — siehe
+  [Without Unraid](docs/DEVELOPMENT.md#without-unraid) (auf Englisch).
+* **Zwei freie Adressen** in deinem LAN, eine für `drop`, eine für `drop-share`.
+* **Eine eigene Domain** mit zwei Namen — ohne geht Drop über die IP-Adresse,
+  nur ohne Teilen ins Internet und ohne HTTPS:
+  * `drop.deinedomain.com` → die Adresse von `drop`, als lokaler DNS-Eintrag in
+    deinem Router oder DNS-Server (oder als öffentlicher DNS-Eintrag — eine
+    private Adresse dort ist harmlos).
+  * `drop-share.deinedomain.com` → deine öffentliche IP-Adresse (bei wechselnder IP:
+    dynamisches DNS).
+* **Einen Reverse Proxy**, der aus dem Internet erreichbar ist, fürs Teilen.
+* Empfohlen: **ein Zertifikat** für `drop.deinedomain.com` (ein Wildcard
+  `*.deinedomain.com` geht) — dann läuft Drop auch im Heimnetz über HTTPS.
+
+## Installation
+
+### 1. Auf Unraid einen neuen Share „drop“ anlegen
+
+Ein eigener Share für die Dateien und Texte von Drop. In der Unraid-Weboberfläche
+*Shares* → *Add Share*:
+
+* Name **`drop`**, auf dem gewünschten Pool.
+* *Secondary storage*: **none** (wenn der Share Exclusive Access nutzt).
+* *Minimum free space*: grosszügig — ein grosser Upload darf den Pool nicht bis
+  zum Rand füllen.
+
+Diesen Share legt Drop nie selbst an. Darin legt es `files/`, `texts/` und
+`shares/` von selbst an.
+
+### 2. Das Docker-Netz von Unraid prüfen
+
+In der Unraid-Weboberfläche *Settings* → *Docker* (oben rechts *Advanced View*
+einschalten):
+
+* Bei den eigenen Netzen muss **`br0`** das Subnetz und Gateway deines LANs
+  zeigen — das Netz, in dem die beiden Adressen von oben liegen.
+* Läuft dein Reverse Proxy auf diesem Unraid im Modus *bridge* oder *host*,
+  stelle **Host access to custom networks** auf *Enabled* — sonst erreicht er
+  `drop-share` nicht. (Dafür muss Docker kurz gestoppt werden.)
+
+### 3. Drop als Stack im Compose Manager Plus anlegen
+
+In der Unraid-Weboberfläche Reiter *Docker* → weiter unten Bereich *Compose* →
+**Add New Stack** → Name **`drop`**.
+
+Beim neuen Stack **Edit Stack** → Reiter **Compose**: den Inhalt von
+[`compose-projects-drop/compose.yaml`](compose-projects-drop/compose.yaml)
+([roh](https://raw.githubusercontent.com/dropnook/dropnook.app/main/compose-projects-drop/compose.yaml))
+einfügen.
+
+Alles, was man normalerweise ändert, steht im Block **SETTINGS** ganz oben:
+
+| Einstellung | Vorgabe | Was zu tun ist |
+|---|---|---|
+| `drop-ip`, `share-ip` | `<drop-IP>`, `<share-IP>` | Die zwei freien Adressen **eintragen** |
+| `data`, `shares`, `counters` | `/mnt/user/drop/…` | Nur wenn dein Share anders heisst oder woanders liegt |
+| `appdata` | `/mnt/user/appdata/drop` | Eigene Übersetzungen; darf leer bleiben |
+| `certs` | `…/Nginx-Proxy-Manager-Official/letsencrypt` | Der Ordner mit deinen Zertifikaten |
+| `tls-cert`, `tls-key` | `auto`, leer | So lassen — Drop findet das Zertifikat selbst (siehe [HTTPS](#https-im-heimnetz)) |
+| `share-subdomain` | `drop-share` | Erster Teil des Namens der Freigabe-Links |
+| `image` | `ghcr.io/dropnook/dropnook:1` | So lassen — folgt jedem 1.x-Release |
+
+Eine Zeile ausserhalb von SETTINGS: bei `drop` das Label
+`net.unraid.docker.webui` — statt `https://drop.deinedomain.com` deinen Namen
+eintragen. Diese Adresse öffnet *WebUI* im Docker-Tab. Nur wenn du keine Domain
+hast und nicht ins Internet teilst: `http://[IP]/` geht auch — Unraid setzt die
+Adresse selbst ein.
+
+**Save**. Gleich dort, Reiter **Settings** → **Icon URL**, bekommt der Stack
+sein Symbol:
+
+```
+https://raw.githubusercontent.com/dropnook/dropnook.app/main/.github/icons/drop.png
+```
+
+Oder das hier ins Unraid-Terminal einfügen (**>_** oben rechts in der
+Weboberfläche), danach die Seite neu laden:
+
+```sh
+d=/boot/config/plugins/compose.manager/projects/drop; [ -d "$d" ] && printf '%s' https://raw.githubusercontent.com/dropnook/dropnook.app/main/.github/icons/drop.png > "$d/icon_url" && echo "Symbol gesetzt" || echo "Kein Stack 'drop' gefunden"
+```
+
+### 4. Den Stack starten
+
+Im Bereich *Compose* beim Stack `drop`: **Compose Up**. Zuerst startet `drop`;
+sobald es antwortet, folgt `drop-share`. Beide stehen danach auf *healthy*, jeder mit eigenem Symbol.
+
+Beim Stack **Logs** — `drop` sollte melden:
+
+```
+Certificate found for drop.deinedomain.com: …
+Starting on port 443 with TLS
+Tower Drop ready — files in /data/files, texts in /data/texts
+```
+
+und `drop-share`:
+
+```
+Drop — public part on port 80, shares only, from /data/shares
+```
+
+### 5. Drop ausprobieren
+
+* **`https://drop.deinedomain.com`** öffnen — der Punkt oben links wird grün, daneben
+  steht „live verbunden“. *WebUI* bei `drop` im Docker-Tab öffnet die Seite
+  ebenfalls.
+* Ein Textfeld teilen (*Teilen*), den Link kopieren und auf dem Handy **mit
+  ausgeschaltetem WLAN** öffnen.
+* `https://drop-share.deinedomain.com/` allein darf nur eine Fehlerseite zeigen: von
+  aussen gibt es nur die einzelnen Links.
+
+## Was Drop von deinem Reverse Proxy erwartet
+
+Wie du deinen Reverse Proxy betreibst und woher deine Zertifikate kommen, ist
+deine Sache. Drop braucht nur das:
+
+| | |
+|---|---|
+| Name | `drop-share.deinedomain.com` |
+| Weiterleiten an | `http://<share-IP>`, Port **80** |
+| Empfohlen | HTTPS auf **443** mit gültigem Zertifikat, `http://` auf `https://` umleiten |
+| **Nie** | etwas an `<drop-IP>` weiterleiten |
+
+`drop-share` selbst spricht im Heimnetz einfaches HTTP und bekommt nie ein
+Zertifikat zu sehen. Als zweite Sicherung weist `drop` jede Anfrage ab, die über
+einen Proxy oder aus dem Internet kommt — selbst ein falsch eingestellter Proxy
+erreicht Drop selbst nicht.
+
+## HTTPS im Heimnetz
+
+Über einfaches `http://` blockieren Browser manche Downloads („unsicherer
+Download“), Text kopieren geht nur auf Umwegen und Bilder kopieren gar nicht.
+Ein Zertifikat für `drop.deinedomain.com` behebt das — meist das, das dein
+Reverse Proxy schon hat, wenn es diesen Namen abdeckt (ein Wildcard
+`*.deinedomain.com` tut das).
+
+Drop liest es aus dem Ordner `certs`, nur lesend. `tls-cert` legt fest, wie:
+
+| `tls-cert` | |
+|---|---|
+| `auto` (Vorgabe) | Drop nimmt die Zertifikate für `drop.deinedomain.com` oder `*.deinedomain.com` selbst — eines pro Domain, `drop.deinedomain.com` vor `*.deinedomain.com`. Bei mehreren Domains bekommt jeder Name, unter dem du Drop öffnest, sein eigenes. Das Log sagt, welche. |
+| `deinedomain.com` | Dasselbe, nur für diese Domain. |
+| `""` | Kein HTTPS, keine Suche. |
+| ein Dateipfad | Genau dieses Zertifikat; `tls-key` nennt dann die Schlüsseldatei. |
+
+`certs` zeigt ab Werk auf den Ordner von Nginx Proxy Manager; bei etwas anderem
+trägst du den Ordner ein, in dem deine Zertifikate liegen. Zertifikate nie in
+Drops `appdata`-Ordner legen — den kann `drop-share` lesen.
+
+**Drop soll nicht alle deine Zertifikate sehen?** `certs` ist nur lesend
+eingehängt, aber `drop` könnte jedes Zertifikat darin lesen — so findet `auto`
+das richtige, und ein Dateipfad in `tls-cert` schaltet nur die Suche ab, nicht
+den Zugriff. Für genau eines: Zertifikatskette und Schlüssel in einen eigenen
+Ordner kopieren (z. B. `/mnt/user/appdata/drop-certs/`), `certs` auf diesen
+Ordner und `tls-cert`/`tls-key` auf die beiden Dateien setzen. Dann sieht Drop
+nichts anderes — die Erneuerung ist aber deine Sache: nach jeder Erneuerung die
+neuen Dateien dorthin kopieren (z. B. mit dem Plugin *User Scripts*); Drop
+übernimmt sie dann selbst. Bei Nginx Proxy Manager reicht es nicht, nur
+`live/npm-<N>` einzuhängen — die Dateien dort sind Verweise nach `archive/`.
+Ganz ohne HTTPS im Heimnetz: `tls-cert: ""`, und bei `drop` unter `volumes` den
+Eintrag mit `certs` entfernen.
+
+**Wenn `auto` kein Zertifikat findet** — im Bereich *Compose* beim Stack `drop`
+die **Logs** des Containers `drop` öffnen. Direkt nach dem Start steht dort, was
+Drop gefunden hat. Die Lösung kommt in die SETTINGS der `compose.yaml`
+(*Edit Stack* → *Compose*, danach **Compose Up**):
+
+| Im Log steht | Was ändern |
+|---|---|
+| `No certificate for drop.<domain> … in <Ordner>`, und dort liegen deine Zertifikate nicht | `certs` → der Ordner, in dem sie liegen, z. B. `/mnt/user/appdata/<dein Proxy>/letsencrypt` |
+| `No certificate …`, obwohl der Ordner stimmt | Keines der Zertifikate deckt `drop.deinedomain.com` ab — in deinem Proxy eines für `*.deinedomain.com` (oder `drop.deinedomain.com`) holen |
+| `Certificate found for …` nennt eine Domain, die du nicht willst | `tls-cert: deinedomain.com` — nur deine Domain wird verwendet |
+| Du willst genau ein bestimmtes Zertifikat | beide Dateien mit Pfad, z. B. bei Nginx Proxy Manager:<br>`tls-cert: /mnt/user/appdata/Nginx-Proxy-Manager-Official/letsencrypt/live/npm-<N>/fullchain.pem`<br>`tls-key: /mnt/user/appdata/Nginx-Proxy-Manager-Official/letsencrypt/live/npm-<N>/privkey.pem` |
+
+Erneuerte Zertifikate übernimmt Drop von selbst: es startet kurz neu, sobald
+gerade nichts hochgeladen wird. Alte `http://`-Lesezeichen werden umgeleitet.
+
+## Aktualisieren
+
+In der Unraid-Weboberfläche Reiter *Docker* → Bereich *Compose* → **Check for
+Updates**, danach beim Stack `drop` **Update**.
+Deine Dateien, Texte und Freigaben bleiben, wo sie sind.
+
+`:1` folgt jedem 1.x-Release — Fehlerkorrekturen und neue Sprachen, nie etwas,
+das bestehende Einrichtungen bricht. Ein Update ändert deine `compose.yaml`
+nie; ändert ein Release sie, steht in den Release-Notizen, was zu übernehmen
+ist.
+
+Sicherheits-Updates landen von selbst im Image: Jeden Montag wird das aktuelle Release
+auf einem frischen Basis-Image (Debian, Python, OpenSSL) neu gebaut, sofern
+sich dieses geändert hat. *Check for Updates* zeigt dann ein Update für
+dieselbe Version — einfach übernehmen wie jedes andere. Jedes Image wird vor
+dem Veröffentlichen getestet.
+
+## Drop benutzen
+
+**Textfelder** — drei zum Start, mehr mit „+ Textfeld“; `×` entfernt eines für
+alle. Entfernt jemand ein Feld, in dem du noch ungespeicherten Text hast, bietet
+Drop an, ihn als neues Feld zu behalten. Speichern zwei dasselbe Feld
+gleichzeitig, wird der Zweite gefragt, welche Fassung bleibt.
+
+**Screenshots und Bilder** — einen Screenshot in die Zwischenablage nehmen und
+auf der Seite Strg+V drücken (⌘V am Mac): Er wird sofort hochgeladen und
+erscheint auf allen anderen Geräten, kurz hervorgehoben. Bilder bekommen in der
+Dateiliste ein kleines Vorschaubild; ein Klick zeigt sie gross (mit Pfeilen
+oder Wischen zum nächsten). *Kopieren* legt das Bild selbst in die
+Zwischenablage — bereit zum Einfügen in einen Chat, eine Mail oder ein
+Dokument. Das braucht [HTTPS](#https-im-heimnetz); ohne geht es per Rechtsklick
+auf das grosse Bild und *Bild kopieren* im Browser. iPhone-Fotos (HEIC) werden
+wie jede Datei abgelegt, bekommen aber kein Vorschaubild.
+
+**Teilen** — *Teilen* bei einem Textfeld oder *Im Internet teilen…* im Menü
+einer Datei: wählen, wie lange der Link gilt (15 Minuten bis 30 Tage), auf
+Wunsch mit Passwort. **Was öffentlich ist, sieht man immer:** ein oranges
+Abzeichen „Öffentlich“ am Feld oder an der Datei, ein oranger Knopf *Freigaben*
+mit der Anzahl; *Freigaben* listet alle offenen Links mit Aufrufen und Downloads
+und beendet jeden sofort.
+
+Links sehen so aus: `drop-share.deinedomain.com/k7m3x-9pq2r` — leicht vorzulesen und
+abzutippen (kein 0/o oder 1/l/i, Gross-/Kleinschreibung und Bindestrich egal),
+und trotzdem nicht zu erraten. Drop teilt nur, wenn es über seinen Namen
+geöffnet ist: über die IP-Adresse kennt es die Adresse des Links nicht und sagt
+das auch.
+
+**Sprachen** — die Seite folgt dem Browser: Arabisch, Chinesisch, Deutsch,
+Englisch, Französisch, Hindi, Isländisch, Italienisch, Japanisch, Koreanisch,
+Niederländisch, Norwegisch, Polnisch, Portugiesisch, Russisch, Spanisch und
+Türkisch. Um Texte zu ändern oder eine Sprache für dich hinzuzufügen, legst du
+eine Datei in `lang/` im appdata-Ordner ab — siehe
+[`lang/README.md`](lang/README.md).
+
+**Hell und dunkel** folgen dem System. Der Knopf neben *Hilfe* schaltet
+zwischen automatisch, hell und dunkel um; jeder Browser merkt sich seine Wahl.
+
+<p align="center"><a href="https://dropnook.app/gallery/?lang=de#7"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/de/7-theme-dark.webp"><img src="docs/screenshots/de/7-theme-light.webp" alt="Dieselbe Seite hell und dunkel, nebeneinander" width="80%"></picture></a></p>
+
+**Zeiten** zeigt jeder Browser in seiner eigenen Zeitzone; nichts einzustellen.
+
+## So ist es geschützt
+
+| Container | sieht | erreichbar |
+|---|---|---|
+| `drop` | alles: Dateien, Texte, Freigaben, Zertifikat | im Heimnetz |
+| `drop-share` | nur `shares/`, nur lesend (ausser den Aufrufzählern) | über deinen Reverse Proxy |
+
+`drop-share` läuft ohne root, mit schreibgeschütztem Dateisystem, ohne
+Linux-Capabilities und mit begrenztem Speicher. Selbst ein schwerer Fehler darin
+könnte höchstens offenlegen, was ohnehin geteilt ist — deine Dateien, Textfelder und
+Zertifikat gibt es in diesem Container gar nicht. Ausserdem prüft er jeden
+Freigabe-Datensatz und ignoriert alle, die nicht so von drop geschrieben wurden.
+
+`drop` braucht root, um die Datenordner zu besitzen, behält aber nur die vier
+Linux-Capabilities, die es nutzt (Dateibesitz, Hardlinks, Ports 80/443), kann
+keine weiteren erlangen und hat ein Speicherlimit. Vorschaubilder entstehen nur
+aus PNG, JPEG, GIF, WebP, BMP und AVIF, innerhalb von Grössen- und Pixelgrenzen —
+kein anderer Decoder bekommt die Datei je zu sehen.
+
+Jedes Image wird vor dem Veröffentlichen getestet — auch gegen diese Angriffe:
+Pfad-Traversal, gefälschte Freigabe-Datensätze, parallel geratene Passwörter,
+Header-Injektion über Dateinamen, getarnte Bildformate.
+
+* Eine geteilte Datei ist ein Hardlink, keine Kopie — kein zusätzlicher Platz.
+  Wird die Datei in Drop gelöscht, ist auch ihr Link tot.
+* Ein geteilter Text ist eine Kopie; spätere Änderungen am Feld gehen nicht
+  hinaus.
+* Passwörter werden nur als Hash gespeichert; nach 10 Fehlversuchen in 15
+  Minuten ist ein Link für diese Zeit gesperrt.
+* Downloads sind immer Anhänge — eine geteilte HTML-Datei läuft nie im Browser.
+  Abgelaufene Links verschwinden von selbst.
+
+## Wenn etwas nicht geht
+
+**Compose Up: „bind source path does not exist: /mnt/user/drop“** — der Share
+fehlt oder heisst anders (Schritt 1, oder `data` in SETTINGS).
+
+**Compose Up: „no configured subnet contains IP address …“** — `br0` trägt nicht
+das Subnetz deines LANs (Schritt 2). In *Settings* → *Docker*: Docker stoppen,
+*Preserve user defined networks* auf *No*, Docker wieder starten — Unraid baut
+`br0` dann aus deinen Netzwerkeinstellungen neu.
+
+**Ein Freigabe-Link zeigt „502 Bad Gateway“** — der Reverse Proxy erreicht
+`drop-share` nicht: leitet er an `<share-IP>` auf Port 80 weiter, und ist *Host
+access to custom networks* an (Schritt 2)?
+
+**„Teilen geht nur über den Namen“** — die Seite ist über die IP-Adresse
+geöffnet. Stattdessen `https://drop.deinedomain.com` öffnen.
+
+**Immer noch `http://`, obwohl es ein Zertifikat gibt** — das Log von `drop` sagt
+warum: *No certificate for drop.… in …* — siehe [Wenn `auto` kein Zertifikat
+findet](#https-im-heimnetz).
+
+**„Bilder kopieren geht nur über HTTPS“** — die Seite ist über `http://` oder die
+IP-Adresse geöffnet. `https://drop.deinedomain.com` öffnen (siehe
+[HTTPS](#https-im-heimnetz)).
+
+**Ein Bild hat kein Vorschaubild** — HEIC (iPhone-Fotos) bekommt keines, ebenso
+wenig ein Bild über 80 MB oder 60 Megapixel oder eine Datei, deren Inhalt nicht
+zur Endung passt.
+
+**Der Punkt oben links bleibt rot** — der Browser erreicht `drop` nicht: läuft
+der Stack, zeigt `drop.deinedomain.com` auf `<drop-IP>`? Weitertippen geht trotzdem;
+ungespeicherter Text wird nachgeschickt, sobald die Verbindung zurück ist.
+
+## Was Drop bewusst nicht kann
+
+* Keine Ordner — vorher zippen. Ein hochgeladenes ZIP wird abgelegt, nicht
+  entpackt.
+* Keine Benutzer, keine Rechte: wer in deinem Netz ist, darf alles — auch ins
+  Internet teilen.
+* Kein Papierkorb. Gelöscht ist gelöscht.
+* In Drop verfällt nichts von selbst — nur Freigabe-Links laufen ab. Den
+  freien Platz oben rechts im Auge behalten.
+* Keine Uploads von aussen. Teilen geht nur in eine Richtung: hinaus.
+
+## Dropnook unterstützen
+
+Dropnook ist kostenlos und bleibt es. Wenn es dir nützt, kannst du dich mit
+einer Spende bedanken: **[paypal.me/vipermark2](https://www.paypal.com/paypalme/vipermark2)**. Am besten ab 5 €
+(oder 5 CHF) — PayPal behält von jeder Zahlung einen festen Betrag plus ein
+paar Prozent ein, von einem einzelnen Euro kommt kaum etwas an.
+
+---
+
+<sub>Alle Einstellungen, eigenes Image bauen und Releases (auf Englisch):
+[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md). Dropnook ist freie Software unter der
+[GNU Affero General Public License v3.0](LICENSE); der Name Dropnook™ gehört
+nicht zu dieser Lizenz — siehe [TRADEMARKS.md](TRADEMARKS.md).</sub>

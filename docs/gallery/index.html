@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Dropnook — screenshots</title>
+<meta name="description" content="Dropnook is instant sharing for your home network, like AirDrop for every device: move text and files between phone, laptop and PC in the browser — no app, no login, no cloud. Runs on Unraid; single files can go out through expiring links.">
+<link rel="canonical" href="https://dropnook.app/gallery/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Dropnook">
+<meta property="og:title" content="Dropnook — instant sharing for your home network">
+<meta property="og:description" content="Like AirDrop, but for every device: text and files in your home network, instantly — no app, no login, no cloud. Runs on Unraid.">
+<meta property="og:url" content="https://dropnook.app/gallery/">
+<meta property="og:image" content="https://dropnook.app/social-preview.png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="640">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="../icon.png">
+<style>
+  :root{
+    --bg:#F4F7F8; --surface:#FFFFFF; --ink:#121B21; --muted:#4A5B65; --line:#D6DFE3;
+    --accent:#0B6E75; --public:#B45309; --shadow:0 18px 50px -24px rgba(18,27,33,.45);
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#0A1013; --surface:#141C21; --ink:#E3EBEF; --muted:#97A8B2; --line:#26333A;
+      --accent:#54C0C4; --public:#F0A54A; --shadow:0 18px 50px -24px rgba(0,0,0,.9);
+    }
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0; height:100%}
+  body{background:var(--bg); color:var(--ink); display:flex; flex-direction:column;
+       font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif}
+  header{display:flex; align-items:center; justify-content:space-between; gap:16px;
+         padding:14px 24px; border-bottom:1px solid var(--line)}
+  header img{height:30px; display:block}
+  header a{color:var(--accent); text-decoration:none; font-weight:600; white-space:nowrap}
+  header a:hover{text-decoration:underline}
+  main{flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-start;
+       padding:28px 16px 12px; min-height:0}
+  .stage{flex:none; position:relative; width:min(100%, calc((100vh - 300px) * 1.6)); max-width:1600px;
+         aspect-ratio:16/10; border-radius:14px; overflow:hidden; box-shadow:var(--shadow);
+         background:var(--surface); touch-action:pan-y}
+  .stage img{position:absolute; inset:0; width:100%; height:100%; object-fit:contain; display:block;
+             cursor:zoom-in; transition:transform .25s ease; user-select:none; -webkit-user-drag:none}
+  .stage.zoomed img{transform:scale(2.2); cursor:zoom-out; transition:transform .25s ease, transform-origin 0s}
+  .nav{position:absolute; top:50%; transform:translateY(-50%); width:48px; height:48px; border-radius:50%;
+       border:1px solid var(--line); background:color-mix(in srgb, var(--surface) 88%, transparent);
+       color:var(--ink); font-size:26px; line-height:1; cursor:pointer; display:grid; place-items:center;
+       box-shadow:var(--shadow); opacity:.92; z-index:2}
+  .nav:hover{opacity:1; border-color:var(--accent); color:var(--accent)}
+  .nav:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+  .prev{left:14px} .next{right:14px}
+  .stage.zoomed .nav{opacity:0; pointer-events:none}
+  .caption{margin:14px 0 4px; text-align:center; color:var(--muted); min-height:1.5em}
+  .caption b{color:var(--ink)}
+  .thumbs{display:flex; gap:10px; justify-content:center; flex-wrap:wrap; padding:6px 0 18px}
+  .thumbs button{padding:0; border:2px solid transparent; border-radius:8px; overflow:hidden; cursor:pointer;
+                 background:none; width:112px; aspect-ratio:16/10; opacity:.65; transition:opacity .15s}
+  .thumbs button:hover{opacity:.95}
+  .thumbs button[aria-current="true"]{border-color:var(--accent); opacity:1}
+  .thumbs img{width:100%; height:100%; object-fit:cover; display:block}
+  .head-right{display:flex; align-items:center; gap:18px}
+  .langs{display:flex; border:1px solid var(--line); border-radius:8px; overflow:hidden}
+  .langs button{border:0; background:none; color:var(--muted); font:600 13px/1 inherit; padding:7px 11px; cursor:pointer}
+  .langs button[aria-pressed="true"]{background:var(--accent); color:var(--surface)}
+  .hint{font-size:13px; color:var(--muted); text-align:center; padding-bottom:16px}
+  .hint .touch{display:none}
+  @media (hover:none){ .hint .keys{display:none} .hint .touch{display:inline} }
+  @media (max-width:640px){
+    header{padding:12px 16px} header img{height:24px}
+    main{justify-content:flex-start; padding-top:24px}
+    .nav{width:40px; height:40px; font-size:22px} .prev{left:8px} .next{right:8px}
+    .thumbs button{width:84px}
+  }
+</style>
+</head>
+<body>
+<header>
+  <a href="../" class="home"><picture>
+    <source media="(prefers-color-scheme: dark)" srcset="../title-dark.svg">
+    <img src="../title-light.svg" alt="Dropnook — home">
+  </picture></a>
+  <div class="head-right">
+    <div class="langs" role="group" aria-label="Language">
+      <button type="button" data-lang="en">EN</button><button type="button" data-lang="de">DE</button>
+    </div>
+    <a id="repo" href="https://github.com/dropnook/dropnook.app">View on GitHub →</a>
+  </div>
+</header>
+<main>
+  <div class="stage" id="stage">
+    <img id="shot" alt="">
+    <button class="nav prev" id="prev" type="button">‹</button>
+    <button class="nav next" id="next" type="button">›</button>
+  </div>
+  <p class="caption" id="caption" aria-live="polite"></p>
+  <nav class="thumbs" id="thumbs" aria-label="All screenshots"></nav>
+  <p class="hint"><span class="keys" id="hint-keys"></span><span class="touch" id="hint-touch"></span></p>
+</main>
+<script src="gallery.js"></script>
+</body>
+</html>

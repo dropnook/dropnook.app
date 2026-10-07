@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Drop</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>📋</text></svg>">
+<link rel="stylesheet" href="/static/style.css">
+<script src="/static/theme.js"></script>
+</head>
+<body>
+<!-- Texts in here are placeholders: app.js fills every data-i18n element from
+     the language file (lang/<code>.json) before anything is shown. -->
+
+<header class="header">
+  <div class="brand">
+    <span class="dot" id="connection"></span>
+    <h1>Drop</h1>
+    <span class="status-text" id="connection-text" data-i18n="ui.connecting"></span>
+  </div>
+  <p class="notice" id="notice" hidden></p>
+  <div class="header-right">
+    <span class="space" id="space"></span>
+    <button class="btn plain" id="btn-shares" type="button" hidden><span data-i18n="ui.shares"></span><span class="count" id="shares-count"></span></button>
+    <button class="btn plain icon" id="btn-theme" type="button"></button>
+    <button class="btn plain" id="btn-help" type="button" data-i18n="ui.help"></button>
+  </div>
+</header>
+
+<main class="layout">
+
+  <!-- ------------------------------------------------ Text fields -->
+  <section class="column" id="column-text">
+    <div class="column-head">
+      <h2 data-i18n="ui.text"></h2>
+      <button class="btn danger plain" id="btn-clear-texts" type="button" data-i18n="ui.clear_texts"></button>
+    </div>
+    <div id="fields"></div>
+    <button class="field-add" id="btn-add-field" type="button" data-i18n="ui.add_field"></button>
+  </section>
+
+  <!-- ------------------------------------------------ Files -->
+  <section class="column" id="column-files">
+    <div class="column-head">
+      <h2 data-i18n="ui.files"></h2>
+      <div class="tools">
+        <button class="btn" id="btn-upload" type="button" data-i18n="ui.upload"></button>
+        <button class="btn" id="btn-download" type="button" disabled data-i18n="ui.download"></button>
+        <button class="btn danger plain" id="btn-delete-files" type="button" data-i18n="ui.delete_files"></button>
+      </div>
+    </div>
+
+    <input type="file" id="file-input" multiple hidden>
+
+    <div class="list-head">
+      <label class="select-all">
+        <input type="checkbox" id="select-all">
+        <span id="selection-info" data-i18n="ui.all"></span>
+      </label>
+      <input type="search" id="filter" data-i18n-placeholder="ui.filter" autocomplete="off" spellcheck="false">
+      <select id="sort" data-i18n-aria-label="ui.sort">
+        <option value="new" data-i18n="ui.sort_new"></option>
+        <option value="old" data-i18n="ui.sort_old"></option>
+        <option value="name" data-i18n="ui.sort_name"></option>
+        <option value="size" data-i18n="ui.sort_size"></option>
+      </select>
+    </div>
+
+    <div class="store" id="store">
+      <ul class="list" id="list"></ul>
+      <p class="empty" id="empty"><span data-i18n="ui.empty"></span><small data-i18n="ui.paste_hint"></small></p>
+    </div>
+  </section>
+</main>
+
+<footer class="footer">
+  <button class="btn danger" id="btn-delete-all" type="button" data-i18n="ui.delete_all"></button>
+</footer>
+
+<!-- Overlay while dragging -->
+<div class="drop-overlay" id="drop-overlay"><div><strong data-i18n="ui.drop_here"></strong><span data-i18n="ui.drop_no_folders"></span></div></div>
+
+<!-- Context menu -->
+<div class="menu" id="menu" hidden></div>
+
+<!-- Dialog -->
+<div class="dialog-backdrop" id="dialog-backdrop" hidden>
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title">
+    <h3 id="dialog-title"></h3>
+    <div class="dialog-body" id="dialog-body"></div>
+    <div class="dialog-foot" id="dialog-foot"></div>
+  </div>
+</div>
+
+<!-- Toasts -->
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

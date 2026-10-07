@@ -1,0 +1,25 @@
+# Dropnook
+
+> Dropnook is free, open-source, self-hosted instant sharing for the home network — like AirDrop, but for every device and every operating system. Text fields, files of any size and screenshots (Ctrl+V) appear live on every phone, tablet and computer in the network, in the browser: no app, no login, no cloud. Single files or texts can be shared to the internet through expiring links, optionally with a password, served by a separate locked-down container. Made for Unraid (Docker Compose via the Compose Manager Plus plugin); runs on any Linux host with Docker Compose. License: AGPL-3.0. On the devices the page is simply called "Drop" (e.g. "Tower Drop", after the server's name).
+
+Key facts:
+
+- Two containers from one image (ghcr.io/dropnook/dropnook): `drop` (the drop box, LAN only, refuses anything coming through a proxy) and `drop-share` (share links only; non-root, read-only file system, no Linux capabilities, sees only the shared items).
+- Share links look like https://drop-share.yourdomain.com/k7m3x-9pq2r — 10 characters, no look-alike characters, about 50 bits; they expire after 15 minutes to 30 days.
+- HTTPS in the LAN with an existing certificate (e.g. from Nginx Proxy Manager), found automatically.
+- Picture previews, a large view and "Copy" of a picture into another computer's clipboard.
+- 17 languages, light and dark mode. Images are tested against a set of attacks before every release and rebuilt weekly for security updates.
+
+## Docs
+
+- [README (English)](https://raw.githubusercontent.com/dropnook/dropnook.app/main/README.md): what it is, installation on Unraid step by step, HTTPS, updating, usage, security, troubleshooting
+- [README (Deutsch)](https://raw.githubusercontent.com/dropnook/dropnook.app/main/README.de.md): the same in German
+- [compose.yaml](https://raw.githubusercontent.com/dropnook/dropnook.app/main/compose-projects-drop/compose.yaml): the complete Docker Compose file with a SETTINGS block
+- [Developer notes](https://raw.githubusercontent.com/dropnook/dropnook.app/main/docs/DEVELOPMENT.md): all settings (environment variables), running without Unraid, how it works inside, releases
+
+## Optional
+
+- [Source code](https://github.com/dropnook/dropnook.app)
+- [Releases](https://github.com/dropnook/dropnook.app/releases)
+- [Name and trademark](https://raw.githubusercontent.com/dropnook/dropnook.app/main/TRADEMARKS.md)
+- [Screenshot gallery](https://dropnook.app/gallery/)
