@@ -128,6 +128,21 @@
         <h3>{{f6.title}}</h3>
         <p>{{f6.text}}</p>
       </article>
+      <article class="card">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.7-.8 1.7-1.7 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-.9.8-1.7 1.7-1.7H16a5 5 0 0 0 5-5c0-4-4-7.2-9-7.2z"/><circle cx="7.5" cy="11" r="1.2"/><circle cx="10.5" cy="7" r="1.2"/><circle cx="15" cy="7.5" r="1.2"/></svg>
+        <h3>{{f7.title}}</h3>
+        <p>{{f7.text}}</p>
+      </article>
+      <article class="card">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8.5" r="3.2"/><path d="M3 19.5c.6-3.3 3-5 6-5s5.4 1.7 6 5"/><circle cx="16.8" cy="9.5" r="2.6"/><path d="M16.5 14.6c2.4.1 4.1 1.6 4.6 4.4"/></svg>
+        <h3>{{f8.title}}</h3>
+        <p>{{f8.text}}</p>
+      </article>
+      <article class="card">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M10.5 18.5h3"/></svg>
+        <h3>{{f9.title}}</h3>
+        <p>{{f9.text}}</p>
+      </article>
     </div>
   </div>
 </section>
@@ -136,6 +151,13 @@
   <div class="wrap">
     <h2>{{theme.title}}</h2>
     <p class="sub">{{theme.sub}}</p>
+    <div class="colours" data-shots="{{shots}}" role="group" aria-label="{{theme.colours}}" hidden>
+      <button type="button" data-palette="teal" aria-pressed="true"><span class="sw teal"></span>{{pal.teal}}</button>
+      <button type="button" data-palette="gold" aria-pressed="false"><span class="sw gold"></span>{{pal.gold}}</button>
+      <button type="button" data-palette="blue" aria-pressed="false"><span class="sw blue"></span>{{pal.blue}}</button>
+      <button type="button" data-palette="violet" aria-pressed="false"><span class="sw violet"></span>{{pal.violet}}</button>
+      <button type="button" data-palette="coral" aria-pressed="false"><span class="sw coral"></span>{{pal.coral}}</button>
+    </div>
     <div class="compare">
       <img src="{{shots}}app-light.webp" width="2000" height="1250" loading="lazy" alt="{{theme.alt_light}}">
       <img class="dark" src="{{shots}}app-dark.webp" width="2000" height="1250" loading="lazy" alt="{{theme.alt_dark}}">

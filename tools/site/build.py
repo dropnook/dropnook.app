@@ -17,8 +17,11 @@ HERE = Path(__file__).resolve().parent
 DOCS = HERE.parents[1] / "docs"
 SITE = "https://dropnook.app/"
 REPO = "https://github.com/dropnook/dropnook.app"
-WHY = 8      # rows w1..w8 in "Why Dropnook?"
-SHOTS = ["1-overview", "2-share", "3-shares", "4-public", "5-phone", "6-languages"]
+WHY = 9      # rows w1..w9 in "Why Dropnook?"
+FEATURES = 9  # cards f1..f9
+FAQ = 6       # q1..q6
+SHOTS = ["1-overview", "2-share", "3-shares", "4-public", "5-phone", "6-languages", "7-theme",
+         "8-colours", "9-users"]
 
 TEXT = json.loads((HERE / "text.json").read_text(encoding="utf-8"))
 TEMPLATE = (HERE / "page.html").read_text(encoding="utf-8")
@@ -50,7 +53,7 @@ def jsonld(lang: str, t: dict, url: str) -> str:
             "installUrl": REPO + "#installation",
             "image": SITE + "social-preview.png",
             "screenshot": [SITE + f"screenshots/{n}-light.webp" for n in SHOTS],
-            "featureList": [plain(t[f"f{i}.title"]) + " — " + plain(t[f"f{i}.text"]) for i in range(1, 7)],
+            "featureList": [plain(t[f"f{i}.title"]) + " — " + plain(t[f"f{i}.text"]) for i in range(1, FEATURES + 1)],
         },
         {
             "@type": "FAQPage",
@@ -59,7 +62,7 @@ def jsonld(lang: str, t: dict, url: str) -> str:
             "mainEntity": [
                 {"@type": "Question", "name": plain(t[f"q{i}"]),
                  "acceptedAnswer": {"@type": "Answer", "text": plain(t[f"a{i}"])}}
-                for i in range(1, 6)
+                for i in range(1, FAQ + 1)
             ],
         },
         {
@@ -114,7 +117,7 @@ def page(lang: str) -> str:
         f'<p class="yes"><span class="vh">{t["why.with"]}: </span>{t[f"w{i}.yes"]}</p></li>'
         for i in range(1, WHY + 1))
     faq = "\n".join(
-        f'    <details><summary>{t[f"q{i}"]}</summary><p>{t[f"a{i}"]}</p></details>' for i in range(1, 6))
+        f'    <details><summary>{t[f"q{i}"]}</summary><p>{t[f"a{i}"]}</p></details>' for i in range(1, FAQ + 1))
     values = dict(t)
     values.update({
         "lang": lang, "root": root, "url": url, "home": url, "gallery": gallery, "shots": shots,

@@ -39,3 +39,36 @@ for (const box of document.querySelectorAll('.compare')) {
     seen.observe(box);
   }
 }
+
+// The five colour layouts above the slider: both sides show the page in the colour picked.
+const ACCENTS = {        // light: pill, writing on it; dark: the same — as in Drop's style.css
+  teal: ['#0B6E75', '#FFFFFF', '#54C0C4', '#08161A'],
+  gold: ['#F5A623', '#17130A', '#FFB229', '#000000'],
+  blue: ['#2A62C9', '#FFFFFF', '#74A8FF', '#07121F'],
+  violet: ['#6D4FC2', '#FFFFFF', '#B39BFF', '#140D24'],
+  coral: ['#BF3F59', '#FFFFFF', '#FF8FA0', '#240A10'],
+};
+for (const group of document.querySelectorAll('.colours')) {
+  const box = group.nextElementSibling;
+  const [light, dark] = box.querySelectorAll('img');
+  const file = (palette, mode) => `${group.dataset.shots}app-${palette === 'teal' ? '' : palette + '-'}${mode}.webp`;
+  group.hidden = false;
+  group.addEventListener('click', (e) => {
+    const button = e.target.closest('button');
+    if (!button) return;
+    const palette = button.dataset.palette;
+    light.src = file(palette, 'light');
+    dark.src = file(palette, 'dark');
+    const [lb, li, db, di] = ACCENTS[palette];
+    box.style.setProperty('--lt-bg', lb); box.style.setProperty('--lt-ink', li);
+    box.style.setProperty('--dk-bg', db); box.style.setProperty('--dk-ink', di);
+    group.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(b === button)));
+  });
+  // Fetched ahead when the pointer comes near, so the switch is instant.
+  group.addEventListener('pointerover', (e) => {
+    const button = e.target.closest('button');
+    if (!button || button.dataset.ready) return;
+    button.dataset.ready = '1';
+    for (const mode of ['light', 'dark']) new Image().src = file(button.dataset.palette, mode);
+  });
+}

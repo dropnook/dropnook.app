@@ -59,7 +59,10 @@
     "https://dropnook.app/screenshots/3-shares-light.webp",
     "https://dropnook.app/screenshots/4-public-light.webp",
     "https://dropnook.app/screenshots/5-phone-light.webp",
-    "https://dropnook.app/screenshots/6-languages-light.webp"
+    "https://dropnook.app/screenshots/6-languages-light.webp",
+    "https://dropnook.app/screenshots/7-theme-light.webp",
+    "https://dropnook.app/screenshots/8-colours-light.webp",
+    "https://dropnook.app/screenshots/9-users-light.webp"
    ],
    "featureList": [
     "Live auf jedem Gerät — Handy, Laptop, PC — Windows, Mac, Linux, Android, iPhone. Was ein Gerät hineinlegt, sehen alle anderen sofort.",
@@ -67,7 +70,10 @@
     "Dateien jeder Grösse — Hineinziehen oder auswählen. Uploads laufen nach einer Unterbrechung weiter, und alle sehen den Fortschritt.",
     "Screenshots mit Strg+V — Einen Screenshot direkt aus der Zwischenablage einfügen. Am anderen Computer legt ihn ein Klick wieder in die Zwischenablage.",
     "Links, die von selbst ablaufen — Muss etwas aus dem Haus? Eine Datei oder ein Text über einen Link, der von selbst endet — auf Wunsch mit Passwort.",
-    "17 Sprachen, hell und dunkel — Folgt der Sprache des Browsers und dem Erscheinungsbild des Systems — oder per Knopf."
+    "17 Sprachen — Von Arabisch bis Chinesisch, automatisch nach dem Browser — oder mit einer Datei eine eigene dazu.",
+    "Fünf Farben, hell und dunkel — Türkis, Gold, Blau, Violett oder Koralle — jede hell und dunkel. Jeder Browser merkt sich seine.",
+    "Benutzer, wenn du willst — Bis zu fünf Personen mit Name, PIN und Farbe: Jede bekommt einen eigenen Bereich neben dem gemeinsamen.",
+    "Wie eine App — Mit eigenem Symbol auf dem Home-Bildschirm; unter Android direkt hinein teilen. Ein QR-Code öffnet es auf dem Handy, eine PIN hält Gäste draussen."
    ]
   },
   {
@@ -113,6 +119,14 @@
      "acceptedAnswer": {
       "@type": "Answer",
       "text": "Über dein VPN funktioniert Dropnook wie zu Hause. Ohne VPN lassen sich nur die Freigabe-Links öffnen, die du erstellt hast."
+     }
+    },
+    {
+     "@type": "Question",
+     "name": "Können mehrere Leute einen eigenen Bereich haben?",
+     "acceptedAnswer": {
+      "@type": "Answer",
+      "text": "Ja, wenn du willst: bis zu fünf Benutzer in der compose.yaml, jeder mit Name, PIN und Farbe. Jeder meldet sich einmal pro Gerät an und wechselt dann zwischen seinem eigenen Bereich — nur er sieht ihn — und dem gemeinsamen. Ohne Benutzer teilen einfach alle alles."
      }
     }
    ]
@@ -195,7 +209,8 @@
         <li><p class="no"><span class="vh">Andere Lösungen: </span>Upload abgebrochen — alles von vorn</p><p class="yes"><span class="vh">Mit <span class="dn">Drop<span>nook</span></span>: </span>Dieselbe Datei nochmals ablegen — es geht dort weiter, wo es aufgehört hat</p></li>
         <li><p class="no"><span class="vh">Andere Lösungen: </span>Fremde Cloud, Konto und Abo</p><p class="yes"><span class="vh">Mit <span class="dn">Drop<span>nook</span></span>: </span>Dein eigener Server, kein Konto, kostenlos</p></li>
         <li><p class="no"><span class="vh">Andere Lösungen: </span>Schwer im Griff, was ins Internet geht</p><p class="yes"><span class="vh">Mit <span class="dn">Drop<span>nook</span></span>: </span>Teilen ins Internet nur als Option — du entscheidest auf deinem Server, ob die Funktion aktiv ist</p></li>
-        <li><p class="no"><span class="vh">Andere Lösungen: </span>Umständlich für Familie und Gäste</p><p class="yes"><span class="vh">Mit <span class="dn">Drop<span>nook</span></span>: </span>17 Sprachen, hell und dunkel — passt sich jedem von selbst an</p></li>
+        <li><p class="no"><span class="vh">Andere Lösungen: </span>Umständlich für Familie und Gäste</p><p class="yes"><span class="vh">Mit <span class="dn">Drop<span>nook</span></span>: </span>17 Sprachen, fünf Farben, hell und dunkel — passt für alle von selbst</p></li>
+        <li><p class="no"><span class="vh">Andere Lösungen: </span>Alle sehen alles — oder jedes Gerät braucht ein eigenes Konto</p><p class="yes"><span class="vh">Mit <span class="dn">Drop<span>nook</span></span>: </span>Benutzer nur, wenn du willst: jeder mit eigenem Bereich, neben dem gemeinsamen</p></li>
       </ul>
     </div>
   </div>
@@ -232,8 +247,23 @@
       </article>
       <article class="card">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg>
-        <h3>17 Sprachen, hell und dunkel</h3>
-        <p>Folgt der Sprache des Browsers und dem Erscheinungsbild des Systems — oder per Knopf.</p>
+        <h3>17 Sprachen</h3>
+        <p>Von Arabisch bis Chinesisch, automatisch nach dem Browser — oder mit einer Datei eine eigene dazu.</p>
+      </article>
+      <article class="card">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.7-.8 1.7-1.7 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-.9.8-1.7 1.7-1.7H16a5 5 0 0 0 5-5c0-4-4-7.2-9-7.2z"/><circle cx="7.5" cy="11" r="1.2"/><circle cx="10.5" cy="7" r="1.2"/><circle cx="15" cy="7.5" r="1.2"/></svg>
+        <h3>Fünf Farben, hell und dunkel</h3>
+        <p>Türkis, Gold, Blau, Violett oder Koralle — jede hell und dunkel. Jeder Browser merkt sich seine.</p>
+      </article>
+      <article class="card">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8.5" r="3.2"/><path d="M3 19.5c.6-3.3 3-5 6-5s5.4 1.7 6 5"/><circle cx="16.8" cy="9.5" r="2.6"/><path d="M16.5 14.6c2.4.1 4.1 1.6 4.6 4.4"/></svg>
+        <h3>Benutzer, wenn du willst</h3>
+        <p>Bis zu fünf Personen mit Name, PIN und Farbe: Jede bekommt einen eigenen Bereich neben dem gemeinsamen.</p>
+      </article>
+      <article class="card">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M10.5 18.5h3"/></svg>
+        <h3>Wie eine App</h3>
+        <p>Mit eigenem Symbol auf dem Home-Bildschirm; unter Android direkt hinein teilen. Ein QR-Code öffnet es auf dem Handy, eine PIN hält Gäste draussen.</p>
       </article>
     </div>
   </div>
@@ -241,8 +271,15 @@
 
 <section id="theme" class="band">
   <div class="wrap">
-    <h2>Hell oder dunkel — <em>wie du magst</em></h2>
-    <p class="sub">Drop folgt dem Erscheinungsbild deines Systems oder wechselt mit einem Klick — jeder Browser merkt sich seine Wahl. Zieh am Regler zum Vergleichen.</p>
+    <h2>Hell oder dunkel — <em>in fünf Farben</em></h2>
+    <p class="sub">Türkis, Gold, Blau, Violett oder Koralle, jede hell und dunkel — jeder Browser merkt sich seine; mit Benutzern hat jeder seine eigene. Farbe wählen, Regler ziehen.</p>
+    <div class="colours" data-shots="../screenshots/de/" role="group" aria-label="Farb-Layout" hidden>
+      <button type="button" data-palette="teal" aria-pressed="true"><span class="sw teal"></span>Türkis</button>
+      <button type="button" data-palette="gold" aria-pressed="false"><span class="sw gold"></span>Gold</button>
+      <button type="button" data-palette="blue" aria-pressed="false"><span class="sw blue"></span>Blau</button>
+      <button type="button" data-palette="violet" aria-pressed="false"><span class="sw violet"></span>Violett</button>
+      <button type="button" data-palette="coral" aria-pressed="false"><span class="sw coral"></span>Koralle</button>
+    </div>
     <div class="compare">
       <img src="../screenshots/de/app-light.webp" width="2000" height="1250" loading="lazy" alt="Drop im hellen Modus">
       <img class="dark" src="../screenshots/de/app-dark.webp" width="2000" height="1250" loading="lazy" alt="Drop im dunklen Modus">
@@ -265,6 +302,9 @@
       <a href="../gallery/?lang=de#4"><picture><source media="(prefers-color-scheme: dark)" srcset="../screenshots/de/4-public-dark-thumb.webp"><img src="../screenshots/de/4-public-light-thumb.webp" width="720" height="450" loading="lazy" alt="Was der Empfänger sieht"></picture><span>Was der Empfänger sieht</span></a>
       <a href="../gallery/?lang=de#5"><picture><source media="(prefers-color-scheme: dark)" srcset="../screenshots/de/5-phone-dark-thumb.webp"><img src="../screenshots/de/5-phone-light-thumb.webp" width="720" height="450" loading="lazy" alt="Auch fürs Handy gemacht"></picture><span>Auch fürs Handy gemacht</span></a>
       <a href="../gallery/?lang=de#6"><picture><source media="(prefers-color-scheme: dark)" srcset="../screenshots/de/6-languages-dark-thumb.webp"><img src="../screenshots/de/6-languages-light-thumb.webp" width="720" height="450" loading="lazy" alt="17 Sprachen"></picture><span>17 Sprachen</span></a>
+      <a href="../gallery/?lang=de#7"><picture><source media="(prefers-color-scheme: dark)" srcset="../screenshots/de/7-theme-dark-thumb.webp"><img src="../screenshots/de/7-theme-light-thumb.webp" width="720" height="450" loading="lazy" alt="Hell und dunkel"></picture><span>Hell und dunkel</span></a>
+      <a href="../gallery/?lang=de#8"><picture><source media="(prefers-color-scheme: dark)" srcset="../screenshots/de/8-colours-dark-thumb.webp"><img src="../screenshots/de/8-colours-light-thumb.webp" width="720" height="450" loading="lazy" alt="Fünf Farben"></picture><span>Fünf Farben</span></a>
+      <a href="../gallery/?lang=de#9"><picture><source media="(prefers-color-scheme: dark)" srcset="../screenshots/de/9-users-dark-thumb.webp"><img src="../screenshots/de/9-users-light-thumb.webp" width="720" height="450" loading="lazy" alt="Benutzer mit eigenem Bereich"></picture><span>Benutzer mit eigenem Bereich</span></a>
     </div>
   </div>
 </section>
@@ -313,6 +353,7 @@
     <details><summary>Brauchen meine Geräte eine App?</summary><p>Nein. Ein aktueller Browser genügt — auf Handys, Tablets und Computern gleichermassen.</p></details>
     <details><summary>Brauche ich Unraid?</summary><p><span class="dn">Drop<span>nook</span></span> ist für Unraid gemacht, und die Anleitung ist für Unraid. Es läuft aber auch auf jedem Linux-Rechner mit Docker Compose.</p></details>
     <details><summary>Und wenn ich unterwegs bin?</summary><p>Über dein VPN funktioniert <span class="dn">Drop<span>nook</span></span> wie zu Hause. Ohne VPN lassen sich nur die Freigabe-Links öffnen, die du erstellt hast.</p></details>
+    <details><summary>Können mehrere Leute einen eigenen Bereich haben?</summary><p>Ja, wenn du willst: bis zu fünf Benutzer in der <code>compose.yaml</code>, jeder mit Name, PIN und Farbe. Jeder meldet sich einmal pro Gerät an und wechselt dann zwischen seinem eigenen Bereich — nur er sieht ihn — und dem gemeinsamen. Ohne Benutzer teilen einfach alle alles.</p></details>
   </div>
 </section>
 
