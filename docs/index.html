@@ -23,6 +23,7 @@
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="icon.png">
 <link rel="apple-touch-icon" href="icon.png">
+<script src="lang.js"></script>
 <link rel="stylesheet" href="site.css">
 <script src="compare.js" defer></script>
 <script type="application/ld+json">{
@@ -137,6 +138,7 @@
       <img src="title-light.svg" width="228" height="60" alt="Dropnook">
     </picture></a>
     <nav class="links" aria-label="Sections">
+      <a href="#why">Why</a>
       <a href="#features">Features</a>
       <a href="#screenshots">Screenshots</a>
       <a href="#security">Security</a>
@@ -158,9 +160,9 @@
     <div class="hero-text">
       <p class="kicker">Free &amp; open source · self-hosted</p>
       <h1>Instant sharing for your home network</h1>
-      <p class="lead">Like AirDrop, but for every device and every system. Open one web page at home, drop in text, files or a screenshot — and it is on every other device at once. No app, no login, no cloud.</p>
+      <p class="lead">Like AirDrop, but for every device and every system. Open one web page at home, drop in text, files or a screenshot — and it is on every other device at once. No app to install and keep updating on all your devices, no login, no cloud.</p>
       <div class="ctas">
-        <a class="btn" href="https://github.com/dropnook/dropnook.app#installation">Install on Unraid</a>
+        <a class="btn two" href="https://github.com/dropnook/dropnook.app#what-you-need"><span>Install with Docker</span><small>or on Unraid</small></a>
         <a class="btn ghost" href="gallery/">See it in action</a>
       </div>
       <p class="note">Runs on your own server · AGPL-3.0 · 17 languages</p>
@@ -174,7 +176,27 @@
   </div>
 </section>
 
-<section id="features" class="band">
+<section id="why" class="band">
+  <div class="wrap">
+    <h2>Why Dropnook?</h2>
+    <p class="sub">What usually gets in the way — and how it goes with Dropnook.</p>
+    <div class="why">
+      <div class="why-head" aria-hidden="true"><span>Usually</span><span>With Dropnook</span></div>
+      <ul>
+        <li><p class="no"><span class="vh">Usually: </span>An app on every device, kept up to date</p><p class="yes"><span class="vh">With Dropnook: </span>Runs in the browser — on every phone, tablet and computer</p></li>
+        <li><p class="no"><span class="vh">Usually: </span>Set up each device on its own</p><p class="yes"><span class="vh">With Dropnook: </span>Set up once on your server, then just open the address</p></li>
+        <li><p class="no"><span class="vh">Usually: </span>Received files fill up every device</p><p class="yes"><span class="vh">With Dropnook: </span>Everything sits in one place — everyone fetches only what they need</p></li>
+        <li><p class="no"><span class="vh">Usually: </span>Both devices have to be on at the same time</p><p class="yes"><span class="vh">With Dropnook: </span>Drop it now, pick it up later</p></li>
+        <li><p class="no"><span class="vh">Usually: </span>Upload broke off — start all over</p><p class="yes"><span class="vh">With Dropnook: </span>Drop the same file again — it carries on where it stopped</p></li>
+        <li><p class="no"><span class="vh">Usually: </span>Someone else’s cloud, an account, a subscription</p><p class="yes"><span class="vh">With Dropnook: </span>Your own server, no account, free</p></li>
+        <li><p class="no"><span class="vh">Usually: </span>Hard to keep track of what goes out to the internet</p><p class="yes"><span class="vh">With Dropnook: </span>Out to the internet only when you want: one item at a time, expiring, with a password if you like</p></li>
+        <li><p class="no"><span class="vh">Usually: </span>Awkward for family and guests</p><p class="yes"><span class="vh">With Dropnook: </span>17 languages, light and dark — fits everyone by itself</p></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="features">
   <div class="wrap">
     <h2>Everything in one place at home</h2>
     <div class="grid">
@@ -212,7 +234,7 @@
   </div>
 </section>
 
-<section id="theme">
+<section id="theme" class="band">
   <div class="wrap">
     <h2>Light or dark — as you like</h2>
     <p class="sub">Drop follows your system’s appearance, or switches with one click — each browser remembers its choice. Drag the slider to compare.</p>
@@ -227,7 +249,7 @@
   </div>
 </section>
 
-<section id="screenshots" class="band">
+<section id="screenshots">
   <div class="wrap">
     <h2>See it in action</h2>
     <p class="sub">Click a picture to open the gallery — zoom in, browse with the arrow keys.</p>
@@ -242,7 +264,7 @@
   </div>
 </section>
 
-<section id="how">
+<section id="how" class="band">
   <div class="wrap">
     <h2>Two containers, one clear boundary</h2>
     <p class="sub wide"><b>drop</b> holds your files and texts and is reachable only in your network. <b>drop-share</b> serves the share links to the internet — and sees nothing but what you shared. Your reverse proxy and your certificates stay yours.</p>
@@ -253,7 +275,7 @@
   </div>
 </section>
 
-<section id="security" class="band">
+<section id="security">
   <div class="wrap">
     <h2>Private by design</h2>
     <ul class="checks">
@@ -265,7 +287,7 @@
   </div>
 </section>
 
-<section id="install">
+<section id="install" class="band">
   <div class="wrap">
     <h2>Up and running in minutes</h2>
     <ol class="steps">
@@ -274,11 +296,11 @@
       <li><h3>Compose Up</h3><p>Open <code>drop.yourdomain.com</code> — on every device in your network.</p></li>
     </ol>
     <p class="ctas center"><a class="btn" href="https://github.com/dropnook/dropnook.app#installation">Full guide on GitHub</a></p>
-    <p class="sub center">Not on Unraid? Dropnook runs on any Linux host with Docker Compose.</p>
+    <p class="sub center">Not on Unraid? Dropnook runs on any Linux host with Docker Compose — <a href="https://github.com/dropnook/dropnook.app/blob/main/docs/DEVELOPMENT.md#without-unraid">here is how</a>.</p>
   </div>
 </section>
 
-<section id="faq" class="band">
+<section id="faq">
   <div class="wrap narrow">
     <h2>Questions</h2>
     <details><summary>Does anything go to a cloud?</summary><p>No. Everything stays on your server. Only what you share as a link can be reached from outside — and only by whoever has that link.</p></details>

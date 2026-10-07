@@ -23,6 +23,7 @@
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="{{root}}icon.png">
 <link rel="apple-touch-icon" href="{{root}}icon.png">
+<script src="{{root}}lang.js"></script>
 <link rel="stylesheet" href="{{root}}site.css">
 <script src="{{root}}compare.js" defer></script>
 <script type="application/ld+json">{{jsonld}}</script>
@@ -37,6 +38,7 @@
       <img src="{{root}}title-light.svg" width="228" height="60" alt="Dropnook">
     </picture></a>
     <nav class="links" aria-label="{{nav.label}}">
+      <a href="#why">{{nav.why}}</a>
       <a href="#features">{{nav.features}}</a>
       <a href="#screenshots">{{nav.screenshots}}</a>
       <a href="#security">{{nav.security}}</a>
@@ -60,7 +62,7 @@
       <h1>{{hero.title}}</h1>
       <p class="lead">{{hero.lead}}</p>
       <div class="ctas">
-        <a class="btn" href="{{readme}}#installation">{{hero.install}}</a>
+        <a class="btn two" href="{{readme}}#{{hero.install_anchor}}"><span>{{hero.install}}</span><small>{{hero.install2}}</small></a>
         <a class="btn ghost" href="{{gallery}}">{{hero.gallery}}</a>
       </div>
       <p class="note">{{hero.note}}</p>
@@ -74,7 +76,20 @@
   </div>
 </section>
 
-<section id="features" class="band">
+<section id="why" class="band">
+  <div class="wrap">
+    <h2>{{why.title}}</h2>
+    <p class="sub">{{why.sub}}</p>
+    <div class="why">
+      <div class="why-head" aria-hidden="true"><span>{{why.without}}</span><span>{{why.with}}</span></div>
+      <ul>
+{{why_rows}}
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="features">
   <div class="wrap">
     <h2>{{features.title}}</h2>
     <div class="grid">
@@ -112,7 +127,7 @@
   </div>
 </section>
 
-<section id="theme">
+<section id="theme" class="band">
   <div class="wrap">
     <h2>{{theme.title}}</h2>
     <p class="sub">{{theme.sub}}</p>
@@ -127,7 +142,7 @@
   </div>
 </section>
 
-<section id="screenshots" class="band">
+<section id="screenshots">
   <div class="wrap">
     <h2>{{shots.title}}</h2>
     <p class="sub">{{shots.sub}}</p>
@@ -137,7 +152,7 @@
   </div>
 </section>
 
-<section id="how">
+<section id="how" class="band">
   <div class="wrap">
     <h2>{{how.title}}</h2>
     <p class="sub wide">{{how.text}}</p>
@@ -148,7 +163,7 @@
   </div>
 </section>
 
-<section id="security" class="band">
+<section id="security">
   <div class="wrap">
     <h2>{{sec.title}}</h2>
     <ul class="checks">
@@ -160,7 +175,7 @@
   </div>
 </section>
 
-<section id="install">
+<section id="install" class="band">
   <div class="wrap">
     <h2>{{inst.title}}</h2>
     <ol class="steps">
@@ -173,7 +188,7 @@
   </div>
 </section>
 
-<section id="faq" class="band">
+<section id="faq">
   <div class="wrap narrow">
     <h2>{{faq.title}}</h2>
 {{faq}}

@@ -17,6 +17,7 @@ HERE = Path(__file__).resolve().parent
 DOCS = HERE.parents[1] / "docs"
 SITE = "https://dropnook.app/"
 REPO = "https://github.com/dropnook/dropnook.app"
+WHY = 8      # rows w1..w8 in "Why Dropnook?"
 SHOTS = ["1-overview", "2-share", "3-shares", "4-public", "5-phone", "6-languages"]
 
 TEXT = json.loads((HERE / "text.json").read_text(encoding="utf-8"))
@@ -87,6 +88,10 @@ def page(lang: str) -> str:
         f'<img src="{shots}{n}-light-thumb.webp" width="720" height="450" loading="lazy" alt="{html.escape(plain(t[f"s{i}"]))}">'
         f'</picture><span>{t[f"s{i}"]}</span></a>'
         for i, n in enumerate(SHOTS, 1))
+    why = "\n".join(
+        f'        <li><p class="no"><span class="vh">{t["why.without"]}: </span>{t[f"w{i}.no"]}</p>'
+        f'<p class="yes"><span class="vh">{t["why.with"]}: </span>{t[f"w{i}.yes"]}</p></li>'
+        for i in range(1, WHY + 1))
     faq = "\n".join(
         f'    <details><summary>{t[f"q{i}"]}</summary><p>{t[f"a{i}"]}</p></details>' for i in range(1, 6))
     values = dict(t)
@@ -94,7 +99,7 @@ def page(lang: str) -> str:
         "lang": lang, "root": root, "url": url, "home": url, "gallery": gallery, "shots": shots,
         "readme": REPO + ("/blob/main/README.de.md" if de else ""),
         "cur.en": "" if de else 'aria-current="page"', "cur.de": 'aria-current="page"' if de else "",
-        "thumbs": thumbs, "faq": faq, "jsonld": jsonld(lang, t, url),
+        "thumbs": thumbs, "why_rows": why, "faq": faq, "jsonld": jsonld(lang, t, url),
     })
 
     def fill(m):

@@ -23,6 +23,7 @@
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="../icon.png">
 <link rel="apple-touch-icon" href="../icon.png">
+<script src="../lang.js"></script>
 <link rel="stylesheet" href="../site.css">
 <script src="../compare.js" defer></script>
 <script type="application/ld+json">{
@@ -137,6 +138,7 @@
       <img src="../title-light.svg" width="228" height="60" alt="Dropnook">
     </picture></a>
     <nav class="links" aria-label="Abschnitte">
+      <a href="#why">Warum</a>
       <a href="#features">Funktionen</a>
       <a href="#screenshots">Bilder</a>
       <a href="#security">Sicherheit</a>
@@ -158,9 +160,9 @@
     <div class="hero-text">
       <p class="kicker">Kostenlos &amp; Open Source · selbst gehostet</p>
       <h1>Instant-Share fürs Heimnetz</h1>
-      <p class="lead">Wie AirDrop, nur für jedes Gerät und jedes System. Zu Hause eine Webseite öffnen, Text, Dateien oder einen Screenshot hineinziehen — und es ist sofort auf jedem anderen Gerät. Ohne App, ohne Login, ohne Cloud.</p>
+      <p class="lead">Wie AirDrop, nur für jedes Gerät und jedes System. Zu Hause eine Webseite öffnen, Text, Dateien oder einen Screenshot hineinziehen — und es ist sofort auf jedem anderen Gerät. Ohne das lästige Installieren und Aktualisieren einer App auf all deinen Geräten, ohne Login, ohne Cloud.</p>
       <div class="ctas">
-        <a class="btn" href="https://github.com/dropnook/dropnook.app/blob/main/README.de.md#installation">Auf Unraid installieren</a>
+        <a class="btn two" href="https://github.com/dropnook/dropnook.app/blob/main/README.de.md#was-du-brauchst"><span>Mit Docker installieren</span><small>oder auf Unraid</small></a>
         <a class="btn ghost" href="../gallery/?lang=de">In Aktion ansehen</a>
       </div>
       <p class="note">Läuft auf deinem eigenen Server · AGPL-3.0 · 17 Sprachen</p>
@@ -174,7 +176,27 @@
   </div>
 </section>
 
-<section id="features" class="band">
+<section id="why" class="band">
+  <div class="wrap">
+    <h2>Warum Dropnook?</h2>
+    <p class="sub">Was sonst im Weg steht — und wie es mit Dropnook läuft.</p>
+    <div class="why">
+      <div class="why-head" aria-hidden="true"><span>Sonst</span><span>Mit Dropnook</span></div>
+      <ul>
+        <li><p class="no"><span class="vh">Sonst: </span>Auf jedem Gerät eine App installieren und aktuell halten</p><p class="yes"><span class="vh">Mit Dropnook: </span>Läuft im Browser — auf jedem Handy, Tablet und Computer</p></li>
+        <li><p class="no"><span class="vh">Sonst: </span>Jedes Gerät einzeln einrichten</p><p class="yes"><span class="vh">Mit Dropnook: </span>Einmal auf deinem Server einrichten, danach nur noch die Adresse öffnen</p></li>
+        <li><p class="no"><span class="vh">Sonst: </span>Empfangene Dateien füllen den Speicher der Geräte</p><p class="yes"><span class="vh">Mit Dropnook: </span>Alles liegt an einem Ort — jeder holt nur, was er wirklich braucht</p></li>
+        <li><p class="no"><span class="vh">Sonst: </span>Beide Geräte müssen gleichzeitig an sein</p><p class="yes"><span class="vh">Mit Dropnook: </span>Jetzt ablegen, später abholen</p></li>
+        <li><p class="no"><span class="vh">Sonst: </span>Upload abgebrochen — alles von vorn</p><p class="yes"><span class="vh">Mit Dropnook: </span>Dieselbe Datei nochmals ablegen — es geht dort weiter, wo es aufgehört hat</p></li>
+        <li><p class="no"><span class="vh">Sonst: </span>Fremde Cloud, Konto und Abo</p><p class="yes"><span class="vh">Mit Dropnook: </span>Dein eigener Server, kein Konto, kostenlos</p></li>
+        <li><p class="no"><span class="vh">Sonst: </span>Schwer im Griff, was ins Internet geht</p><p class="yes"><span class="vh">Mit Dropnook: </span>Ins Internet nur auf Wunsch: einzeln, mit Ablaufzeit und auf Wunsch mit Passwort</p></li>
+        <li><p class="no"><span class="vh">Sonst: </span>Umständlich für Familie und Gäste</p><p class="yes"><span class="vh">Mit Dropnook: </span>17 Sprachen, hell und dunkel — passt sich jedem von selbst an</p></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="features">
   <div class="wrap">
     <h2>Alles an einem Ort zu Hause</h2>
     <div class="grid">
@@ -212,7 +234,7 @@
   </div>
 </section>
 
-<section id="theme">
+<section id="theme" class="band">
   <div class="wrap">
     <h2>Hell oder dunkel — wie du magst</h2>
     <p class="sub">Drop folgt dem Erscheinungsbild deines Systems oder wechselt mit einem Klick — jeder Browser merkt sich seine Wahl. Zieh am Regler zum Vergleichen.</p>
@@ -227,7 +249,7 @@
   </div>
 </section>
 
-<section id="screenshots" class="band">
+<section id="screenshots">
   <div class="wrap">
     <h2>In Aktion</h2>
     <p class="sub">Ein Klick aufs Bild öffnet die Galerie — hineinzoomen, mit den Pfeiltasten blättern.</p>
@@ -242,7 +264,7 @@
   </div>
 </section>
 
-<section id="how">
+<section id="how" class="band">
   <div class="wrap">
     <h2>Zwei Container, eine klare Grenze</h2>
     <p class="sub wide"><b>drop</b> hält deine Dateien und Texte und ist nur im Heimnetz erreichbar. <b>drop-share</b> liefert die Freigabe-Links ins Internet aus — und sieht nichts ausser dem, was du geteilt hast. Reverse Proxy und Zertifikate bleiben deine Sache.</p>
@@ -253,7 +275,7 @@
   </div>
 </section>
 
-<section id="security" class="band">
+<section id="security">
   <div class="wrap">
     <h2>Privat von Grund auf</h2>
     <ul class="checks">
@@ -265,7 +287,7 @@
   </div>
 </section>
 
-<section id="install">
+<section id="install" class="band">
   <div class="wrap">
     <h2>In wenigen Minuten bereit</h2>
     <ol class="steps">
@@ -274,11 +296,11 @@
       <li><h3>Compose Up</h3><p><code>drop.deinedomain.com</code> öffnen — auf jedem Gerät im Heimnetz.</p></li>
     </ol>
     <p class="ctas center"><a class="btn" href="https://github.com/dropnook/dropnook.app/blob/main/README.de.md#installation">Ganze Anleitung auf GitHub</a></p>
-    <p class="sub center">Kein Unraid? Dropnook läuft auf jedem Linux-Rechner mit Docker Compose.</p>
+    <p class="sub center">Kein Unraid? Dropnook läuft auf jedem Linux-Rechner mit Docker Compose — <a href="https://github.com/dropnook/dropnook.app/blob/main/docs/DEVELOPMENT.md#without-unraid">so geht’s</a>.</p>
   </div>
 </section>
 
-<section id="faq" class="band">
+<section id="faq">
   <div class="wrap narrow">
     <h2>Fragen</h2>
     <details><summary>Geht etwas in eine Cloud?</summary><p>Nein. Alles bleibt auf deinem Server. Von aussen erreichbar ist nur, was du als Link teilst — und nur für den, der den Link hat.</p></details>
