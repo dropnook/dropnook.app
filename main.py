@@ -176,7 +176,10 @@ SHARED = Area("", FILES_DIR, TEXTS_DIR)
 
 class User:
     def __init__(self, palette: str, name: str, pin: str):
-        self.palette, self.name, self.pin = palette, name, pin
+        self.palette, self.name = palette, name
+        # Without a PIN of their own, PIN (if set) is theirs: whoever set one
+        # does not want anybody in by a click.
+        self.pin = pin or LAN_PIN
         self.area = Area(name, USERS_DIR / name / "files", USERS_DIR / name / "texts")
 
 
@@ -619,9 +622,9 @@ def list_files(area: Area) -> list:
     return out
 
 
-def disk_space() -> dict:
+def disk_space(area: Area = SHARED) -> dict:
     try:
-        usage = shutil.disk_usage(FILES_DIR)
+        usage = shutil.disk_usage(area.files)
         return {"free": usage.free, "total": usage.total}
     except OSError:
         return {"free": 0, "total": 0}
@@ -885,11 +888,11 @@ def count_access(sid: str, what: str) -> None:
             pass                 # counters/ not writable: then without numbers
 
 
-def hardlink_probe() -> Optional[str]:
+def hardlink_probe(folder: Path = FILES_DIR) -> Optional[str]:
     """Can files be hard-linked from the drop box into shares/files? Only if
     both are on the same file system AND in the same mount — separate bind
     mounts fail with EXDEV, even on the same disk."""
-    source = FILES_DIR / f".linkprobe-{uuid.uuid4().hex[:8]}"
+    source = folder / f".linkprobe-{uuid.uuid4().hex[:8]}"
     target = BLOB_DIR / source.name
     try:
         source.write_bytes(b"")
@@ -1041,7 +1044,7 @@ hub = Hub()
 
 def announce_files(area: Area) -> None:
     hub.publish("files", {"files": list_files(area), "uploads": area_uploads(area),
-                          "space": disk_space()}, area)
+                          "space": disk_space(area)}, area)
 
 
 async def announce_shares() -> None:
@@ -1181,7 +1184,7 @@ async def lifespan(app: FastAPI):
                 print(f"  The PIN of {user.name} is shorter than 4 characters — easy to guess.",
                       flush=True)
         if LAN_PIN:
-            print("PIN is not used: with users, each one signs in with their own.", flush=True)
+            print("PIN is the PIN of every user without one of their own.", flush=True)
     elif LAN_PIN:
         print("PIN is set: every new browser is asked for it once.", flush=True)
         if len(LAN_PIN) < 4:
@@ -1218,12 +1221,14 @@ async def lifespan(app: FastAPI):
         print(f"Sharing on: {where}, at most {SHARE_MAX_DAYS} days, records in {SHARES_DIR}",
               flush=True)
         cookie_secret()                    # create it before the public container needs it
-        error = await run_in_threadpool(hardlink_probe)
-        if error:
-            banner("FILES CANNOT BE SHARED (texts can):",
-                   f"Hard link {FILES_DIR} → {BLOB_DIR} fails: {error}",
-                   "Both have to be in the same mount — in compose.yaml, mount",
-                   "the drop share as ONE volume at /data.")
+        for area in areas():
+            error = await run_in_threadpool(hardlink_probe, area.files)
+            if error:
+                banner("FILES CANNOT BE SHARED (texts can):",
+                       f"Hard link {area.files} → {BLOB_DIR} fails: {error}",
+                       "Both have to be in the same mount — in compose.yaml, mount",
+                       "the drop share as ONE volume at /data.")
+                break
         app.state.share_watch = asyncio.create_task(watch_shares())
     app.state.thumb_watch = asyncio.create_task(watch_thumbs())
 
@@ -1448,6 +1453,12 @@ async def pin_gate(request: Request, call_next):
     if not SIGN_IN or request.url.path in ACCESS_OPEN:
         return await call_next(request)
     ok, user = session(request)
+    # A page opened for one user, while another one has signed in in this
+    # browser since: it must not go on in the other person's area — 401, and
+    # it reloads as the one signed in now.
+    opened_as = request.headers.get("x-drop-as") or request.query_params.get("as")
+    if ok and user and opened_as and opened_as != user.palette:
+        ok = False
     if ok:
         request.state.user = user
         return await call_next(request)
@@ -1532,6 +1543,16 @@ async def logout(request: Request) -> Response:
     reply.delete_cookie(ACCESS_COOKIE, path="/", httponly=True, samesite="strict",
                         secure=request.url.scheme == "https")
     return reply
+
+
+@app.middleware("http")
+async def own_page_only(request: Request, call_next):
+    """Changes come from Drop's own page. Browsers say where a request comes
+    from; another site — even one on a neighbouring subdomain, which the
+    SameSite cookie does not stop — gets nothing changed here."""
+    if request.method not in ("GET", "HEAD", "OPTIONS") and from_elsewhere(request):
+        return PlainTextResponse("Only from Drop's own page", status_code=403)
+    return await call_next(request)
 
 
 @app.middleware("http")
@@ -1727,7 +1748,7 @@ async def state(request: Request) -> JSONResponse:
         "field_max": FIELDS_MAX,
         "files": await run_in_threadpool(list_files, area),
         "uploads": area_uploads(area),
-        "space": await run_in_threadpool(disk_space),
+        "space": await run_in_threadpool(disk_space, area),
         "chunk_size": CHUNK_SIZE,
         "sharing": {"enabled": SHARING_ENABLED, "max_days": SHARE_MAX_DAYS,
                     "base_url": SHARE_BASE_URL or None, "subdomain": SHARE_SUBDOMAIN},

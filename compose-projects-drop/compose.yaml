@@ -48,7 +48,7 @@ services:
       # USER_GOLD:   "Tom:1357"
       # USER_BLUE:   "Lena:8642"
       # USER_VIOLET: "Max:9753"
-      # USER_CORAL:  "Mia"          # without ":PIN", the name alone signs in
+      # USER_CORAL:  "Mia"          # without ":PIN": the name alone (or PIN, if set)
       # TZ: Europe/Berlin            # log timestamps only
       # More settings: docs/DEVELOPMENT.md
     volumes:

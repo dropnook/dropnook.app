@@ -54,6 +54,8 @@ wait_healthy ci-drop
 check "page loads"              test "$(code -H "Host: $HOST" "http://$LAN/")" = 200
 check "state answers"           test "$(code -H "Host: $HOST" "http://$LAN/api/state")" = 200
 check "proxied request refused" test "$(code -H "Host: $HOST" -H 'X-Forwarded-For: 203.0.113.9' "http://$LAN/api/state")" = 404
+check "no changes from other sites" test "$(code -H "Host: $HOST" -H 'Sec-Fetch-Site: same-site' -H 'Content-Type: text/plain' \
+  -d '{"text":"spam"}' "http://$LAN/api/text")" = 403
 check "data folders created"    test -d "$DATA/files" -a -d "$DATA/texts" -a -d "$DATA/shares/counters"
 
 # A file, uploaded the way the page does it: init, one chunk, done.
@@ -223,13 +225,13 @@ check "PIN: and nothing stored"                   test ! -e "$WORK/pin/files/pin
 # ------------------------------------------------- users, each with an area of their own
 USRLAN=127.0.0.1:18083
 mkdir -p "$WORK/users"
-start_users() {   # start_users <PIN of Anna>
+start_users() {   # start_users <PIN of Anna> [PIN for everyone]
   docker rm -f ci-drop-users >/dev/null 2>&1 || true
   docker run -d --name ci-drop-users -p "$USRLAN:80" \
     --cap-drop ALL --cap-add CHOWN --cap-add DAC_OVERRIDE --cap-add FOWNER --cap-add NET_BIND_SERVICE \
     --security-opt no-new-privileges:true --memory 2g --pids-limit 200 \
     -e MODE=lan -e TLS_CERT= -e SERVER_NAME=CI -e CHUNK_MB=1 \
-    -e "USER_TEAL=Anna:$1" -e "USER_GOLD=Tom" -v "$WORK/users:/data" "$IMAGE" >/dev/null
+    -e "USER_TEAL=Anna:$1" -e "USER_GOLD=Tom" -e "PIN=${2:-}" -v "$WORK/users:/data" "$IMAGE" >/dev/null
   wait_healthy ci-drop-users
 }
 cookie_of() { grep -i '^set-cookie: drop_access=' "$1" | sed -E 's/^[^:]*: (drop_access=[^;]*).*/\1/' | tr -d '\r'; }
@@ -245,6 +247,7 @@ check "users: Anna signs in with her PIN"  grep -qiE '^set-cookie: drop_access=[
 check "users: Tom needs none"              grep -qiE '^set-cookie: drop_access=[0-9]+\.gold\.[0-9a-f]{64};' "$WORK/tom.headers"
 ANNA=$(cookie_of "$WORK/anna.headers"); TOM=$(cookie_of "$WORK/tom.headers")
 check "users: a cookie cannot change hands" test "$(code "${U[@]}" -b "${ANNA/.teal./.gold.}" "http://$USRLAN/api/state")" = 401
+check "users: a page opened for Tom is refused with Anna's cookie" test "$(code "${U[@]}" -b "$ANNA" -H 'X-Drop-As: gold' "http://$USRLAN/api/state")" = 401
 check "users: the page in Anna's colour"   bash -c "curl -s -H 'Host: $HOST' -b '$ANNA' http://$USRLAN/ | grep -q 'data-palette=\"teal\" data-user'"
 upload_as() {   # upload_as <cookie> <area> <name> <file> — prints the upload id
   curl -sf "${U[@]}" -b "$1" -H 'Content-Type: application/json' -d "{\"name\":\"$3\",\"size\":$(stat -c %s "$4")}" \
@@ -274,6 +277,9 @@ check "users: not even with “end all”"     bash -c "curl -s -H 'Host: $HOST'
 start_users 1357
 check "users: a changed PIN signs her out" test "$(code "${U[@]}" -b "$ANNA" "http://$USRLAN/api/state")" = 401
 check "users: and only her"                test "$(code "${U[@]}" -b "$TOM" "http://$USRLAN/api/state")" = 200
+start_users 1357 4321
+check "users: with PIN set, it is Tom's too" test "$(code "${U[@]}" -b "$TOM" "http://$USRLAN/api/state")$(code "${U[@]}" -d 'user=gold' "http://$USRLAN/login")" = 401403
+check "users: and it lets him in"          test "$(code "${U[@]}" -d 'user=gold&pin=4321' "http://$USRLAN/login")" = 303
 if timeout 60 docker run --rm -e MODE=lan -e 'USER_BLUE=../evil' -v "$WORK/users:/data" "$IMAGE" >"$WORK/badusers.log" 2>&1; then
   fail "starts with a user name that is a path"
 fi

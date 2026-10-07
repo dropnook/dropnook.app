@@ -383,7 +383,7 @@ name, a PIN and a colour — one user per colour, in `compose.yaml` at `drop`:
       USER_GOLD:   "Tom:1357"
       USER_BLUE:   "Lena:8642"
       USER_VIOLET: "Max:9753"
-      USER_CORAL:  "Mia"          # without ":PIN", her name alone signs in
+      USER_CORAL:  "Mia"          # without ":PIN": her name alone (or PIN, if set)
 ```
 
 Drop then starts with "Who's there?": everyone taps their name once per device,
@@ -395,9 +395,11 @@ area are listed only for that user.
 
 The files are in the share `drop` under `users/<name>/`, the shared area stays
 where it was (`files/`, `texts/`). Renaming a user starts an empty area —
-rename the folder as well. A changed PIN signs that user out, nobody else.
-With users, `PIN` is not used. Without a PIN anyone in your network can open
-that user's area — fine for a living-room TV, not for something private.
+rename the folder as well; renaming or removing a user also ends the links
+shared from their area. A changed PIN signs that user out, nobody else.
+A user without a PIN of their own signs in with `PIN`, if that is set;
+otherwise their name alone does, and anyone in your network can open that
+area — fine for a living-room TV, not for something private.
 
 <p align="center"><a href="https://dropnook.app/gallery/#9"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/9-users-dark.webp"><img src="docs/screenshots/9-users-light.webp" alt="Tom's own area in gold, next to the sign-in page with five names" width="80%"></picture></a></p>
 

@@ -399,7 +399,7 @@ ihnen einen Namen, eine PIN und eine Farbe — ein Benutzer pro Farbe, in der
       USER_GOLD:   "Tom:1357"
       USER_BLUE:   "Lena:8642"
       USER_VIOLET: "Max:9753"
-      USER_CORAL:  "Mia"          # ohne ":PIN" meldet ihr Name allein an
+      USER_CORAL:  "Mia"          # ohne ":PIN": ihr Name allein (oder PIN, falls gesetzt)
 ```
 
 Drop fragt dann zuerst „Wer bist du?“: Jeder tippt einmal pro Gerät auf seinen
@@ -412,10 +412,11 @@ Benutzer in der Liste.
 
 Die Dateien liegen im Share `drop` unter `users/<Name>/`, der gemeinsame
 Bereich bleibt, wo er war (`files/`, `texts/`). Wer einen Benutzer umbenennt,
-beginnt mit einem leeren Bereich — den Ordner gleich mit umbenennen. Eine
-geänderte PIN meldet nur diesen Benutzer ab. Mit Benutzern gilt `PIN` nicht.
-Ohne PIN kann jeder im Netz diesen Bereich öffnen — gut für den Fernseher im
-Wohnzimmer, nicht für Privates.
+beginnt mit einem leeren Bereich — den Ordner gleich mit umbenennen; umbenennen
+oder entfernen beendet auch die Links aus seinem Bereich. Eine geänderte PIN
+meldet nur diesen Benutzer ab. Wer keine eigene PIN hat, meldet sich mit `PIN`
+an, falls gesetzt; sonst genügt sein Name, und jeder im Netz kann diesen
+Bereich öffnen — gut für den Fernseher im Wohnzimmer, nicht für Privates.
 
 <p align="center"><a href="https://dropnook.app/gallery/?lang=de#9"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/de/9-users-dark.webp"><img src="docs/screenshots/de/9-users-light.webp" alt="Toms eigener Bereich in Gold, daneben die Anmeldung mit fünf Namen" width="80%"></picture></a></p>
 

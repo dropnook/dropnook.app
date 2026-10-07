@@ -13,8 +13,8 @@ come from its SETTINGS block.
 | `MODE` | `lan` | `lan` = Drop itself, `public` = share links only (`drop-share`) |
 | `APP_NAME` | `{server} Drop` | Page title; `{server}` is the Unraid server name |
 | `APP_NOTICE` | empty | A short line shown in the header; empty hides it |
-| `PIN` | empty | PIN or password every new browser is asked for once (signed in for 90 days); changing it signs everyone out. Not used with users. `lan` only |
-| `USER_TEAL`, `USER_GOLD`, `USER_BLUE`, `USER_VIOLET`, `USER_CORAL` | empty | Up to five users, one per colour: `name:PIN`, or `name` alone to sign in without a PIN. Each gets an area of their own in `USERS_DIR/<name>/` next to the shared one. Names: 1–40 characters, no `/` or `\`, not starting with a dot, each once — otherwise Drop does not start. `lan` only |
+| `PIN` | empty | PIN or password every new browser is asked for once (signed in for 90 days); changing it signs everyone out. With users: the PIN of every user without one of their own. `lan` only |
+| `USER_TEAL`, `USER_GOLD`, `USER_BLUE`, `USER_VIOLET`, `USER_CORAL` | empty | Up to five users, one per colour: `name:PIN`, or `name` alone — then `PIN` is theirs, or, without `PIN`, the name alone signs in. Each gets an area of their own in `USERS_DIR/<name>/` next to the shared one. Names: 1–40 characters, no `/` or `\`, not starting with a dot, each once — otherwise Drop does not start. `lan` only |
 | `TEXT_FIELDS` | `3` | Fields after the first start and after "Clear text fields" |
 | `TEXT_FIELDS_MAX` | `12` | Maximum number of fields |
 | `CHUNK_MB` | `64` | Upload chunk size |
@@ -113,7 +113,14 @@ Unraid and can stay.
   area go only to that user's pages. A share record remembers its area
   (`"area": "<name>"`; none = shared): only that user sees and ends it in the
   LAN, and it ends by itself once the user is no longer in `compose.yaml`.
-  Without users nothing of this applies, and nothing changes for 1.x data.
+  The page sends whom it was opened for (`X-Drop-As`, `?as=` for live
+  updates): after someone else signed in in another tab, it gets 401 and
+  reloads instead of working in their area. Without users nothing of this
+  applies, and nothing changes for 1.x data.
+* **Changes only from Drop's own page**: every request that is not GET or
+  HEAD and that the browser marks as coming from elsewhere (`Sec-Fetch-Site`
+  other than `same-origin` or `none`) is refused — also from a neighbouring
+  subdomain, which the SameSite cookie would let through.
 * **Colour layouts**: `data-palette` on `<html>` (`gold`, `blue`, `violet`,
   `coral`; none = teal) switches the colour tokens in `static/style.css`, each
   in light and dark. With users the server sets the user's colour before the

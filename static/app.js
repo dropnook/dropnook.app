@@ -47,6 +47,10 @@ const fresh          = new Map();   // name → when it arrived, for a short hig
 // colour. Each user has an area of their own next to the shared one; the page
 // shows one of the two, and every request says which.
 const usersOn        = 'user' in document.documentElement.dataset;
+// Whom this page was opened for. Someone else signing in in another tab
+// replaces the cookie; the server then answers 401 and this page reloads,
+// instead of saving into the other person's area.
+const openedAs       = usersOn ? document.documentElement.dataset.palette || '' : '';
 let user             = null;        // { name, palette }
 let area             = 'shared';    // 'own' | 'shared'
 
@@ -108,7 +112,7 @@ function t(key, values) {
 
 /* In the user's own area, "deleted for everyone" would not be true: there the
    key_own variant of a text is used, where the language has one. */
-function ta(key, values) {
+function tArea(key, values) {
   if (area === 'own') {
     const own = key + '_own';
     if (strings[own] !== undefined || strings[own + '_other'] !== undefined) return t(own, values);
@@ -134,8 +138,9 @@ function withArea(url, which = area) {
 // With a PIN (compose.yaml): once the sign-in has run out or the PIN was
 // changed, every request answers 401 — reload, and the PIN page comes up.
 const plainFetch = window.fetch.bind(window);
-window.fetch = async (...args) => {
-  const response = await plainFetch(...args);
+window.fetch = async (url, options = {}) => {
+  if (openedAs) options = { ...options, headers: { ...(options.headers || {}), 'x-drop-as': openedAs } };
+  const response = await plainFetch(url, options);
   if (response.status === 401) location.reload();
   return response;
 };
@@ -444,12 +449,12 @@ function buildField(id) {
   };
   clear.onclick = () => {
     if (!ta.value) return;
-    confirmDialog(t('ui.clear_field_title'), ta('ui.clear_field_text', { field: fieldName(f) }),
+    confirmDialog(t('ui.clear_field_title'), tArea('ui.clear_field_text', { field: fieldName(f) }),
       t('ui.clear'), () => { ta.value = ''; updateCount(f); saveDraft(f); save(f); });
   };
   remove.onclick = () => {
     if (!ta.value) { removeField(f); return; }
-    confirmDialog(t('ui.remove_field_title'), ta('ui.remove_field_text', { field: fieldName(f) }),
+    confirmDialog(t('ui.remove_field_title'), tArea('ui.remove_field_text', { field: fieldName(f) }),
       t('ui.remove'), () => removeField(f));
   };
   return f;
@@ -514,6 +519,8 @@ function fillNewField(f, x) {
       resolveConflict(f, draft.text, x);
       f.textarea.value = draft.text;
     }
+  } else if (draft) {
+    deleteDraft(f);                    // arrived after all
   }
   updateCount(f);
 }
@@ -543,8 +550,9 @@ function unmountField(f) {
 }
 
 async function addField(text) {
+  const asked = area;
   try {
-    const r = await fetch(withArea('/api/text'), {
+    const r = await fetch(withArea('/api/text', asked), {
       method: 'POST',
       headers: { 'content-type': 'application/json; charset=utf-8' },
       body: JSON.stringify({ text: text || '' }),
@@ -552,6 +560,7 @@ async function addField(text) {
     if (r.status === 409) { toast(t('ui.field_limit', { n: fieldMax }), true); return null; }
     if (!r.ok) throw new Error(r.status);
     const d = await r.json();
+    if (asked !== area) return null;      // another area is shown now
     syncFields(d.texts);
     return fieldById(d.id) || null;
   } catch (e) {
@@ -569,7 +578,8 @@ async function removeField(f) {
     const r = await fetch(withArea(`/api/text/${f.id}`, f.area), { method: 'DELETE' });
     if (r.status === 409) { f.gone = false; toast(t('ui.last_field')); return; }
     if (!r.ok) throw new Error(r.status);
-    syncFields((await r.json()).texts);
+    const texts = (await r.json()).texts;
+    if (f.area === area) syncFields(texts);
   } catch (e) {
     f.gone = false;
     toast(t('ui.field_remove_failed'), true);
@@ -710,7 +720,10 @@ async function save(f) {
       headers: { 'content-type': 'application/json; charset=utf-8' },
       body: JSON.stringify({ text, base: f.version }),
     });
-    if (f.gone) return;          // another area is shown now; the draft waits for it
+    if (f.gone) {                // another area is shown now: only tidy up behind it
+      if (response.ok && f.textarea.value === text) deleteDraft(f);
+      return;
+    }
     if (response.status === 404) {
       // The field was removed on the server. Syncing takes it down and offers
       // to rescue the draft.
@@ -1389,10 +1402,11 @@ function startDownload(names) {
 /* Several downloads are triggered one after another with a gap. The browser
    does not report when one has finished — true one-by-one is not possible. */
 function triggerDownloads(names) {
+  const urls = names.map(fileUrl);      // the area shown now, even if it changes meanwhile
   names.forEach((name, i) => {
     setTimeout(() => {
       const a = document.createElement('a');
-      a.href = fileUrl(name);
+      a.href = urls[i];
       a.download = name;
       a.style.display = 'none';
       document.body.appendChild(a);
@@ -1407,8 +1421,8 @@ function triggerDownloads(names) {
 async function deleteFiles(names) {
   const total = files.filter((d) => names.includes(d.name)).reduce((s, d) => s + d.size, 0);
   const what = names.length === 1
-    ? ta('ui.delete_single', { name: names[0] })
-    : ta('ui.delete_many', { n: names.length, size: formatSize(total) });
+    ? tArea('ui.delete_single', { name: names[0] })
+    : tArea('ui.delete_many', { n: names.length, size: formatSize(total) });
   confirmDialog(t('ui.delete_title'), what, t('ui.delete'), async () => {
     await fetch(withArea('/api/files'), {
       method: 'DELETE',
@@ -1596,17 +1610,17 @@ function cancelUpload(id) {
 }
 
 async function uploadFiles(list) {
+  const into = area;      // all of them go where they were dropped, even if another area is shown meanwhile
   for (const file of list) {
     try {
-      await uploadFile(file);
+      await uploadFile(file, into);
     } catch (e) {
       toast(t('ui.upload_failed', { name: file.name, reason: e.message }), true);
     }
   }
 }
 
-async function uploadFile(file) {
-  const into = area;      // the area it goes to, even if another is shown meanwhile
+async function uploadFile(file, into) {
   const start = await fetch(withArea('/api/upload/init', into), {
     method: 'POST',
     headers: { 'content-type': 'application/json; charset=utf-8' },
@@ -1898,7 +1912,7 @@ function setConnected(on) {
 
 function connectEvents() {
   if (source) source.close();
-  source = new EventSource('/api/events');
+  source = new EventSource(openedAs ? '/api/events?as=' + openedAs : '/api/events');
 
   source.onopen = () => {
     setConnected(true);
@@ -1912,7 +1926,8 @@ function connectEvents() {
 
   // With users, each event says which area it is about. The other one only
   // gets a dot on its tab.
-  const here = (d) => !d.area || d.area === area;
+  // Before the first state arrived the user is not known yet — nor where drafts belong.
+  const here = (d) => (!usersOn || user) && (!d.area || d.area === area);
 
   source.addEventListener('text', (e) => {
     const d = JSON.parse(e.data);
@@ -2043,6 +2058,12 @@ function wireButtons() {
     if (!usersOn && (e.key === PALETTE_KEY || e.key === null)) applyPalette(e.newValue || 'teal');
   });
   document.querySelectorAll('#areas [role=tab]').forEach((b) => { b.onclick = () => switchArea(b.dataset.area); });
+  // Signed out here: the other tabs of this browser follow at once.
+  if ('BroadcastChannel' in window) {
+    const tabs = new BroadcastChannel('drop');
+    tabs.onmessage = (e) => { if (e.data === 'signed-out') location.reload(); };
+    $('#areas form').addEventListener('submit', () => tabs.postMessage('signed-out'));
+  }
 
   $('#btn-add-field').onclick = async () => {
     const f = await addField('');
@@ -2070,7 +2091,7 @@ function wireButtons() {
   $('#sort').onchange = drawList;
 
   $('#btn-clear-texts').onclick = () => {
-    confirmDialog(t('ui.clear_texts_title'), ta('ui.clear_texts_text', { n: fieldStart }),
+    confirmDialog(t('ui.clear_texts_title'), tArea('ui.clear_texts_text', { n: fieldStart }),
       t('ui.clear_texts'), async () => {
         stopAllSaves();
         await fetch(withArea('/api/text'), { method: 'DELETE' }).catch(() => {});
@@ -2082,7 +2103,7 @@ function wireButtons() {
     const total = files.reduce((s, d) => s + d.size, 0);
     if (!files.length) { toast(t('ui.no_files')); return; }
     confirmDialog(t('ui.delete_files_title'),
-      ta('ui.delete_files_text', { files: t('ui.files_count', { n: files.length }), size: formatSize(total) }),
+      tArea('ui.delete_files_text', { files: t('ui.files_count', { n: files.length }), size: formatSize(total) }),
       t('ui.delete_files'), async () => {
         await fetch(withArea('/api/files'), {
           method: 'DELETE', headers: { 'content-type': 'application/json' },
@@ -2096,7 +2117,7 @@ function wireButtons() {
   $('#btn-delete-all').onclick = () => {
     const total = files.reduce((s, d) => s + d.size, 0);
     const here = shares.filter(inArea);
-    const parts = [ta('ui.delete_all_text', { files: t('ui.files_count', { n: files.length }), size: formatSize(total) })];
+    const parts = [tArea('ui.delete_all_text', { files: t('ui.files_count', { n: files.length }), size: formatSize(total) })];
     if (here.length) parts.push(t('ui.delete_all_shares', { n: here.length }));
     confirmDialog(t('ui.delete_all_title'), parts.join(' '), t('ui.delete_all'), async () => {
       stopAllSaves();
