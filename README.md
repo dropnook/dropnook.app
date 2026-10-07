@@ -21,7 +21,7 @@ locked-down container — Drop itself is never reachable from the internet.
 page calls itself "Tower Drop", after your server.
 
 <p align="center">
-  <a href="https://dropnook.app/gallery/"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/slideshow-dark.webp"><img src="docs/screenshots/slideshow-light.webp" alt="Drop in pictures: text fields and files, sharing to the internet, what is public, the recipient's page, the phone layout, other languages, light and dark" width="100%"></picture></a>
+  <a href="https://dropnook.app/gallery/"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/slideshow-dark.webp"><img src="docs/screenshots/slideshow-light.webp" alt="Drop in pictures: text fields and files, sharing to the internet, what is public, the recipient's page, the phone layout, other languages, light and dark, five colours, users with their own area" width="100%"></picture></a>
 </p>
 
 <p align="center">
@@ -31,6 +31,9 @@ page calls itself "Tower Drop", after your server.
   <a href="https://dropnook.app/gallery/#4" title="Recipient's view"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/4-public-dark-thumb.webp"><img src="docs/screenshots/4-public-light-thumb.webp" alt="Recipient's view" width="32%"></picture></a>
   <a href="https://dropnook.app/gallery/#5" title="Phone"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/5-phone-dark-thumb.webp"><img src="docs/screenshots/5-phone-light-thumb.webp" alt="Phone" width="32%"></picture></a>
   <a href="https://dropnook.app/gallery/#6" title="17 languages"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/6-languages-dark-thumb.webp"><img src="docs/screenshots/6-languages-light-thumb.webp" alt="17 languages" width="32%"></picture></a>
+  <a href="https://dropnook.app/gallery/#7" title="Light and dark"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/7-theme-dark-thumb.webp"><img src="docs/screenshots/7-theme-light-thumb.webp" alt="Light and dark" width="32%"></picture></a>
+  <a href="https://dropnook.app/gallery/#8" title="Five colours"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/8-colours-dark-thumb.webp"><img src="docs/screenshots/8-colours-light-thumb.webp" alt="Five colours" width="32%"></picture></a>
+  <a href="https://dropnook.app/gallery/#9" title="Users"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/9-users-dark-thumb.webp"><img src="docs/screenshots/9-users-light-thumb.webp" alt="Users" width="32%"></picture></a>
 </p>
 
 <p align="center"><sub><a href="https://dropnook.app/gallery/">Open the gallery</a> — browse with arrows, zoom in with a click.</sub></p>
@@ -42,12 +45,15 @@ page calls itself "Tower Drop", after your server.
 * Screenshots straight from the clipboard with Ctrl+V; pictures with a preview,
   a large view and *Copy* into the clipboard of another computer.
 * 17 languages, picked from the browser.
+* Five colour layouts — teal, gold, blue, violet, coral — each in light and dark.
+* Optional users: up to five, each with a PIN, an area of their own next to the
+  shared one, and their own colour.
 
 | | |
 |---|---|
 | Containers | `drop` (Drop itself, your network only) and `drop-share` (share links, internet) |
-| Image | `ghcr.io/dropnook/dropnook:1` |
-| Data | the Unraid share `drop` → `files/`, `texts/`, `shares/` |
+| Image | `ghcr.io/dropnook/dropnook:2` |
+| Data | the Unraid share `drop` → `files/`, `texts/`, `shares/` (with users also `users/`) |
 | Drop | `https://drop.yourdomain.com` — in your network |
 | Share links | `https://drop-share.yourdomain.com/k7m3x-9pq2r` — from anywhere |
 
@@ -131,7 +137,7 @@ Everything you normally change is in the **SETTINGS** block at the top:
 | `certs` | `…/Nginx-Proxy-Manager-Official/letsencrypt` | The folder holding your certificates |
 | `tls-cert`, `tls-key` | `auto`, empty | Leave it — Drop finds the certificate itself (see [HTTPS](#https-in-your-network)) |
 | `share-subdomain` | `drop-share` | First part of the share links' name |
-| `image` | `ghcr.io/dropnook/dropnook:1` | Leave it — follows every 1.x release |
+| `image` | `ghcr.io/dropnook/dropnook:2` | Leave it — follows every 2.x release |
 
 One line outside SETTINGS: at `drop`, the label `net.unraid.docker.webui` —
 put in your name instead of `https://drop.yourdomain.com`. It is what *WebUI* in the
@@ -251,9 +257,14 @@ In the Unraid web interface, tab *Docker* → section *Compose* → **Check for
 Updates**, then **Update** on the stack `drop`.
 Your files, texts and shares stay where they are.
 
-`:1` follows every 1.x release — fixes and new languages, never a breaking
+`:2` follows every 2.x release — fixes and new languages, never a breaking
 change. An update never touches your `compose.yaml`; if a release changes it,
 its release notes say what to take over.
+
+**Coming from 1.x?** Change `:1` to `:2` in the `image` line of `compose.yaml`,
+then *Compose Up*. Nothing else changes: without users Drop works as before,
+and your files, texts, links and PIN stay as they are. `:1` gets no more
+updates.
 
 Security updates reach the image on their own: every Monday the current release is
 rebuilt on a fresh base image (Debian, Python, OpenSSL) whenever that base has
@@ -303,11 +314,13 @@ Android it then also shows up in the share menu: share pictures, files or a link
 straight to Drop — files land in the list, text and links in a new text field.
 The share menu on Android needs [HTTPS](#https-in-your-network).
 
-**Light and dark** follow the system. ☀ and ☾ next to *Help* pick one by hand;
-a second click on the chosen one goes back to automatic. Each browser remembers
-its choice.
+**Colours, light and dark** — the round button in the header picks one of five
+colour layouts: teal, gold, blue, violet or coral. Light and dark follow the
+system; ☀ and ☾ next to *Help* pick one by hand, a second click on the chosen
+one goes back to automatic. Each browser remembers both. With
+[users](#users-optional), the colour is the user's.
 
-<p align="center"><a href="https://dropnook.app/gallery/#7"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/7-theme-dark.webp"><img src="docs/screenshots/7-theme-light.webp" alt="The same page in light and in dark, side by side" width="80%"></picture></a></p>
+<p align="center"><a href="https://dropnook.app/gallery/#8"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/8-colours-dark.webp"><img src="docs/screenshots/8-colours-light.webp" alt="Drop on five phones, one in each colour: teal, gold, blue, violet and coral" width="80%"></picture></a></p>
 
 **Times** are shown in each viewer's own time zone; nothing to set.
 
@@ -358,6 +371,35 @@ Change the PIN (then **Compose Up**) to sign every device out; remove it to
 switch the question off. After 10 wrong tries in 15 minutes a browser has to
 wait. It keeps out guests in your Wi-Fi — not someone who can get at the
 server itself. Share links are not affected; they have a password of their own.
+
+### Users (optional)
+
+Several people, each with something of their own? Give up to five of them a
+name, a PIN and a colour — one user per colour, in `compose.yaml` at `drop`:
+
+```yaml
+    environment:
+      USER_TEAL:   "Anna:2468"
+      USER_GOLD:   "Tom:1357"
+      USER_BLUE:   "Lena:8642"
+      USER_VIOLET: "Max:9753"
+      USER_CORAL:  "Mia"          # without ":PIN", her name alone signs in
+```
+
+Drop then starts with "Who's there?": everyone taps their name once per device,
+enters their PIN, and stays signed in for 90 days. At the top they switch
+between **their own area** — text fields and files only they see — and **the
+shared area** everyone sees; a dot shows news in the other one. The page is in
+their colour, so it is clear at a glance whose it is. Links shared from an own
+area are listed only for that user.
+
+The files are in the share `drop` under `users/<name>/`, the shared area stays
+where it was (`files/`, `texts/`). Renaming a user starts an empty area —
+rename the folder as well. A changed PIN signs that user out, nobody else.
+With users, `PIN` is not used. Without a PIN anyone in your network can open
+that user's area — fine for a living-room TV, not for something private.
+
+<p align="center"><a href="https://dropnook.app/gallery/#9"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/9-users-dark.webp"><img src="docs/screenshots/9-users-light.webp" alt="Tom's own area in gold, next to the sign-in page with five names" width="80%"></picture></a></p>
 
 ## Troubleshooting
 

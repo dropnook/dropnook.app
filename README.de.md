@@ -22,7 +22,7 @@ erreichbar.
 Seite nennt sich nach deinem Server „Tower Drop“.
 
 <p align="center">
-  <a href="https://dropnook.app/gallery/?lang=de"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/de/slideshow-dark.webp"><img src="docs/screenshots/de/slideshow-light.webp" alt="Drop in Bildern: Textfelder und Dateien, Teilen ins Internet, was öffentlich ist, die Seite des Empfängers, die Ansicht auf dem Handy, andere Sprachen, hell und dunkel" width="100%"></picture></a>
+  <a href="https://dropnook.app/gallery/?lang=de"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/de/slideshow-dark.webp"><img src="docs/screenshots/de/slideshow-light.webp" alt="Drop in Bildern: Textfelder und Dateien, Teilen ins Internet, was öffentlich ist, die Seite des Empfängers, die Ansicht auf dem Handy, andere Sprachen, hell und dunkel, fünf Farben, Benutzer mit eigenem Bereich" width="100%"></picture></a>
 </p>
 
 <p align="center">
@@ -32,6 +32,9 @@ Seite nennt sich nach deinem Server „Tower Drop“.
   <a href="https://dropnook.app/gallery/?lang=de#4" title="Ansicht des Empfängers"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/de/4-public-dark-thumb.webp"><img src="docs/screenshots/de/4-public-light-thumb.webp" alt="Ansicht des Empfängers" width="32%"></picture></a>
   <a href="https://dropnook.app/gallery/?lang=de#5" title="Handy"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/de/5-phone-dark-thumb.webp"><img src="docs/screenshots/de/5-phone-light-thumb.webp" alt="Handy" width="32%"></picture></a>
   <a href="https://dropnook.app/gallery/?lang=de#6" title="17 Sprachen"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/de/6-languages-dark-thumb.webp"><img src="docs/screenshots/de/6-languages-light-thumb.webp" alt="17 Sprachen" width="32%"></picture></a>
+  <a href="https://dropnook.app/gallery/?lang=de#7" title="Hell und dunkel"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/de/7-theme-dark-thumb.webp"><img src="docs/screenshots/de/7-theme-light-thumb.webp" alt="Hell und dunkel" width="32%"></picture></a>
+  <a href="https://dropnook.app/gallery/?lang=de#8" title="Fünf Farben"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/de/8-colours-dark-thumb.webp"><img src="docs/screenshots/de/8-colours-light-thumb.webp" alt="Fünf Farben" width="32%"></picture></a>
+  <a href="https://dropnook.app/gallery/?lang=de#9" title="Benutzer"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/de/9-users-dark-thumb.webp"><img src="docs/screenshots/de/9-users-light-thumb.webp" alt="Benutzer" width="32%"></picture></a>
 </p>
 
 <p align="center"><sub><a href="https://dropnook.app/gallery/?lang=de">Galerie öffnen</a> — mit Pfeilen blättern, mit einem Klick hineinzoomen.</sub></p>
@@ -43,12 +46,15 @@ Seite nennt sich nach deinem Server „Tower Drop“.
 * Screenshots direkt aus der Zwischenablage mit Strg+V; Bilder mit Vorschau,
   Grossansicht und *Kopieren* in die Zwischenablage eines anderen Computers.
 * 17 Sprachen, automatisch nach dem Browser.
+* Fünf Farb-Layouts — Türkis, Gold, Blau, Violett, Koralle — jedes hell und dunkel.
+* Benutzer, wenn du willst: bis zu fünf, jeder mit PIN, einem eigenen Bereich
+  neben dem gemeinsamen und seiner eigenen Farbe.
 
 | | |
 |---|---|
 | Container | `drop` (Drop selbst, nur im Heimnetz) und `drop-share` (Freigabe-Links, Internet) |
-| Image | `ghcr.io/dropnook/dropnook:1` |
-| Daten | der Unraid-Share `drop` → `files/`, `texts/`, `shares/` |
+| Image | `ghcr.io/dropnook/dropnook:2` |
+| Daten | der Unraid-Share `drop` → `files/`, `texts/`, `shares/` (mit Benutzern auch `users/`) |
 | Drop | `https://drop.deinedomain.com` — im Heimnetz |
 | Freigabe-Links | `https://drop-share.deinedomain.com/k7m3x-9pq2r` — von überall |
 
@@ -135,7 +141,7 @@ Alles, was man normalerweise ändert, steht im Block **SETTINGS** ganz oben:
 | `certs` | `…/Nginx-Proxy-Manager-Official/letsencrypt` | Der Ordner mit deinen Zertifikaten |
 | `tls-cert`, `tls-key` | `auto`, leer | So lassen — Drop findet das Zertifikat selbst (siehe [HTTPS](#https-im-heimnetz)) |
 | `share-subdomain` | `drop-share` | Erster Teil des Namens der Freigabe-Links |
-| `image` | `ghcr.io/dropnook/dropnook:1` | So lassen — folgt jedem 1.x-Release |
+| `image` | `ghcr.io/dropnook/dropnook:2` | So lassen — folgt jedem 2.x-Release |
 
 Eine Zeile ausserhalb von SETTINGS: bei `drop` das Label
 `net.unraid.docker.webui` — statt `https://drop.deinedomain.com` deinen Namen
@@ -258,10 +264,15 @@ In der Unraid-Weboberfläche Reiter *Docker* → Bereich *Compose* → **Check f
 Updates**, danach beim Stack `drop` **Update**.
 Deine Dateien, Texte und Freigaben bleiben, wo sie sind.
 
-`:1` folgt jedem 1.x-Release — Fehlerkorrekturen und neue Sprachen, nie etwas,
+`:2` folgt jedem 2.x-Release — Fehlerkorrekturen und neue Sprachen, nie etwas,
 das bestehende Einrichtungen bricht. Ein Update ändert deine `compose.yaml`
 nie; ändert ein Release sie, steht in den Release-Notizen, was zu übernehmen
 ist.
+
+**Von 1.x?** In der `compose.yaml` in der Zeile `image` `:1` durch `:2`
+ersetzen, dann *Compose Up*. Sonst ändert sich nichts: Ohne Benutzer
+funktioniert Drop wie bisher, Dateien, Texte, Links und PIN bleiben, wie sie
+sind. `:1` bekommt keine Updates mehr.
 
 Sicherheits-Updates landen von selbst im Image: Jeden Montag wird das aktuelle Release
 auf einem frischen Basis-Image (Debian, Python, OpenSSL) neu gebaut, sofern
@@ -317,11 +328,13 @@ Dateien oder Links direkt an Drop teilen — Dateien landen in der Liste, Text u
 Links in einem neuen Textfeld. Das Teilen-Menü auf Android braucht
 [HTTPS](#https-im-heimnetz).
 
-**Hell und dunkel** folgen dem System. Mit ☀ und ☾ neben *Hilfe* wählst du
-von Hand; ein zweiter Klick auf die gewählte Seite stellt wieder auf
-automatisch. Jeder Browser merkt sich seine Wahl.
+**Farben, hell und dunkel** — der runde Knopf oben wählt eines von fünf
+Farb-Layouts: Türkis, Gold, Blau, Violett oder Koralle. Hell und dunkel folgen
+dem System; mit ☀ und ☾ neben *Hilfe* wählst du von Hand, ein zweiter Klick auf
+die gewählte Seite stellt wieder auf automatisch. Jeder Browser merkt sich
+beides. Mit [Benutzern](#benutzer-optional) ist die Farbe die des Benutzers.
 
-<p align="center"><a href="https://dropnook.app/gallery/?lang=de#7"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/de/7-theme-dark.webp"><img src="docs/screenshots/de/7-theme-light.webp" alt="Dieselbe Seite hell und dunkel, nebeneinander" width="80%"></picture></a></p>
+<p align="center"><a href="https://dropnook.app/gallery/?lang=de#8"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/de/8-colours-dark.webp"><img src="docs/screenshots/de/8-colours-light.webp" alt="Drop auf fünf Handys, jedes in einer Farbe: Türkis, Gold, Blau, Violett und Koralle" width="80%"></picture></a></p>
 
 **Zeiten** zeigt jeder Browser in seiner eigenen Zeitzone; nichts einzustellen.
 
@@ -373,6 +386,38 @@ PIN ändern (danach **Compose Up**) meldet alle Geräte ab; entfernen schaltet d
 Frage aus. Nach 10 Fehlversuchen in 15 Minuten muss ein Browser warten. Das hält
 Gäste im WLAN draussen — nicht jemanden, der an den Server selbst kommt.
 Freigabe-Links betrifft es nicht; sie haben ihr eigenes Passwort.
+
+### Benutzer (optional)
+
+Mehrere Leute, und jeder soll auch etwas Eigenes haben? Gib bis zu fünf von
+ihnen einen Namen, eine PIN und eine Farbe — ein Benutzer pro Farbe, in der
+`compose.yaml` bei `drop`:
+
+```yaml
+    environment:
+      USER_TEAL:   "Anna:2468"
+      USER_GOLD:   "Tom:1357"
+      USER_BLUE:   "Lena:8642"
+      USER_VIOLET: "Max:9753"
+      USER_CORAL:  "Mia"          # ohne ":PIN" meldet ihr Name allein an
+```
+
+Drop fragt dann zuerst „Wer bist du?“: Jeder tippt einmal pro Gerät auf seinen
+Namen, gibt seine PIN ein und bleibt 90 Tage angemeldet. Oben wechselt man
+zwischen dem **eigenen Bereich** — Textfelder und Dateien, die nur man selbst
+sieht — und dem **gemeinsamen Bereich**, den alle sehen; ein Punkt zeigt
+Neues im anderen. Die Seite erscheint in der eigenen Farbe, so ist auf einen
+Blick klar, wessen sie ist. Links aus einem eigenen Bereich sieht nur dieser
+Benutzer in der Liste.
+
+Die Dateien liegen im Share `drop` unter `users/<Name>/`, der gemeinsame
+Bereich bleibt, wo er war (`files/`, `texts/`). Wer einen Benutzer umbenennt,
+beginnt mit einem leeren Bereich — den Ordner gleich mit umbenennen. Eine
+geänderte PIN meldet nur diesen Benutzer ab. Mit Benutzern gilt `PIN` nicht.
+Ohne PIN kann jeder im Netz diesen Bereich öffnen — gut für den Fernseher im
+Wohnzimmer, nicht für Privates.
+
+<p align="center"><a href="https://dropnook.app/gallery/?lang=de#9"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/de/9-users-dark.webp"><img src="docs/screenshots/de/9-users-light.webp" alt="Toms eigener Bereich in Gold, daneben die Anmeldung mit fünf Namen" width="80%"></picture></a></p>
 
 ## Wenn etwas nicht geht
 

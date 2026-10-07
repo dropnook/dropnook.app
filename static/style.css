@@ -1,5 +1,7 @@
 /* Drop — one stylesheet, no dependencies. Light and dark follow the system,
-   unless the button in the header set data-theme on <html> (theme.js). */
+   unless the button in the header set data-theme on <html> (theme.js). The
+   colour layout is data-palette on <html>: the user's colour, or the one this
+   browser picked. Teal is the default and needs none. */
 
 :root{
   --bg:#F2F5F6;      --surface:#FFFFFF;  --surface-2:#E9EEF0;
@@ -10,6 +12,9 @@
   --ok:#2C6B45;
   --public:#B45309;  --public-soft:#FDF0DF;   /* everything reachable from the internet */
   --on-fill:#FFFFFF;
+  --on-signal:#FFFFFF;           /* on danger and public — the same in every layout */
+  --accent-text:var(--accent);   /* the accent as writing; darker where the accent is light */
+  --fill:var(--accent);          /* filled buttons; a gradient in gold */
   --shadow:0 1px 2px rgba(18,27,33,.06), 0 10px 26px -18px rgba(18,27,33,.35);
   --radius:4px;
 }
@@ -22,7 +27,7 @@
     --danger:#E38073;  --danger-soft:#2B1714;
     --ok:#71BE90;
     --public:#F0A54A;  --public-soft:#33220C;
-    --on-fill:#08161A;
+    --on-fill:#08161A;  --on-signal:#08161A;
     --shadow:0 1px 2px rgba(0,0,0,.45), 0 10px 26px -18px rgba(0,0,0,.9);
   }
 }
@@ -35,11 +40,92 @@
   --danger:#E38073;  --danger-soft:#2B1714;
   --ok:#71BE90;
   --public:#F0A54A;  --public-soft:#33220C;
-  --on-fill:#08161A;
+  --on-fill:#08161A;  --on-signal:#08161A;
   --shadow:0 1px 2px rgba(0,0,0,.45), 0 10px 26px -18px rgba(0,0,0,.9);
   color-scheme:dark;
 }
 :root[data-theme="light"]{color-scheme:light}
+
+/* ---------------------------------------------------------------- Colour layouts
+   Each in light and dark — dark comes twice: as the system's, and chosen by
+   hand. Every layout sets the same tokens in both, so none leaks into the other. */
+:root[data-palette="gold"]{
+  --bg:#F7F5F1;      --surface:#FFFFFF;  --surface-2:#F1EDE5;
+  --ink:#17140F;     --ink-2:#4A4237;    --muted:#6E665A;
+  --line:#E3DCCF;    --line-2:#CDC3B1;
+  --accent:#F5A623;  --accent-text:#8A5800; --accent-soft:#FFF2D2; --accent-ink:#6B4500;
+  --on-fill:#17130A; --fill:linear-gradient(100deg,#FFA51A 0%,#FFC94A 50%,#FFA51A 100%);
+}
+:root[data-palette="blue"]{
+  --bg:#F2F5FA;      --surface:#FFFFFF;  --surface-2:#E9EEF6;
+  --line:#D5DEEB;    --line-2:#B7C5DA;
+  --accent:#2A62C9;  --accent-text:#2A62C9; --accent-soft:#E4ECFA; --accent-ink:#1C4A9C;
+  --on-fill:#FFFFFF; --fill:#2A62C9;
+}
+:root[data-palette="violet"]{
+  --bg:#F5F3F9;      --surface:#FFFFFF;  --surface-2:#EDEAF4;
+  --line:#DDD8E9;    --line-2:#C4BCD8;
+  --accent:#6D4FC2;  --accent-text:#6D4FC2; --accent-soft:#EEE9FA; --accent-ink:#523A99;
+  --on-fill:#FFFFFF; --fill:#6D4FC2;
+}
+:root[data-palette="coral"]{
+  --bg:#F9F3F3;      --surface:#FFFFFF;  --surface-2:#F3EAEA;
+  --line:#E7D8D9;    --line-2:#D4BEC0;
+  --accent:#BF3F59;  --accent-text:#BF3F59; --accent-soft:#FBE6EA; --accent-ink:#9C2F45;
+  --on-fill:#FFFFFF; --fill:#BF3F59;
+}
+@media (prefers-color-scheme: dark){
+  :root[data-palette="gold"]:not([data-theme="light"]){
+    --bg:#070708;      --surface:#131316;  --surface-2:#1B1B1F;
+    --ink:#F7F5F2;     --ink-2:#C3BFB8;    --muted:#8B8780;
+    --line:#26262B;    --line-2:#34343B;
+    --accent:#FFB229;  --accent-text:#FFCE4E; --accent-soft:#2A2109; --accent-ink:#FFE08A;
+    --on-fill:#000000; --fill:linear-gradient(100deg,#FF9908 0%,#FFB229 22%,#FFE870 50%,#FFB229 78%,#FF9908 100%);
+  }
+  :root[data-palette="blue"]:not([data-theme="light"]){
+    --bg:#0B1019;      --surface:#121A26;  --surface-2:#18222F;
+    --line:#223042;    --line-2:#31435A;
+    --accent:#74A8FF;  --accent-text:#74A8FF; --accent-soft:#15233D; --accent-ink:#A9C8FF;
+    --on-fill:#07121F; --fill:#74A8FF;
+  }
+  :root[data-palette="violet"]:not([data-theme="light"]){
+    --bg:#100D17;      --surface:#18141F;  --surface-2:#201B29;
+    --line:#2C2539;    --line-2:#3D344F;
+    --accent:#B39BFF;  --accent-text:#B39BFF; --accent-soft:#251C40; --accent-ink:#D3C6FF;
+    --on-fill:#140D24; --fill:#B39BFF;
+  }
+  :root[data-palette="coral"]:not([data-theme="light"]){
+    --bg:#150D0F;      --surface:#1E1416;  --surface-2:#271B1E;
+    --line:#36252A;    --line-2:#4A333A;
+    --accent:#FF8FA0;  --accent-text:#FF8FA0; --accent-soft:#3A1820; --accent-ink:#FFC2CB;
+    --on-fill:#240A10; --fill:#FF8FA0;
+  }
+}
+:root[data-palette="gold"][data-theme="dark"]{
+  --bg:#070708;      --surface:#131316;  --surface-2:#1B1B1F;
+  --ink:#F7F5F2;     --ink-2:#C3BFB8;    --muted:#8B8780;
+  --line:#26262B;    --line-2:#34343B;
+  --accent:#FFB229;  --accent-text:#FFCE4E; --accent-soft:#2A2109; --accent-ink:#FFE08A;
+  --on-fill:#000000; --fill:linear-gradient(100deg,#FF9908 0%,#FFB229 22%,#FFE870 50%,#FFB229 78%,#FF9908 100%);
+}
+:root[data-palette="blue"][data-theme="dark"]{
+  --bg:#0B1019;      --surface:#121A26;  --surface-2:#18222F;
+  --line:#223042;    --line-2:#31435A;
+  --accent:#74A8FF;  --accent-text:#74A8FF; --accent-soft:#15233D; --accent-ink:#A9C8FF;
+  --on-fill:#07121F; --fill:#74A8FF;
+}
+:root[data-palette="violet"][data-theme="dark"]{
+  --bg:#100D17;      --surface:#18141F;  --surface-2:#201B29;
+  --line:#2C2539;    --line-2:#3D344F;
+  --accent:#B39BFF;  --accent-text:#B39BFF; --accent-soft:#251C40; --accent-ink:#D3C6FF;
+  --on-fill:#140D24; --fill:#B39BFF;
+}
+:root[data-palette="coral"][data-theme="dark"]{
+  --bg:#150D0F;      --surface:#1E1416;  --surface-2:#271B1E;
+  --line:#36252A;    --line-2:#4A333A;
+  --accent:#FF8FA0;  --accent-text:#FF8FA0; --accent-soft:#3A1820; --accent-ink:#FFC2CB;
+  --on-fill:#240A10; --fill:#FF8FA0;
+}
 
 *{box-sizing:border-box}
 html{height:100%}
@@ -83,7 +169,7 @@ h1,h2,h3{margin:0; font-weight:650; letter-spacing:-.01em}
 .btn{
   font:inherit; font-size:13.5px; font-weight:550;
   padding:7px 13px; border-radius:var(--radius); cursor:pointer;
-  border:1px solid var(--accent); background:var(--accent); color:var(--on-fill);
+  border:1px solid var(--accent); background:var(--fill); color:var(--on-fill);
   transition:filter .12s, background .12s;
 }
 .btn:hover:not(:disabled){filter:brightness(1.08)}
@@ -91,7 +177,7 @@ h1,h2,h3{margin:0; font-weight:650; letter-spacing:-.01em}
   cursor:default; background:transparent; color:var(--muted);
   border-color:var(--line); filter:none;
 }
-.btn.plain{background:transparent; color:var(--accent); border-color:var(--line-2)}
+.btn.plain{background:transparent; color:var(--accent-text); border-color:var(--line-2)}
 .btn.plain:hover:not(:disabled){background:var(--accent-soft)}
 .btn.icon{padding:8px 9px; line-height:0}   /* as tall as the text buttons */
 .btn.icon svg{width:19px; height:19px; display:block; fill:none; stroke:currentColor; stroke-width:1.8;
@@ -110,11 +196,54 @@ h1,h2,h3{margin:0; font-weight:650; letter-spacing:-.01em}
 .theme-switch button + button{border-inline-start:1px solid var(--line-2)}
 .theme-switch svg{width:19px; height:19px; display:block; fill:none; stroke:currentColor; stroke-width:1.8;
   stroke-linecap:round; stroke-linejoin:round}
-.theme-switch button:hover{background:var(--accent-soft); color:var(--accent)}
-.theme-switch button.shown{color:var(--accent)}
-.theme-switch button[aria-pressed="true"]{background:var(--accent); color:var(--on-fill)}
-.theme-switch button:focus-visible{outline:2px solid var(--accent); outline-offset:-2px}
-.btn.danger{border-color:var(--danger); background:var(--danger); color:var(--on-fill)}
+.theme-switch button:hover{background:var(--accent-soft); color:var(--accent-text)}
+.theme-switch button.shown{color:var(--accent-text)}
+.theme-switch button[aria-pressed="true"]{background:var(--fill); color:var(--on-fill)}
+.theme-switch button:focus-visible{outline:2px solid var(--accent-text); outline-offset:-2px}
+/* The colour layout of this browser (without users): the button shows the
+   current one, its menu all five. The swatches read on light and dark alike. */
+.swatch{display:inline-block; width:16px; height:16px; border-radius:50%; flex:none;
+  box-shadow:inset 0 0 0 1px rgba(0,0,0,.18)}
+.swatch[data-p="teal"]{background:#1E9AA0}
+.swatch[data-p="gold"]{background:linear-gradient(135deg,#FF9908,#FFB229 40%,#FFE870)}
+.swatch[data-p="blue"]{background:#3F7BE0}
+.swatch[data-p="violet"]{background:#8466DE}
+.swatch[data-p="coral"]{background:#E0607A}
+#btn-palette{padding:8px 10px}
+#btn-palette .swatch{width:19px; height:19px}
+.menu button.pick{display:flex; align-items:center; gap:10px}
+.menu button.pick[aria-checked="true"]{font-weight:650}
+.menu button.pick[aria-checked="true"]::after{content:"✓"; margin-inline-start:auto; color:var(--accent-text)}
+
+/* With users: my area and the shared one, side by side at the top. */
+.areas{
+  display:flex; align-items:center; gap:10px 14px; flex-wrap:wrap;
+  padding:10px 20px 0;
+}
+.area-tabs{display:flex; border:1px solid var(--line-2); border-radius:var(--radius); overflow:hidden;
+  background:var(--surface)}
+.area-tabs button{
+  position:relative; display:flex; align-items:center; gap:8px; border:0; background:transparent;
+  font:inherit; font-size:14px; font-weight:600; color:var(--ink-2); padding:7px 14px 7px 9px; cursor:pointer;
+  transition:background .12s, color .12s;
+}
+.area-tabs button + button{border-inline-start:1px solid var(--line-2)}
+.area-tabs button:hover{background:var(--accent-soft)}
+.area-tabs button[aria-selected="true"]{background:var(--fill); color:var(--on-fill)}
+.area-tabs svg{width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:1.8;
+  stroke-linecap:round; stroke-linejoin:round}
+.initial{
+  width:22px; height:22px; border-radius:50%; display:grid; place-items:center; flex:none;
+  background:var(--accent); color:var(--on-fill); font-size:12px; font-weight:700; line-height:1;
+}
+.area-tabs button[aria-selected="true"] .initial{background:var(--on-fill); color:var(--accent)}
+.area-tabs .news{position:absolute; top:5px; inset-inline-end:5px; width:7px; height:7px; border-radius:50%;
+  background:var(--public); display:none}
+.area-tabs button.has-news .news{display:block}
+.area-hint{font-size:12.5px; color:var(--muted)}
+.areas form{margin:0; margin-inline-start:auto}
+
+.btn.danger{border-color:var(--danger); background:var(--danger); color:var(--on-signal)}
 .btn.danger.plain{background:transparent; color:var(--danger); border-color:var(--line-2)}
 .btn.danger.plain:hover:not(:disabled){background:var(--danger-soft)}
 .btn.small{padding:4px 9px; font-size:12.5px}
@@ -124,7 +253,7 @@ h1,h2,h3{margin:0; font-weight:650; letter-spacing:-.01em}
   text-align:center; font-variant-numeric:tabular-nums;
 }
 .count:empty{display:none}
-:focus-visible{outline:2px solid var(--accent); outline-offset:2px; border-radius:3px}
+:focus-visible{outline:2px solid var(--accent-text); outline-offset:2px; border-radius:3px}
 
 /* ---------------------------------------------------------------- Layout */
 .layout{
@@ -161,7 +290,7 @@ h1,h2,h3{margin:0; font-weight:650; letter-spacing:-.01em}
 .field-add{
   font:inherit; font-size:13.5px; font-weight:550; width:100%; padding:10px;
   border:1px dashed var(--line-2); border-radius:var(--radius); background:transparent;
-  color:var(--accent); cursor:pointer;
+  color:var(--accent-text); cursor:pointer;
 }
 .field-add:hover:not(:disabled){background:var(--accent-soft); border-color:var(--accent)}
 .field-add:disabled{color:var(--muted); cursor:default}
@@ -182,7 +311,7 @@ h1,h2,h3{margin:0; font-weight:650; letter-spacing:-.01em}
 .link-btn{
   font-size:12.5px; line-height:1.2; max-width:100%;
   padding:4px 9px; border:1px solid var(--line-2); border-radius:var(--radius);
-  background:var(--surface); color:var(--accent); text-decoration:none;
+  background:var(--surface); color:var(--accent-text); text-decoration:none;
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
 }
 .link-btn:hover{background:var(--accent-soft); border-color:var(--accent)}
@@ -254,7 +383,7 @@ h1,h2,h3{margin:0; font-weight:650; letter-spacing:-.01em}
 }
 .thumb img{width:100%; height:100%; object-fit:cover; display:block}
 .thumb:hover{border-color:var(--accent)}
-.thumb:focus-visible{outline:2px solid var(--accent); outline-offset:1px}
+.thumb:focus-visible{outline:2px solid var(--accent-text); outline-offset:1px}
 .copy-image{flex:none}
 .row.fresh{animation:fresh 4s ease-out both}
 @keyframes fresh{from{background:var(--accent-soft)} to{background:transparent}}
@@ -290,7 +419,7 @@ h1,h2,h3{margin:0; font-weight:650; letter-spacing:-.01em}
 /* ---------------------------------------------------------------- Public */
 .public-badge{
   font:inherit; font-size:10.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
-  color:var(--on-fill); background:var(--public); border:0; border-radius:3px;
+  color:var(--on-signal); background:var(--public); border:0; border-radius:3px;
   padding:2px 7px; cursor:pointer; line-height:1.4; vertical-align:1px;
 }
 .public-badge::before{content:"● "; font-size:9px}
@@ -300,7 +429,7 @@ h1,h2,h3{margin:0; font-weight:650; letter-spacing:-.01em}
 [dir=rtl] .row.is-public{box-shadow:inset -3px 0 0 var(--public)}
 .row.is-public:not(.selected){background:var(--public-soft)}
 #btn-shares.is-public{color:var(--public); border-color:var(--public)}
-#btn-shares.is-public .count{background:var(--public)}
+#btn-shares.is-public .count{background:var(--public); color:var(--on-signal)}
 .dialog-body .props dd.public-text{color:var(--public); font-weight:600}
 
 /* ---------------------------------------------------------------- Shares */
@@ -420,10 +549,15 @@ h1,h2,h3{margin:0; font-weight:650; letter-spacing:-.01em}
   padding:10px 15px; border-radius:6px; box-shadow:0 10px 30px -12px rgba(0,0,0,.6);
   animation:rise .18s ease-out; transition:opacity .25s;
 }
-.toast.warn{background:var(--danger); color:var(--on-fill)}
+.toast.warn{background:var(--danger); color:var(--on-signal)}
 @keyframes rise{from{opacity:0; transform:translateY(8px)}to{opacity:1; transform:none}}
 /* On a phone the header has no room for the QR button — and the phone is already there. */
-@media (max-width:560px){ #btn-qr{display:none} }
+@media (max-width:560px){
+  #btn-qr{display:none}
+  /* The buttons may take a second row in long languages instead of running off the screen. */
+  .header-right{flex:1 1 auto; flex-wrap:wrap; justify-content:flex-end; gap:8px}
+}
+@media (max-width:440px){ .space{display:none} }   /* the phone has no room for it next to the buttons */
 @media (prefers-reduced-motion:reduce){*{animation:none !important; transition:none !important}}
 
 @media (max-width:820px){
@@ -440,5 +574,8 @@ h1,h2,h3{margin:0; font-weight:650; letter-spacing:-.01em}
   /* iOS zooms in on focus when the font is smaller than 16px */
   .field textarea, #filter, #sort, .share-option select, #share-password{font-size:16px}
   .layout{padding:12px}
+  .areas{padding:10px 12px 0}
+  .area-tabs{flex:1 1 100%}            /* a row of their own; hint and sign-out below */
+  .area-tabs button{flex:1; justify-content:center}
   .footer{padding:0 12px 14px}
 }

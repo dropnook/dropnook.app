@@ -1,5 +1,6 @@
 """Turns the PNGs from slides.mjs and diagram.mjs into the WebP files in docs/,
-plus the bare page light and dark for the slider on dropnook.app (app-*.webp).
+plus the bare page light and dark for the slider on dropnook.app (app-*.webp),
+in each colour layout (app-<colour>-*.webp; teal is app-*.webp).
 
     python3 tools/screenshots/export.py     (WORK as for the other scripts)
 """
@@ -10,7 +11,9 @@ from PIL import Image
 
 WORK = Path(os.environ.get("WORK", "/srv/demo"))
 DOCS = Path(__file__).resolve().parents[2] / "docs"
-SLIDES = ["1-overview", "2-share", "3-shares", "4-public", "5-phone", "6-languages", "7-theme"]
+SLIDES = ["1-overview", "2-share", "3-shares", "4-public", "5-phone", "6-languages", "7-theme",
+          "8-colours", "9-users"]
+PALETTES = ["gold", "blue", "violet", "coral"]
 
 
 def resized(image, width):
@@ -34,6 +37,9 @@ for lang, out in (("en", DOCS / "screenshots"), ("de", DOCS / "screenshots" / "d
                        duration=4200, loop=0, quality=84, method=6)
         page = Image.open(WORK / f"raw-{lang}" / f"overview-{scheme}.png").convert("RGB")
         resized(page, 2000).save(out / f"app-{scheme}.webp", quality=84, method=6)
+        for palette in PALETTES:
+            page = Image.open(WORK / f"raw-{lang}" / f"overview-{palette}-{scheme}.png").convert("RGB")
+            resized(page, 2000).save(out / f"app-{palette}-{scheme}.webp", quality=84, method=6)
     print("slides →", out)
 
 diagrams = sorted((WORK / "diagram").glob("*.png"))

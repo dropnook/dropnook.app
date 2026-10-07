@@ -28,12 +28,23 @@
     <span class="space" id="space"></span>
     <button class="btn plain" id="btn-shares" type="button" hidden><span data-i18n="ui.shares"></span><span class="count" id="shares-count"></span></button>
     <button class="btn plain icon" id="btn-qr" type="button" data-i18n-aria-label="ui.qr_open"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="6" height="6" rx="1"/><rect x="14.5" y="3.5" width="6" height="6" rx="1"/><rect x="3.5" y="14.5" width="6" height="6" rx="1"/><path d="M14.5 14.5h2.5v2.5M20.5 14.5v.01M14.5 20.5h2.5M20.5 18v2.5"/></svg></button>
+    <button class="btn plain icon" id="btn-palette" type="button" hidden data-i18n-aria-label="ui.palette"><span class="swatch" id="palette-swatch" data-p="teal"></span></button>
     <div class="theme-switch" id="theme-switch" role="group">
       <button type="button" data-mode="light"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8"/></svg></button><button type="button" data-mode="dark"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"/></svg></button>
     </div>
     <button class="btn plain" id="btn-help" type="button" data-i18n="ui.help"></button>
   </div>
 </header>
+
+<!-- With users (compose.yaml): my own area and the shared one. -->
+<nav class="areas" id="areas" hidden>
+  <div class="area-tabs" role="tablist">
+    <button type="button" role="tab" id="tab-own" data-area="own"><span class="initial" id="user-initial"></span><span id="user-name"></span><i class="news"></i></button>
+    <button type="button" role="tab" id="tab-shared" data-area="shared"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8.5" r="3.2"/><path d="M3 19.5c.6-3.3 3-5 6-5s5.4 1.7 6 5"/><circle cx="16.8" cy="9.5" r="2.6"/><path d="M16.5 14.6c2.4.1 4.1 1.6 4.6 4.4"/></svg><span data-i18n="ui.area_shared"></span><i class="news"></i></button>
+  </div>
+  <span class="area-hint" id="area-hint"></span>
+  <form method="post" action="/logout"><button class="btn plain small" type="submit" data-i18n="ui.sign_out"></button></form>
+</nav>
 
 <main class="layout">
 

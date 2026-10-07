@@ -125,6 +125,14 @@ PUBLIC = MODE == "public"
 LAN_PIN = "" if PUBLIC else os.environ.get("PIN", "").strip()
 ACCESS_DAYS = 90
 
+# Optional users, at most one per colour: USER_GOLD: "Tom:1357" (name, then the
+# PIN; without ":PIN" the name alone signs in). Each gets an area of their own
+# next to the shared one, and the page in their colour. Without any, Drop has
+# no users and every browser picks a colour for itself. Not used by drop-share.
+PALETTES = ("teal", "gold", "blue", "violet", "coral")
+USERS_DIR = Path(os.environ.get("USERS_DIR", str(FILES_DIR.parent / "users")))
+USER_NAME_MAX = 40
+
 # Sharing to the internet. No domain name appears anywhere: whatever arrives
 # through the reverse proxy is outside traffic and only sees share links. The
 # browser in the LAN derives the link address from its own host name
@@ -150,6 +158,59 @@ def server_name() -> str:
     except OSError:
         pass
     return os.environ.get("SERVER_NAME", "").strip()
+
+
+class Area:
+    """Where text fields and files live: the shared area that everyone sees,
+    or the area of one user. key is "" for the shared one, otherwise the
+    user's name — which is also the folder name, under USERS_DIR."""
+
+    __slots__ = ("key", "files", "texts")
+
+    def __init__(self, key: str, files: Path, texts: Path):
+        self.key, self.files, self.texts = key, files, texts
+
+
+SHARED = Area("", FILES_DIR, TEXTS_DIR)
+
+
+class User:
+    def __init__(self, palette: str, name: str, pin: str):
+        self.palette, self.name, self.pin = palette, name, pin
+        self.area = Area(name, USERS_DIR / name / "files", USERS_DIR / name / "texts")
+
+
+def read_users() -> tuple:
+    """USER_<COLOUR> from the environment: ({palette: User}, [problems])."""
+    users, problems, seen = {}, [], set()
+    for palette in PALETTES:
+        variable = f"USER_{palette.upper()}"
+        raw = os.environ.get(variable, "").strip()
+        if not raw:
+            continue
+        name, _, pin = raw.partition(":")
+        name = " ".join(unicodedata.normalize("NFC", name).split())
+        if not name or len(name) > USER_NAME_MAX or name.startswith(".") \
+                or any(ord(ch) < 32 or ch in "/\\" for ch in name):
+            problems.append(f"{variable}: \"{name}\" cannot be a name (1–{USER_NAME_MAX} "
+                            "characters, no / or \\, not starting with a dot)")
+        elif name.casefold() in seen:
+            problems.append(f"{variable}: the name \"{name}\" is taken twice")
+        else:
+            seen.add(name.casefold())
+            users[palette] = User(palette, name, pin.strip())
+    return users, problems
+
+
+USERS, USER_PROBLEMS = ({}, []) if PUBLIC else read_users()
+
+
+def areas() -> list:
+    return [SHARED] + [u.area for u in USERS.values()]
+
+
+def area_by_key(key: str) -> Optional[Area]:
+    return next((a for a in areas() if a.key == key), None)
 
 
 def with_server(template: str) -> str:
@@ -420,9 +481,9 @@ def truncate_bytes(name: str, limit: int) -> str:
     return out + (("." + ext) if ext else "")
 
 
-def unique_name(name: str) -> str:
+def unique_name(area: Area, name: str) -> str:
     """Never overwrite: 'file.txt' → 'file (2).txt'."""
-    if not (FILES_DIR / name).exists():
+    if not (area.files / name).exists():
         return name
     stem, dot, ext = name.rpartition(".")
     if not dot:
@@ -431,7 +492,7 @@ def unique_name(name: str) -> str:
     n = 2
     while True:
         candidate = truncate_bytes(f"{stem} ({n})", MAX_NAME_BYTES - len(suffix.encode())) + suffix
-        if not (FILES_DIR / candidate).exists():
+        if not (area.files / candidate).exists():
             return candidate
         n += 1
 
@@ -449,11 +510,11 @@ def content_disposition(name: str) -> str:
     return f"attachment; filename=\"{fallback}\"; filename*=UTF-8''{quote(name, safe='')}"
 
 
-def safe_target(name: str) -> Path:
-    """Resolves a name to a file directly inside FILES_DIR — nowhere else."""
+def safe_target(area: Area, name: str) -> Path:
+    """Resolves a name to a file directly inside the area's files — nowhere else."""
     cleaned = unicodedata.normalize("NFC", name).replace("\\", "/").rsplit("/", 1)[-1]
-    target = (FILES_DIR / cleaned).resolve()
-    if target.parent != FILES_DIR.resolve():
+    target = (area.files / cleaned).resolve()
+    if target.parent != area.files.resolve():
         raise HTTPException(400, "Invalid name")
     return target
 
@@ -468,50 +529,50 @@ FIELD_PATTERN = re.compile(r"^text(\d{1,6})\.txt$")
 FIELDS_MARKER = ".fields"
 
 
-def text_path(fid: int) -> Path:
-    return TEXTS_DIR / f"text{fid}.txt"
+def text_path(area: Area, fid: int) -> Path:
+    return area.texts / f"text{fid}.txt"
 
 
-def field_ids() -> list:
+def field_ids(area: Area) -> list:
     """Which fields exist is defined by the directory alone: text<N>.txt, sorted by N."""
     ids = []
-    for entry in os.scandir(TEXTS_DIR):
+    for entry in os.scandir(area.texts):
         match = FIELD_PATTERN.match(entry.name)
         if match and entry.is_file():
             ids.append(int(match.group(1)))
     return sorted(ids)
 
 
-def setup_fields() -> None:
+def setup_fields(area: Area) -> None:
     """
     Creates the starting fields once and remembers that with a marker file.
     After that a removed field stays removed, across restarts too. Without the
     marker — or with no field left at all — the starting fields come back.
     """
-    marker = TEXTS_DIR / FIELDS_MARKER
-    if marker.exists() and field_ids():
+    marker = area.texts / FIELDS_MARKER
+    if marker.exists() and field_ids(area):
         return
     for fid in range(1, FIELDS_START + 1):
-        if not text_path(fid).exists():
-            write_text(fid, "")
+        if not text_path(area, fid).exists():
+            write_text(area, fid, "")
     marker.touch()
     own(marker)
 
 
-def reset_fields() -> None:
-    for fid in field_ids():
+def reset_fields(area: Area) -> None:
+    for fid in field_ids(area):
         try:
-            text_path(fid).unlink()
+            text_path(area, fid).unlink()
         except FileNotFoundError:
             pass
     for fid in range(1, FIELDS_START + 1):
-        write_text(fid, "")
+        write_text(area, fid, "")
 
 
-def fields_state() -> list:
+def fields_state(area: Area) -> list:
     state = []
-    for fid in field_ids():
-        content = read_text(fid)
+    for fid in field_ids(area):
+        content = read_text(area, fid)
         state.append({"id": fid, "text": content, "version": version_of(content)})
     return state
 
@@ -520,8 +581,8 @@ def version_of(content: str) -> str:
     return hashlib.sha256(content.encode("utf-8")).hexdigest()[:16]
 
 
-def read_text(fid: int) -> str:
-    path = text_path(fid)
+def read_text(area: Area, fid: int) -> str:
+    path = text_path(area, fid)
     if not path.exists():
         return ""
     # Explicit encoding: without it Python uses the container locale, and
@@ -531,9 +592,9 @@ def read_text(fid: int) -> str:
     return content.lstrip("﻿")     # BOM from Windows Notepad
 
 
-def write_text(fid: int, content: str) -> None:
+def write_text(area: Area, fid: int, content: str) -> None:
     content = content.lstrip("﻿").replace("\r\n", "\n").replace("\r", "\n")
-    path = text_path(fid)
+    path = text_path(area, fid)
     tmp = path.with_suffix(".tmp")
     with open(tmp, "w", encoding="utf-8", newline="") as f:
         f.write(content)
@@ -541,9 +602,9 @@ def write_text(fid: int, content: str) -> None:
     os.replace(tmp, path)               # atomic, no half-written field after a crash
 
 
-def list_files() -> list:
+def list_files(area: Area) -> list:
     out = []
-    for entry in os.scandir(FILES_DIR):
+    for entry in os.scandir(area.files):
         if entry.name.startswith("."):
             continue
         if not entry.is_file():
@@ -712,16 +773,21 @@ def original_present(rec: dict) -> bool:
     """LAN container only: is the original still in the drop box? Hard link and
     original share an inode — if it differs, the file was deleted or replaced
     by one of the same name."""
+    area = area_by_key(rec.get("area", ""))
     try:
         a = share_blob(rec["id"]).stat()
-        b = safe_target(rec["name"]).stat()
-    except (HTTPException, OSError, KeyError):
+        b = safe_target(area, rec["name"]).stat()
+    except (HTTPException, OSError, KeyError, AttributeError):
         return False
     return (a.st_dev, a.st_ino) == (b.st_dev, b.st_ino)
 
 
 def share_valid(rec: dict, now: float) -> bool:
     if not isinstance(rec.get("expires"), (int, float)) or rec["expires"] <= now:
+        return False
+    # The area of a user who is no longer in compose.yaml: nobody could see or
+    # end the link any more, so it ends here.
+    if not PUBLIC and area_by_key(rec.get("area", "")) is None:
         return False
     if rec.get("kind") == "file":
         if PUBLIC:
@@ -781,6 +847,7 @@ def share_for_lan(rec: dict) -> dict:
     """What the LAN page learns about a share. It does not need the whole text,
     a preview is enough. The counters come from the public container."""
     out = {k: rec.get(k) for k in ("id", "kind", "name", "created", "expires", "size", "field")}
+    out["area"] = rec.get("area", "")
     counters = read_json(counter_path(rec["id"])) or {}
     out["views"] = int(counters.get("views", 0))
     out["downloads"] = int(counters.get("downloads", 0))
@@ -793,6 +860,18 @@ def share_for_lan(rec: dict) -> dict:
 
 def shares_list() -> list:
     return [share_for_lan(r) for r in tidy_shares()[0]]
+
+
+def visible_shares(shares: list, user: Optional["User"]) -> list:
+    """The shares of the areas this user sees, each marked "own" or "shared"
+    from their point of view. Without users everything is shared."""
+    out = []
+    for rec in shares:
+        if rec["area"] == "":
+            out.append({**rec, "area": "shared"})
+        elif user and rec["area"] == user.area.key:
+            out.append({**rec, "area": "own"})
+    return out
 
 
 def count_access(sid: str, what: str) -> None:
@@ -832,7 +911,8 @@ class Upload:
     """An upload in progress. Its state is also kept in a sidecar file, so a
     container restart in the middle of an upload costs nothing."""
 
-    def __init__(self, uid: str, name: str, size: int):
+    def __init__(self, area: Area, uid: str, name: str, size: int):
+        self.area = area
         self.id = uid
         self.name = name                    # cleaned, wanted name
         self.size = size
@@ -848,11 +928,11 @@ class Upload:
 
     @property
     def part(self) -> Path:
-        return FILES_DIR / f"{PART_PREFIX}{self.id}.part"
+        return self.area.files / f"{PART_PREFIX}{self.id}.part"
 
     @property
     def meta(self) -> Path:
-        return FILES_DIR / f"{PART_PREFIX}{self.id}.json"
+        return self.area.files / f"{PART_PREFIX}{self.id}.json"
 
     @property
     def received_bytes(self) -> int:
@@ -905,15 +985,19 @@ class Upload:
 uploads: Dict[str, Upload] = {}
 
 
-def restore_uploads() -> None:
+def area_uploads(area: Area) -> list:
+    return [u.as_dict() for u in uploads.values() if u.area is area]
+
+
+def restore_uploads(area: Area) -> None:
     """Reads the sidecars after a restart — e.g. when a backup job stopped the
     container in the middle of a 500 GB upload."""
-    for meta in FILES_DIR.glob(f"{PART_PREFIX}*.json"):
+    for meta in area.files.glob(f"{PART_PREFIX}*.json"):
         try:
             data = json.loads(meta.read_text(encoding="utf-8"))
             if not re.fullmatch(r"[0-9a-f]{12}", str(data["id"])):
                 continue
-            up = Upload(data["id"], clean_name(str(data["name"])), int(data["size"]))
+            up = Upload(area, data["id"], clean_name(str(data["name"])), int(data["size"]))
             up.chunks = set(int(c) for c in data.get("chunks", []))
             up.started = float(data.get("started", time.time()))
             if up.part.exists():
@@ -927,29 +1011,42 @@ def restore_uploads() -> None:
 # ---------------------------------------------------------------- SSE hub
 
 class Hub:
-    def __init__(self) -> None:
-        self.clients: Set[asyncio.Queue] = set()
+    """Live updates. Every page is told about the shared area; about a user's
+    own area only that user's pages are. Each event says which of the two it
+    is about, from the receiver's point of view: "shared" or "own"."""
 
-    def publish(self, event: str, data) -> None:
-        for q in list(self.clients):
-            try:
-                q.put_nowait((event, data))
-            except asyncio.QueueFull:
-                pass
+    def __init__(self) -> None:
+        self.clients: Dict[asyncio.Queue, Optional[User]] = {}
+
+    def send(self, queue: asyncio.Queue, event: str, data) -> None:
+        try:
+            queue.put_nowait((event, data))
+        except asyncio.QueueFull:
+            pass
+
+    def publish(self, event: str, data: dict, area: Area = SHARED) -> None:
+        for queue, user in list(self.clients.items()):
+            if area is SHARED:
+                self.send(queue, event, {**data, "area": "shared"})
+            elif user and user.area is area:
+                self.send(queue, event, {**data, "area": "own"})
+
+    def publish_shares(self, shares: list) -> None:
+        for queue, user in list(self.clients.items()):
+            self.send(queue, "shares", {"shares": visible_shares(shares, user)})
 
 
 hub = Hub()
 
 
-def announce_files() -> None:
-    hub.publish("files", {"files": list_files(),
-                          "uploads": [u.as_dict() for u in uploads.values()],
-                          "space": disk_space()})
+def announce_files(area: Area) -> None:
+    hub.publish("files", {"files": list_files(area), "uploads": area_uploads(area),
+                          "space": disk_space()}, area)
 
 
 async def announce_shares() -> None:
     if SHARING_ENABLED:
-        hub.publish("shares", {"shares": await run_in_threadpool(shares_list)})
+        hub.publish_shares(await run_in_threadpool(shares_list))
 
 
 async def watch_shares(interval: int = 15) -> None:
@@ -965,7 +1062,7 @@ async def watch_shares(interval: int = 15) -> None:
             snapshot = json.dumps(current, sort_keys=True)
             if snapshot != last:
                 if last is not None:
-                    hub.publish("shares", {"shares": current})
+                    hub.publish_shares(current)
                 last = snapshot
         except Exception as error:
             print(f"Tidying shares: {error}", flush=True)
@@ -1060,17 +1157,32 @@ def banner(*lines: str) -> None:
 async def lifespan(app: FastAPI):
     """Start-up. Lifespan rather than @app.on_event — the latter is deprecated
     and logs a warning on every start."""
-    for d in (FILES_DIR, TEXTS_DIR, THUMBS_DIR) + ((SHARES_DIR, BLOB_DIR, COUNTERS_DIR) if SHARING_ENABLED else ()):
+    folders = [SHARED.files, SHARED.texts, THUMBS_DIR] + ([USERS_DIR] if USERS else [])
+    for user in USERS.values():
+        folders += [user.area.files.parent, user.area.files, user.area.texts]
+    if SHARING_ENABLED:
+        folders += [SHARES_DIR, BLOB_DIR, COUNTERS_DIR]
+    for d in folders:
         d.mkdir(parents=True, exist_ok=True)
         own(d)
-    setup_fields()
-    restore_uploads()
     TMP_DIR.mkdir(parents=True, exist_ok=True)
     own(TMP_DIR)
     tempfile.tempdir = str(TMP_DIR)
-    for left in FILES_DIR.glob(SHARED_PREFIX + "*"):      # copying cut off by a restart
-        left.unlink(missing_ok=True)
-    if LAN_PIN:
+    for area in areas():
+        setup_fields(area)
+        restore_uploads(area)
+        for left in area.files.glob(SHARED_PREFIX + "*"):  # copying cut off by a restart
+            left.unlink(missing_ok=True)
+    if USERS:
+        for user in USERS.values():
+            print(f"User {user.name} ({user.palette}): {'with' if user.pin else 'WITHOUT'} PIN, "
+                  f"files in {user.area.files}", flush=True)
+            if user.pin and len(user.pin) < 4:
+                print(f"  The PIN of {user.name} is shorter than 4 characters — easy to guess.",
+                      flush=True)
+        if LAN_PIN:
+            print("PIN is not used: with users, each one signs in with their own.", flush=True)
+    elif LAN_PIN:
         print("PIN is set: every new browser is asked for it once.", flush=True)
         if len(LAN_PIN) < 4:
             print("The PIN is shorter than 4 characters — easy to guess.", flush=True)
@@ -1157,17 +1269,20 @@ def from_outside(scope) -> bool:
     return not (address.is_private or address in CGNAT)
 
 
-# ---- Optional PIN ------------------------------------------------------------
-# With PIN set, a browser without the cookie sees only the sign-in page. The
-# cookie holds when it signed in, signed with a key in /data that only drop can
-# read (drop-share never sees /data); the PIN is part of the signature, so a
-# changed PIN invalidates every cookie.
+# ---- Signing in --------------------------------------------------------------
+# Optional, set in compose.yaml: one PIN for everyone (PIN), or up to five
+# users (USER_<COLOUR>), each with a name, a PIN and an area of their own. A
+# browser without the cookie sees only the sign-in page. The cookie holds when
+# it signed in, and as whom, signed with a key in /data that only drop can read
+# (drop-share never sees /data). Name and PIN are part of the signature: a
+# changed PIN signs those browsers out.
 
 ACCESS_COOKIE = "drop_access"
-ACCESS_OPEN = {"/login", "/api/help",       # the sign-in itself, and Docker's health check
+ACCESS_OPEN = {"/login", "/logout", "/api/help",  # signing in and out, Docker's health check
                "/manifest.webmanifest",       # fetched by the browser without the cookie
                "/static/icon.svg", "/static/icon-192.png", "/static/icon-512.png",
                "/static/icon-maskable-512.png", "/static/apple-touch-icon.png"}
+SIGN_IN = bool(USERS or LAN_PIN)
 PIN_FAILURES_EACH = 10                     # wrong PINs per browser address and quarter hour
 PIN_FAILURES_ALL = 50                      # all together, against guessing from many addresses
 _access_key: Optional[bytes] = None
@@ -1194,87 +1309,228 @@ def access_key() -> bytes:
     return _access_key
 
 
-def access_signature(issued: int) -> str:
-    pin = hashlib.sha256(LAN_PIN.encode("utf-8")).hexdigest()
-    return hmac.new(access_key(), f"access:{issued}:{pin}".encode(), "sha256").hexdigest()
+def pin_digest(pin: str) -> str:
+    return hashlib.sha256(pin.encode("utf-8")).hexdigest()
 
 
-def signed_in(request: Request) -> bool:
-    issued, _, signature = request.cookies.get(ACCESS_COOKIE, "").partition(".")
+def access_signature(issued: int, user: Optional[User] = None) -> str:
+    if user:
+        message = f"user:{issued}:{user.palette}:{user.name}:{pin_digest(user.pin)}"
+    else:
+        message = f"access:{issued}:{pin_digest(LAN_PIN)}"
+    return hmac.new(access_key(), message.encode("utf-8"), "sha256").hexdigest()
+
+
+def session(request: Request) -> tuple:
+    """(signed in, as which user). Without users the user is always None.
+    Cookie: <issued>.<signature>, with users <issued>.<colour>.<signature>."""
+    parts = request.cookies.get(ACCESS_COOKIE, "").split(".")
+    user = None
+    if USERS:
+        if len(parts) != 3 or parts[1] not in USERS:
+            return False, None
+        issued, user, signature = parts[0], USERS[parts[1]], parts[2]
+    elif len(parts) == 2:
+        issued, signature = parts
+    else:
+        return False, None
     if not re.fullmatch(r"[0-9]{1,12}", issued) or not signature:
-        return False
+        return False, None
     age = time.time() - int(issued)
-    return (-300 < age < ACCESS_DAYS * 86400
-            and hmac.compare_digest(signature, access_signature(int(issued))))
+    if -300 < age < ACCESS_DAYS * 86400 and \
+            hmac.compare_digest(signature, access_signature(int(issued), user)):
+        return True, user
+    return False, None
 
 
-def pin_page(lang: str, t: dict, message: str = "", status: int = 200) -> HTMLResponse:
+def current_user(request: Request) -> Optional[User]:
+    """Who this request comes from — set by pin_gate; None without users."""
+    return getattr(request.state, "user", None)
+
+
+def area_of(request: Request) -> Area:
+    """The area a request is about: ?area=own is the user's own, anything
+    else the shared one."""
+    if request.query_params.get("area") == "own":
+        user = current_user(request)
+        if not user:
+            raise HTTPException(404, "No area of your own")
+        return user.area
+    return SHARED
+
+
+def may_see(request: Request, area: Area) -> bool:
+    user = current_user(request)
+    return area is SHARED or (user is not None and user.area is area)
+
+
+# The users' colours on the sign-in page, light and dark (the app has its own,
+# in style.css).
+USER_STYLE = """
+.u-teal{--accent:#0B6E75;--accent-soft:#DFEFF0;--on-fill:#FFF}
+.u-gold{--accent:#F0A31A;--accent-soft:#FFF3D6;--on-fill:#17130A}
+.u-blue{--accent:#2A62C9;--accent-soft:#E4ECFA;--on-fill:#FFF}
+.u-violet{--accent:#6D4FC2;--accent-soft:#EEE9FA;--on-fill:#FFF}
+.u-coral{--accent:#C9475F;--accent-soft:#FBE6EA;--on-fill:#FFF}
+@media (prefers-color-scheme:dark){
+.u-teal{--accent:#54C0C4;--accent-soft:#13302F;--on-fill:#08161A}
+.u-gold{--accent:#FFB229;--accent-soft:#2A2008;--on-fill:#000}
+.u-blue{--accent:#74A8FF;--accent-soft:#15233D;--on-fill:#07121F}
+.u-violet{--accent:#B39BFF;--accent-soft:#251C40;--on-fill:#140D24}
+.u-coral{--accent:#FF8FA0;--accent-soft:#3A1820;--on-fill:#240A10}}
+.users{display:grid;gap:10px;max-width:28rem;margin:0}
+.users form{margin:0}
+.user{display:flex;align-items:center;gap:12px;width:100%;font:inherit;font-size:16px;font-weight:600;
+ text-align:start;padding:11px 14px;border-radius:6px;border:1px solid var(--line2);background:var(--surface);
+ color:var(--ink);text-decoration:none;cursor:pointer}
+.user:hover,.user:focus-visible{border-color:var(--accent);background:var(--accent-soft);outline:none}
+.initial{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;flex:none;
+ background:var(--accent);color:var(--on-fill);font-size:16px;font-weight:700}
+.lock{margin-inline-start:auto;width:18px;height:18px;fill:none;stroke:var(--muted);stroke-width:1.8;
+ stroke-linecap:round;stroke-linejoin:round;flex:none}
+.who{display:flex;align-items:center;gap:12px;margin:0 0 4px}
+.who h1{margin:0}
+.back{display:inline-block;margin-top:20px;color:var(--muted);font-size:13.5px}
+"""
+LOCK_ICON = ('<svg class="lock" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" '
+             'height="9.5" rx="2"/><path d="M8.5 11V8a3.5 3.5 0 0 1 7 0v3"/></svg>')
+
+
+def sign_in_page(lang: str, t: dict, user: Optional[User] = None, message: str = "",
+                 status: int = 200) -> HTMLResponse:
+    """With users and nobody chosen yet: who is it? Otherwise the PIN — the one
+    of Drop, or that user's."""
     e = html.escape
     notice = f'<p class="error">{e(message)}</p>' if message else ""
-    content = f"""
-<h1>{e(t.get("pin_title", ""))}</h1>
-<p class="meta">{e(t.get("pin_body", ""))}</p>
+    if USERS and user is None:
+        tiles = []
+        for u in USERS.values():
+            face = f'<span class="initial">{e(u.name[:1].upper())}</span><span>{e(u.name)}</span>'
+            if u.pin:
+                tiles.append(f'<a class="user u-{u.palette}" href="/login?user={u.palette}">'
+                             f'{face}{LOCK_ICON}</a>')
+            else:
+                tiles.append(f'<form method="post" action="/login"><input type="hidden" name="user" '
+                             f'value="{u.palette}"><button class="user u-{u.palette}" type="submit">'
+                             f'{face}</button></form>')
+        content = f"""
+<h1>{e(t.get("who_title", ""))}</h1>
+<p class="meta">{e(t.get("who_body", ""))}</p>
 {notice}
-<form method="post" action="/login" class="password">
+<div class="users">{"".join(tiles)}</div>"""
+        return public_page(lang, t, t.get("who_title", ""), content, status=status,
+                           style=USER_STYLE)
+
+    if user:
+        title = fill(t.get("user_pin_title", ""), name=user.name)
+        heading = (f'<div class="who"><span class="initial">{e(user.name[:1].upper())}</span>'
+                   f'<h1>{e(title)}</h1></div>')
+        body, chosen = t.get("user_pin_body", ""), f'<input type="hidden" name="user" value="{user.palette}">'
+        back = f'<a class="back" href="/">{e(t.get("other_user", ""))}</a>'
+    else:
+        title = t.get("pin_title", "")
+        heading, body, chosen, back = f"<h1>{e(title)}</h1>", t.get("pin_body", ""), "", ""
+    content = f"""
+{heading}
+<p class="meta">{e(body)}</p>
+{notice}
+<form method="post" action="/login" class="password">{chosen}
   <input type="password" name="pin" autocomplete="current-password" autofocus required
          aria-label="{e(t.get("pin", ""))}" placeholder="{e(t.get("pin", ""))}">
   <button class="button" type="submit">{e(t.get("open", ""))}</button>
-</form>"""
-    return public_page(lang, t, t.get("pin_title", ""), content, status=status)
+</form>{back}"""
+    return public_page(lang, t, title, content, status=status,
+                       style=USER_STYLE if user else "", body_class=f"u-{user.palette}" if user else "")
 
 
 @app.middleware("http")
 async def pin_gate(request: Request, call_next):
-    if not LAN_PIN or request.url.path in ACCESS_OPEN or signed_in(request):
+    if not SIGN_IN or request.url.path in ACCESS_OPEN:
+        return await call_next(request)
+    ok, user = session(request)
+    if ok:
+        request.state.user = user
         return await call_next(request)
     if request.url.path == "/" and request.method == "GET":
         lang, t = language_of(request)
-        return pin_page(lang, t)
+        return sign_in_page(lang, t)
     if request.url.path == "/share-target":       # shared while signed out: sign in first
         return Response(status_code=303, headers={"location": "/"})
     # The page reloads on 401 and lands on the sign-in page.
     return JSONResponse({"error": "pin"}, status_code=401)
 
 
+def from_elsewhere(request: Request) -> bool:
+    """A form sent from another web site? Browsers say so in Sec-Fetch-Site;
+    old ones send nothing, and that is let through."""
+    return request.headers.get("sec-fetch-site", "same-origin") not in ("same-origin", "none")
+
+
 @app.get("/login")
-async def login_page() -> Response:
+async def login_page(request: Request, user: str = "") -> Response:
+    """The PIN of one user, picked on the sign-in page."""
+    chosen = USERS.get(user)
+    if chosen and chosen.pin:
+        lang, t = language_of(request)
+        return sign_in_page(lang, t, chosen)
     return Response(status_code=303, headers={"location": "/"})
 
 
 @app.post("/login")
 async def login(request: Request) -> Response:
-    if not LAN_PIN:
+    if not SIGN_IN:
         return Response(status_code=303, headers={"location": "/"})
-    lang, t = language_of(request)
-    who = "pin:" + (request.client.host if request.client else "?")
-    if locked(who, PIN_FAILURES_EACH) or locked("pin:*", PIN_FAILURES_ALL):
-        return pin_page(lang, t, t.get("locked", ""), status=429)
-    # Counted before the check, as with share passwords: parallel guesses
-    # cannot slip past the limit while the earlier ones are still checked.
-    now = time.time()
-    failures.setdefault(who, []).append(now)
-    failures.setdefault("pin:*", []).append(now)
-
+    if from_elsewhere(request):
+        raise HTTPException(403, "Sign in on Drop's own page")
     raw = b""
     async for piece in request.stream():
         raw += piece
         if len(raw) > 4096:
             raise HTTPException(413)
-    given = (parse_qs(raw.decode("utf-8", "replace")).get("pin") or [""])[0].strip()
-    if not hmac.compare_digest(hashlib.sha256(given.encode("utf-8")).digest(),
-                               hashlib.sha256(LAN_PIN.encode("utf-8")).digest()):
-        return pin_page(lang, t, t.get("pin_wrong", ""), status=403)
+    form = parse_qs(raw.decode("utf-8", "replace"))
+    user = None
+    if USERS:
+        user = USERS.get((form.get("user") or [""])[0])
+        if not user:
+            return Response(status_code=303, headers={"location": "/"})
+    expected = user.pin if user else LAN_PIN
 
-    failures.pop(who, None)
-    try:
-        failures["pin:*"].remove(now)          # a right PIN does not count against the others
-    except (KeyError, ValueError):
-        pass
+    if expected:
+        lang, t = language_of(request)
+        who = "pin:" + (request.client.host if request.client else "?")
+        if locked(who, PIN_FAILURES_EACH) or locked("pin:*", PIN_FAILURES_ALL):
+            return sign_in_page(lang, t, user, t.get("locked", ""), status=429)
+        # Counted before the check, as with share passwords — and nothing is
+        # awaited in between, so parallel guesses cannot slip past the limit.
+        now = time.time()
+        failures.setdefault(who, []).append(now)
+        failures.setdefault("pin:*", []).append(now)
+        given = (form.get("pin") or [""])[0].strip()
+        if not hmac.compare_digest(hashlib.sha256(given.encode("utf-8")).digest(),
+                                   hashlib.sha256(expected.encode("utf-8")).digest()):
+            return sign_in_page(lang, t, user, t.get("pin_wrong", ""), status=403)
+        failures.pop(who, None)
+        try:
+            failures["pin:*"].remove(now)      # a right PIN does not count against the others
+        except (KeyError, ValueError):
+            pass
+
     issued = int(time.time())
+    value = f"{issued}.{user.palette}.{access_signature(issued, user)}" if user \
+        else f"{issued}.{access_signature(issued)}"
     reply = Response(status_code=303, headers={"location": "/"})
-    reply.set_cookie(ACCESS_COOKIE, f"{issued}.{access_signature(issued)}",
-                     max_age=ACCESS_DAYS * 86400, path="/", httponly=True,
+    reply.set_cookie(ACCESS_COOKIE, value, max_age=ACCESS_DAYS * 86400, path="/", httponly=True,
                      samesite="strict", secure=request.url.scheme == "https")
+    return reply
+
+
+@app.post("/logout")
+async def logout(request: Request) -> Response:
+    if from_elsewhere(request):
+        raise HTTPException(403, "Sign out on Drop's own page")
+    reply = Response(status_code=303, headers={"location": "/"})
+    reply.delete_cookie(ACCESS_COOKIE, path="/", httponly=True, samesite="strict",
+                        secure=request.url.scheme == "https")
     return reply
 
 
@@ -1299,7 +1555,7 @@ async def no_store(request: Request, call_next):
 # ---- Page and assets --------------------------------------------------------
 
 @app.get("/", response_class=HTMLResponse)
-async def index() -> HTMLResponse:
+async def index(request: Request) -> HTMLResponse:
     missing = missing_files()
     if missing:
         name = html.escape(app_name())
@@ -1324,7 +1580,12 @@ code of your own over <code>/app</code>, it needs the subfolder <code>static/</c
 <code>index.html</code>, <code>app.js</code> and <code>style.css</code> in it.</p>
 <p>Afterwards, reloading this page is enough; no container restart needed.</p>
 </html>""")
-    return HTMLResponse((STATIC_DIR / "index.html").read_text(encoding="utf-8"))
+    page = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+    user = current_user(request)
+    if user:
+        # The user's colour from the first frame on, not after the first request.
+        page = page.replace("<html ", f'<html data-palette="{user.palette}" data-user ', 1)
+    return HTMLResponse(page)
 
 
 @app.get("/static/{name}")
@@ -1371,7 +1632,8 @@ SHARE_SHEET_FILES = 100
 @app.post("/share-target")
 async def share_target(request: Request) -> Response:
     """What Android's share sheet sends: files go to the file list, text and
-    links into a new text field. Then on to the page."""
+    links into a new text field — with users, in the user's own area. Then on
+    to the page."""
     # This is the one write a plain HTML form on any web site could send. The
     # browser says where a request comes from: the share sheet sends "none",
     # Drop's own page "same-origin" — everything else is refused.
@@ -1381,22 +1643,24 @@ async def share_target(request: Request) -> Response:
         form = await request.form(max_files=SHARE_SHEET_FILES, max_fields=10)
     except Exception:            # malformed, too many parts: nothing taken
         raise HTTPException(400, "Unreadable form")
+    user = current_user(request)
+    area = user.area if user else SHARED
     try:
         # A share of text only may still carry an empty file part.
         files = [f for f in form.getlist("files") if getattr(f, "filename", None)]
 
         def store(upload) -> None:
             # Copied under a hidden name, shown under its own name once complete.
-            part = FILES_DIR / f"{SHARED_PREFIX}{uuid.uuid4().hex[:12]}"
+            part = area.files / f"{SHARED_PREFIX}{uuid.uuid4().hex[:12]}"
             with open(part, "xb") as out:
                 shutil.copyfileobj(upload.file, out, 4 * 1024 * 1024)
             own(part)
-            os.replace(part, FILES_DIR / unique_name(clean_name(upload.filename)))
+            os.replace(part, area.files / unique_name(area, clean_name(upload.filename)))
 
         for upload in files:
             await run_in_threadpool(store, upload)
         if files:
-            announce_files()
+            announce_files(area)
 
         parts = []
         for key in ("title", "text", "url"):
@@ -1407,17 +1671,19 @@ async def share_target(request: Request) -> Response:
         if parts:
             content = "\n".join(parts)[:MAX_SHARE_TEXT]
             async with text_lock:
-                ids = await run_in_threadpool(field_ids)
+                ids = await run_in_threadpool(field_ids, area)
                 if len(ids) < FIELDS_MAX:
-                    await run_in_threadpool(write_text, (ids[-1] + 1) if ids else 1, content)
+                    await run_in_threadpool(write_text, area, (ids[-1] + 1) if ids else 1, content)
                 else:            # all fields there: below the text of the last one
-                    old = await run_in_threadpool(read_text, ids[-1])
-                    await run_in_threadpool(write_text, ids[-1], (old.rstrip("\n") + "\n\n" + content).lstrip("\n"))
-                state = await run_in_threadpool(fields_state)
-            announce_fields(state)
+                    old = await run_in_threadpool(read_text, area, ids[-1])
+                    await run_in_threadpool(write_text, area, ids[-1],
+                                            (old.rstrip("\n") + "\n\n" + content).lstrip("\n"))
+                state = await run_in_threadpool(fields_state, area)
+            announce_fields(area, state)
     finally:
         await form.close()
-    return Response(status_code=303, headers={"location": "/"})
+    # The page opens on the area the shared things went to.
+    return Response(status_code=303, headers={"location": "/?area=own" if user else "/"})
 
 
 @app.get("/api/lang")
@@ -1445,27 +1711,34 @@ async def help_text(lang: str = DEFAULT_LANGUAGE) -> HTMLResponse:
 # ---- State and events -------------------------------------------------------
 
 @app.get("/api/state")
-async def state() -> JSONResponse:
+async def state(request: Request) -> JSONResponse:
+    """Everything the page shows, for one area (?area=own|shared). The shares
+    cover both areas the user sees."""
+    area, user = area_of(request), current_user(request)
+    shares = await run_in_threadpool(shares_list) if SHARING_ENABLED else []
     return JSONResponse({
         "name": app_name(),
         "notice": app_notice(),
-        "texts": await run_in_threadpool(fields_state),
+        "user": {"name": user.name, "palette": user.palette} if user else None,
+        "sign_in": SIGN_IN,
+        "area": "own" if area is not SHARED else "shared",
+        "texts": await run_in_threadpool(fields_state, area),
         "field_start": FIELDS_START,
         "field_max": FIELDS_MAX,
-        "files": await run_in_threadpool(list_files),
-        "uploads": [u.as_dict() for u in uploads.values()],
+        "files": await run_in_threadpool(list_files, area),
+        "uploads": area_uploads(area),
         "space": await run_in_threadpool(disk_space),
         "chunk_size": CHUNK_SIZE,
         "sharing": {"enabled": SHARING_ENABLED, "max_days": SHARE_MAX_DAYS,
                     "base_url": SHARE_BASE_URL or None, "subdomain": SHARE_SUBDOMAIN},
-        "shares": await run_in_threadpool(shares_list) if SHARING_ENABLED else [],
+        "shares": visible_shares(shares, user),
     })
 
 
 @app.get("/api/events")
 async def events(request: Request) -> StreamingResponse:
     queue: asyncio.Queue = asyncio.Queue(maxsize=200)
-    hub.clients.add(queue)
+    hub.clients[queue] = current_user(request)
 
     async def stream():
         try:
@@ -1481,7 +1754,7 @@ async def events(request: Request) -> StreamingResponse:
                 payload = json.dumps(data, ensure_ascii=False)
                 yield f"event: {event}\ndata: {payload}\n\n".encode("utf-8")
         finally:
-            hub.clients.discard(queue)
+            hub.clients.pop(queue, None)
 
     return StreamingResponse(stream(), media_type="text/event-stream", headers={
         "cache-control": "no-cache",
@@ -1503,13 +1776,14 @@ def check_field(fid: int) -> None:
         raise HTTPException(404, "No such field")
 
 
-def announce_fields(state: list) -> None:
-    hub.publish("fields", {"texts": state})
+def announce_fields(area: Area, state: list) -> None:
+    hub.publish("fields", {"texts": state}, area)
 
 
 @app.put("/api/text/{fid}")
 async def put_text(fid: int, request: Request) -> JSONResponse:
     check_field(fid)
+    area = area_of(request)
     body = await request.json()
     if not isinstance(body, dict):
         raise HTTPException(400, "Expected an object")
@@ -1517,12 +1791,12 @@ async def put_text(fid: int, request: Request) -> JSONResponse:
     base = body.get("base")
 
     async with text_lock:
-        if not await run_in_threadpool(text_path(fid).is_file):
+        if not await run_in_threadpool(text_path(area, fid).is_file):
             # Someone removed the field while it was being typed in. Do not
             # recreate it — the page offers to rescue the text instead.
             raise HTTPException(404, "This field no longer exists")
 
-        current = await run_in_threadpool(read_text, fid)
+        current = await run_in_threadpool(read_text, area, fid)
         current_version = version_of(current)
 
         if base is not None and base != current_version:
@@ -1531,11 +1805,11 @@ async def put_text(fid: int, request: Request) -> JSONResponse:
                 "conflict": True, "text": current, "version": current_version,
             })
 
-        await run_in_threadpool(write_text, fid, new)
-        saved = await run_in_threadpool(read_text, fid)
+        await run_in_threadpool(write_text, area, fid, new)
+        saved = await run_in_threadpool(read_text, area, fid)
 
     version = version_of(saved)
-    hub.publish("text", {"id": fid, "text": saved, "version": version})
+    hub.publish("text", {"id": fid, "text": saved, "version": version}, area)
     return JSONResponse({"version": version})
 
 
@@ -1543,50 +1817,62 @@ async def put_text(fid: int, request: Request) -> JSONResponse:
 async def add_text(request: Request) -> JSONResponse:
     """Appends a new field, optionally with content — that is how the page
     rescues text from a field someone removed under its fingers."""
+    area = area_of(request)
     body = await request.json() if await request.body() else {}
     content = str(body.get("text", "")) if isinstance(body, dict) else ""
 
     async with text_lock:
-        ids = await run_in_threadpool(field_ids)
+        ids = await run_in_threadpool(field_ids, area)
         if len(ids) >= FIELDS_MAX:
             raise api_error(409, "field_limit", f"No more than {FIELDS_MAX} fields")
         new = (ids[-1] + 1) if ids else 1
-        await run_in_threadpool(write_text, new, content)
-        state = await run_in_threadpool(fields_state)
+        await run_in_threadpool(write_text, area, new, content)
+        state = await run_in_threadpool(fields_state, area)
 
-    announce_fields(state)
+    announce_fields(area, state)
     return JSONResponse({"id": new, "texts": state})
 
 
 @app.delete("/api/text/{fid}")
-async def remove_text(fid: int) -> JSONResponse:
+async def remove_text(fid: int, request: Request) -> JSONResponse:
     check_field(fid)
+    area = area_of(request)
     async with text_lock:
-        ids = await run_in_threadpool(field_ids)
+        ids = await run_in_threadpool(field_ids, area)
         if fid in ids:
             if len(ids) <= 1:
                 raise api_error(409, "last_field", "The last field stays")
-            await run_in_threadpool(text_path(fid).unlink)
-        state = await run_in_threadpool(fields_state)
+            await run_in_threadpool(text_path(area, fid).unlink)
+        state = await run_in_threadpool(fields_state, area)
 
-    announce_fields(state)
+    announce_fields(area, state)
     return JSONResponse({"texts": state})
 
 
 @app.delete("/api/text")
-async def delete_text() -> JSONResponse:
+async def delete_text(request: Request) -> JSONResponse:
     """Empties all fields and goes back to the starting number."""
+    area = area_of(request)
     async with text_lock:
-        await run_in_threadpool(reset_fields)
-        state = await run_in_threadpool(fields_state)
-    announce_fields(state)
+        await run_in_threadpool(reset_fields, area)
+        state = await run_in_threadpool(fields_state, area)
+    announce_fields(area, state)
     return JSONResponse({"texts": state})
 
 
 # ---- Upload -----------------------------------------------------------------
 
+def upload_for(uid: str, request: Request) -> Upload:
+    """A running upload — only for whoever may see its area."""
+    up = uploads.get(uid)
+    if not up or not may_see(request, up.area):
+        raise HTTPException(404, "Unknown upload")
+    return up
+
+
 @app.post("/api/upload/init")
 async def upload_init(request: Request) -> JSONResponse:
+    area = area_of(request)
     body = await request.json()
     name = clean_name(str(body.get("name", "")))
     try:
@@ -1598,12 +1884,13 @@ async def upload_init(request: Request) -> JSONResponse:
 
     # Same name, same size and still open? Then resume instead of starting over.
     for up in uploads.values():
-        if up.name == name and up.size == size and not up.finishing and up.part.exists():
+        if up.area is area and up.name == name and up.size == size and not up.finishing \
+                and up.part.exists():
             return JSONResponse({"id": up.id, "chunk_size": CHUNK_SIZE,
                                  "received": up.contiguous(), "chunks": sorted(up.chunks),
                                  "resumed": True})
 
-    up = Upload(uuid.uuid4().hex[:12], name, size)
+    up = Upload(area, uuid.uuid4().hex[:12], name, size)
 
     def prepare():
         with open(up.part, "wb") as f:
@@ -1613,24 +1900,22 @@ async def upload_init(request: Request) -> JSONResponse:
 
     await run_in_threadpool(prepare)
     uploads[up.id] = up
-    announce_files()
+    announce_files(area)
     return JSONResponse({"id": up.id, "chunk_size": CHUNK_SIZE,
                          "received": 0, "chunks": [], "resumed": False})
 
 
 @app.get("/api/upload/{uid}")
-async def upload_status(uid: str) -> JSONResponse:
-    up = uploads.get(uid)
-    if not up:
-        raise HTTPException(404, "Unknown upload")
+async def upload_status(uid: str, request: Request) -> JSONResponse:
+    up = upload_for(uid, request)
     return JSONResponse({"id": up.id, "received": up.contiguous(),
                          "chunks": sorted(up.chunks), "total": up.total})
 
 
 @app.put("/api/upload/{uid}/{index}")
 async def upload_chunk(uid: str, index: int, request: Request) -> JSONResponse:
-    up = uploads.get(uid)
-    if not up or up.finishing:
+    up = upload_for(uid, request)
+    if up.finishing:
         raise HTTPException(404, "Unknown upload")
     if index < 0 or index >= up.total:
         raise HTTPException(400, "Chunk outside the file")
@@ -1677,15 +1962,15 @@ async def upload_chunk(uid: str, index: int, request: Request) -> JSONResponse:
     now = time.time()
     if now - up.last_broadcast > 2.0 or len(up.chunks) == up.total:
         up.last_broadcast = now
-        hub.publish("upload", up.as_dict())
+        hub.publish("upload", up.as_dict(), up.area)
 
     return JSONResponse({"received": up.contiguous()})
 
 
 @app.post("/api/upload/{uid}/done")
-async def upload_done(uid: str) -> JSONResponse:
-    up = uploads.get(uid)
-    if not up or up.finishing:
+async def upload_done(uid: str, request: Request) -> JSONResponse:
+    up = upload_for(uid, request)
+    if up.finishing:
         raise HTTPException(404, "Unknown upload")
     if len(up.chunks) < up.total:
         missing = [i for i in range(up.total) if i not in up.chunks]
@@ -1693,8 +1978,8 @@ async def upload_done(uid: str) -> JSONResponse:
     up.finishing = True                  # a second "done" must not move the file again
 
     def finish() -> str:
-        final = unique_name(up.name)
-        target = FILES_DIR / final
+        final = unique_name(up.area, up.name)
+        target = up.area.files / final
         os.replace(up.part, target)      # same directory: atomic, no copying
         own(target)
         try:
@@ -1709,16 +1994,17 @@ async def upload_done(uid: str) -> JSONResponse:
         uploads.pop(uid, None)
         raise HTTPException(404, "Unknown upload")
     uploads.pop(uid, None)
-    announce_files()
+    announce_files(up.area)
     return JSONResponse({"name": name})
 
 
 @app.delete("/api/upload/{uid}")
-async def upload_cancel(uid: str) -> JSONResponse:
-    up = uploads.pop(uid, None)
-    if up:
+async def upload_cancel(uid: str, request: Request) -> JSONResponse:
+    up = uploads.get(uid)
+    if up and may_see(request, up.area):
+        uploads.pop(uid, None)
         await run_in_threadpool(up.discard)
-        announce_files()
+        announce_files(up.area)
     return JSONResponse({"ok": True})
 
 
@@ -1726,7 +2012,7 @@ async def upload_cancel(uid: str) -> JSONResponse:
 
 @app.get("/files/{name:path}")
 async def download(name: str, request: Request):
-    path = safe_target(name)
+    path = safe_target(area_of(request), name)
     if not path.is_file():
         raise HTTPException(404, "File not found")
     return file_response(path, request)
@@ -1800,16 +2086,18 @@ THUMB_EDGE = 192                     # px; shown at 48, so sharp up to 4x
 thumb_slots = asyncio.Semaphore(2)
 
 
-def thumb_key(name: str) -> str:
-    return hashlib.sha256(name.encode("utf-8")).hexdigest()[:24]
+def thumb_key(area: Area, name: str) -> str:
+    # The shared area keeps the keys of the versions without users.
+    named = f"{area.key}/{name}" if area.key else name
+    return hashlib.sha256(named.encode("utf-8")).hexdigest()[:24]
 
 
-def thumb_path(path: Path, st: os.stat_result) -> Path:
+def thumb_path(area: Area, path: Path, st: os.stat_result) -> Path:
     # Size and mtime in the name: a replaced file gets a new preview.
-    return THUMBS_DIR / f"{thumb_key(path.name)}-{st.st_size}-{st.st_mtime_ns}.webp"
+    return THUMBS_DIR / f"{thumb_key(area, path.name)}-{st.st_size}-{st.st_mtime_ns}.webp"
 
 
-def make_thumb(path: Path, target: Path) -> None:
+def make_thumb(area: Area, path: Path, target: Path) -> None:
     from PIL import Image, ImageOps
 
     Image.MAX_IMAGE_PIXELS = THUMB_MAX_PIXELS
@@ -1824,7 +2112,7 @@ def make_thumb(path: Path, target: Path) -> None:
         im = im.convert("RGBA" if im.mode in ("RGBA", "LA", "PA", "P") or "transparency" in im.info
                         else "RGB")
         im.thumbnail((THUMB_EDGE, THUMB_EDGE))
-        for old in THUMBS_DIR.glob(thumb_key(path.name) + "-*"):
+        for old in THUMBS_DIR.glob(thumb_key(area, path.name) + "-*"):
             old.unlink(missing_ok=True)
         part = target.with_suffix(".part")
         im.save(part, "WEBP", quality=78, method=4)
@@ -1836,7 +2124,12 @@ def tidy_thumbs() -> None:
     """Removes previews whose file is gone (also when deleted over SMB)."""
     if not THUMBS_DIR.is_dir():
         return
-    keep = {thumb_key(e.name) for e in os.scandir(FILES_DIR) if not e.name.startswith(".")}
+    keep = set()
+    for area in areas():
+        try:
+            keep |= {thumb_key(area, e.name) for e in os.scandir(area.files) if not e.name.startswith(".")}
+        except OSError:          # a user's folder removed by hand: its previews go too
+            pass
     for entry in os.scandir(THUMBS_DIR):
         if entry.name.split("-", 1)[0] not in keep:
             try:
@@ -1855,8 +2148,9 @@ async def watch_thumbs(interval: int = 900) -> None:
 
 
 @app.get("/api/thumb/{name:path}")
-async def thumbnail(name: str) -> Response:
-    path = safe_target(name)
+async def thumbnail(name: str, request: Request) -> Response:
+    area = area_of(request)
+    path = safe_target(area, name)
     try:
         st = path.stat()
     except OSError:
@@ -1864,12 +2158,12 @@ async def thumbnail(name: str) -> Response:
     if (not path.is_file() or path.suffix.lower() not in THUMB_TYPES
             or st.st_size > THUMB_MAX_BYTES):
         raise HTTPException(404, "No preview")
-    target = thumb_path(path, st)
+    target = thumb_path(area, path, st)
     if not target.is_file():
         async with thumb_slots:
             if not target.is_file():
                 try:
-                    await run_in_threadpool(make_thumb, path, target)
+                    await run_in_threadpool(make_thumb, area, path, target)
                 except Exception as error:   # whatever the picture does: no preview
                     print(f"No preview for {path.name}: {error}", flush=True)
                     raise HTTPException(404, "No preview")
@@ -1879,10 +2173,10 @@ async def thumbnail(name: str) -> Response:
 
 
 @app.get("/api/preview/{name:path}")
-async def preview(name: str) -> JSONResponse:
+async def preview(name: str, request: Request) -> JSONResponse:
     """The beginning of a text file. errors=replace, so a Windows-1252 file
     shows a few replacement characters instead of an error."""
-    path = safe_target(name)
+    path = safe_target(area_of(request), name)
     if not path.is_file():
         raise HTTPException(404, "File not found")
 
@@ -1897,6 +2191,7 @@ async def preview(name: str) -> JSONResponse:
 
 @app.delete("/api/files")
 async def delete_files(request: Request) -> JSONResponse:
+    area = area_of(request)
     body = await request.json() if await request.body() else {}
     if not isinstance(body, dict):
         raise HTTPException(400, "Expected an object")
@@ -1908,7 +2203,7 @@ async def delete_files(request: Request) -> JSONResponse:
     def delete() -> int:
         count = 0
         if everything:
-            for entry in os.scandir(FILES_DIR):
+            for entry in os.scandir(area.files):
                 try:
                     if not entry.is_file():
                         continue
@@ -1917,11 +2212,12 @@ async def delete_files(request: Request) -> JSONResponse:
                         count += 1          # .part files and sidecars do not count
                 except OSError:
                     pass
-            uploads.clear()
+            for uid in [u.id for u in uploads.values() if u.area is area]:
+                uploads.pop(uid, None)
         else:
             for n in names:
                 try:
-                    target = safe_target(str(n))
+                    target = safe_target(area, str(n))
                     if target.is_file():
                         os.unlink(target)
                         count += 1
@@ -1930,7 +2226,7 @@ async def delete_files(request: Request) -> JSONResponse:
         return count
 
     count = await run_in_threadpool(delete)
-    announce_files()
+    announce_files(area)
     await announce_shares()          # shares of deleted files are dead now
     await run_in_threadpool(tidy_thumbs)
     return JSONResponse({"deleted": count})
@@ -1963,6 +2259,7 @@ async def create_share(request: Request) -> JSONResponse:
         # the name the drop box is open under (see shareBase() in app.js).
         raise api_error(400, "share_needs_name",
                         "Open Drop by its name, not its IP address, to share")
+    area = area_of(request)
     body = await request.json()
     if not isinstance(body, dict):
         raise HTTPException(400, "Expected an object")
@@ -1981,6 +2278,8 @@ async def create_share(request: Request) -> JSONResponse:
     now = time.time()
     rec = {"id": share_id(token), "token": token, "kind": kind,
            "created": int(now), "expires": int(now + duration)}
+    if area.key:
+        rec["area"] = area.key           # only its user sees it in the LAN
 
     if kind == "text":
         text = str(body.get("text", ""))
@@ -1996,7 +2295,7 @@ async def create_share(request: Request) -> JSONResponse:
         except (KeyError, TypeError, ValueError):
             pass
     elif kind == "file":
-        path = safe_target(str(body.get("name", "")))
+        path = safe_target(area, str(body.get("name", "")))
         if not path.is_file():
             raise api_error(404, "file_not_found", "File not found")
 
@@ -2025,26 +2324,40 @@ async def create_share(request: Request) -> JSONResponse:
         await run_in_threadpool(remove_share, rec["id"])
         raise
     await announce_shares()
-    return JSONResponse(share_for_lan(rec))
+    return JSONResponse(visible_shares([share_for_lan(rec)], current_user(request))[0])
+
+
+def share_area(rec: dict) -> Optional[Area]:
+    return area_by_key(rec.get("area", ""))
 
 
 @app.delete("/api/shares/{sid}")
-async def end_share(sid: str) -> JSONResponse:
+async def end_share(sid: str, request: Request) -> JSONResponse:
     require_sharing()
     if not SHARE_ID_PATTERN.match(sid):
         raise HTTPException(404, "Unknown share")
+    rec = await run_in_threadpool(read_share, sid)
+    if rec:
+        area = share_area(rec)
+        if area is not None and not may_see(request, area):
+            raise HTTPException(404, "Unknown share")
     await run_in_threadpool(remove_share, sid)
     await announce_shares()
     return JSONResponse({"ok": True})
 
 
 @app.delete("/api/shares")
-async def end_all_shares() -> JSONResponse:
+async def end_all_shares(request: Request) -> JSONResponse:
+    """Ends every link this user sees — or, with ?area=, those of one area."""
     require_sharing()
+    only = area_of(request) if "area" in request.query_params else None
 
     def end_all() -> int:
         count = 0
         for rec in tidy_shares()[0]:
+            area = share_area(rec)
+            if area is None or not may_see(request, area) or (only and area is not only):
+                continue
             remove_share(rec["id"])
             count += 1
         return count
@@ -2194,17 +2507,18 @@ pre{margin:0;background:var(--surface);border:1px solid var(--line);border-radiu
 
 
 def public_page(lang: str, t: dict, title: str, content: str, status: int = 200,
-                script: str = "") -> HTMLResponse:
+                script: str = "", style: str = "", body_class: str = "") -> HTMLResponse:
     nonce = secrets.token_urlsafe(12)
     script_tag = f'<script nonce="{nonce}">{script}</script>' if script else ""
+    body = f'<body class="{body_class}">' if body_class else "<body>"
     page = f"""<!doctype html>
 <html lang="{lang}" dir="{t.get("dir", "ltr")}"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
 <meta name="robots" content="noindex, nofollow">
 <title>{html.escape(title)}</title>
-<style>{PUBLIC_STYLE}</style></head>
-<body><main>
+<style>{PUBLIC_STYLE}{style}</style></head>
+{body}<main>
 <p class="brand">{html.escape(app_name())}</p>
 {content}
 </main>{script_tag}</body></html>"""
@@ -2428,7 +2742,7 @@ async def public_download(token: str, request: Request) -> Response:
 def check_public() -> None:
     """The public container must not see anything of the drop box. If it is
     mounted anyway, better not start at all than silently show too much."""
-    too_much = [str(p) for p in (FILES_DIR, TEXTS_DIR) if os.path.exists(p)]
+    too_much = [str(p) for p in (FILES_DIR, TEXTS_DIR, USERS_DIR) if os.path.exists(p)]
     if too_much:
         banner("MODE=public, but the files and texts are mounted:",
                *[f"  {p}" for p in too_much],
@@ -2457,6 +2771,11 @@ if __name__ == "__main__":
                     timeout_keep_alive=75, proxy_headers=False, server_header=False)
         raise SystemExit(0)
 
+    if USER_PROBLEMS:
+        # Better not to start than to run without the sign-in someone set up.
+        banner("USERS IN compose.yaml CANNOT BE USED:", *[f"  {p}" for p in USER_PROBLEMS],
+               "Start aborted — fix them and start again.")
+        raise SystemExit(1)
     cert, key = tls_ready()
     port = int(os.environ.get("PORT", "443" if cert else "80"))
     print(f"Starting on port {port} {'with' if cert else 'without'} TLS", flush=True)

@@ -48,11 +48,11 @@ function compare(light, dark, x, w) {
 }
 
 const STATUS = 46;   // status bar above the page, as on a real phone
-function phone(t, { img, x, y, w = 330, z = 2, scheme, bar = 'surface' }) {
+function phone(t, { img, x, y, w = 330, z = 2, scheme, bar = 'surface', barColor = '' }) {
   const h = Math.round(w * 2532 / 1170);
   return `<div class="phone" style="left:${x}px; top:${y}px; z-index:${z}">
     <div class="screen" style="width:${w}px; height:${h}px">
-      <div class="status ${scheme} ${bar}"><b>9:41</b><span class="icons"><i></i><i></i><i></i><i></i><em></em></span></div>
+      <div class="status ${scheme} ${bar}"${barColor ? ` style="background:${barColor}"` : ''}><b>9:41</b><span class="icons"><i></i><i></i><i></i><i></i><em></em></span></div>
       <img src="${img}" style="width:${w}px; height:${h - STATUS}px; object-fit:cover; object-position:top">
       <span class="island"></span></div>
   </div>`;
@@ -98,12 +98,34 @@ function page(t, scheme, title, sub, body) {
     .mode svg{width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round}
     .mode.lt{background:#0B6E75; color:#FFFFFF} .mode.dk{background:#54C0C4; color:#08161A}
     .island{position:absolute; top:11px; left:50%; transform:translateX(-50%); width:100px; height:29px; border-radius:16px; background:#000}
+    .pill{position:absolute; top:800px; transform:translateX(-50%); z-index:6; font-size:19px; font-weight:700; padding:8px 20px;
+          border-radius:999px; box-shadow:0 6px 18px rgba(10,16,19,.22)}
   </style>
   <div class="cap"><h1>${title}</h1><p>${sub}</p></div>
   ${body}`;
 }
 
 const raw = (n, scheme) => `${WORK}/raw-${SET}/${n}-${scheme}.png`;
+
+// The five colour layouts: header colour (above it the phone's status bar),
+// accent and the writing on it — as in static/style.css.
+const PALETTES = {
+  teal:   { name: X('Teal', 'Türkis'),   light: ['#FFFFFF', '#0B6E75', '#FFFFFF'], dark: ['#141C21', '#54C0C4', '#08161A'] },
+  gold:   { name: 'Gold',                light: ['#FFFFFF', 'linear-gradient(100deg,#FFA51A,#FFC94A 50%,#FFA51A)', '#17130A'],
+            dark: ['#131316', 'linear-gradient(100deg,#FF9908,#FFB229 22%,#FFE870 50%,#FFB229 78%,#FF9908)', '#000000'] },
+  blue:   { name: X('Blue', 'Blau'),     light: ['#FFFFFF', '#2A62C9', '#FFFFFF'], dark: ['#121A26', '#74A8FF', '#07121F'] },
+  violet: { name: X('Violet', 'Violett'), light: ['#FFFFFF', '#6D4FC2', '#FFFFFF'], dark: ['#18141F', '#B39BFF', '#140D24'] },
+  coral:  { name: X('Coral', 'Koralle'), light: ['#FFFFFF', '#BF3F59', '#FFFFFF'], dark: ['#1E1416', '#FF8FA0', '#240A10'] },
+};
+function palettes(t, s) {
+  const w = 250, gap = 28, total = 5 * (w + 26) + 4 * gap;
+  return Object.entries(PALETTES).map(([key, p], i) => {
+    const x = (W - total) / 2 + i * (w + 26 + gap);
+    const [surface, accent, onAccent] = p[s];
+    return phone(t, { img: raw(`phone-${key}`, s), x, y: 196, w, scheme: s, barColor: surface })
+      + `<span class="pill" style="left:${x + 13 + w / 2}px; background:${accent}; color:${onAccent}">${p.name}</span>`;
+  }).join('');
+}
 const win = (img, s, more = {}) => ({ img: raw(img, s), url: `drop.${DOMAIN}`, x: 200, y: 182, w: 1200, ratio: 1.6, ...more });
 const slides = [
   ['1-overview', X('Text, files and screenshots, live on every device', 'Text, Dateien und Screenshots, live auf jedem Gerät'),
@@ -138,6 +160,15 @@ const slides = [
    X('Drop follows the system — or switches with one click. Each browser remembers its choice.',
      'Drop folgt dem System — oder wechselt mit einem Klick. Jeder Browser merkt sich seine Wahl.'),
    () => compare(win('overview', 'light'), win('overview', 'dark'), 200, 1200)],
+  ['8-colours', X('Five colours — <em>light and dark</em>', 'Fünf Farben — <em>hell und dunkel</em>'),
+   X('Teal, gold, blue, violet or coral: each browser picks its own — with users, everyone has theirs.',
+     'Türkis, Gold, Blau, Violett oder Koralle: Jeder Browser wählt seine — mit Benutzern hat jeder seine eigene.'),
+   (t, s) => palettes(t, s)],
+  ['9-users', X('Up to five users — <em>each with their own area</em>', 'Bis zu fünf Benutzer — <em>jeder mit eigenem Bereich</em>'),
+   X('Tap your name, enter your PIN: your own texts and files, the shared ones right next to them — in your colour.',
+     'Namen antippen, PIN eingeben: eigene Texte und Dateien, die gemeinsamen gleich daneben — in deiner Farbe.'),
+   (t, s) => browserWindow(t, win('users-own', s, { x: 110, y: 200, w: 1060 }))
+           + phone(t, { img: raw('users-picker', s), x: 1150, y: 236, w: 290, scheme: s, bar: 'page' })],
 ];
 
 const browser = await pw.chromium.launch();
