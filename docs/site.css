@@ -205,4 +205,9 @@ details p{margin:0 0 18px; color:var(--ink-2)}
   .compare .handle svg{width:44px; height:44px; margin:-22px 0 0 -22px; padding:10px}
   .top-right .btn{display:none}
 }
-@media (prefers-reduced-motion:reduce){*{transition:none !important; scroll-behavior:auto !important}}
+/* Sliding in on scroll (reveal.js) */
+.reveal{opacity:0; transform:translateY(22px);
+        transition:opacity .7s cubic-bezier(.22,.61,.36,1), transform .7s cubic-bezier(.22,.61,.36,1)}
+.reveal.is-in{opacity:1; transform:none}
+@media (prefers-reduced-motion:reduce){*{transition:none !important; scroll-behavior:auto !important}
+  .reveal{opacity:1; transform:none}}
