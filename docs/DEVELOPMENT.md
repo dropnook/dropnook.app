@@ -86,6 +86,13 @@ Unraid and can stay.
   was looked up by and its fields have the shape `drop` writes.
 * **Password attempts** are counted before the (deliberately slow, PBKDF2)
   check, so parallel guesses cannot exceed 10 per link and 15 minutes.
+* **The share sheet** (`POST /share-target`, from the manifest's
+  `share_target`) is the one write a plain HTML form on another site could
+  send. It is taken only with `Sec-Fetch-Site: none` (the share sheet) or
+  `same-origin`. Files are copied under a hidden `.shared-*` name and renamed
+  when complete; large parts wait in `/data/.tmp` (`tempfile.tempdir`), never
+  in the container. The app icons come from `static/icon.svg`
+  (`tools/screenshots/icons.mjs`).
 * **The optional PIN** (`PIN`): without the cookie, `drop` answers only the
   sign-in page (`/`, `POST /login`) and `/api/help` (Docker's health check);
   everything else is 401, and the page reloads on it. The cookie holds the

@@ -310,6 +310,13 @@ eine Datei in `lang/` im appdata-Ordner ab — siehe
 die Adresse von Drop als QR-Code: Handy-Kamera darauf richten, und die Seite
 öffnet sich dort.
 
+**Auf dem Home-Bildschirm** — Drop lässt sich wie eine App ablegen: auf dem
+iPhone in Safari *Teilen* → *Zum Home-Bildschirm*, auf Android im Browser-Menü
+*App installieren*. Auf Android erscheint Drop dann auch im Teilen-Menü: Bilder,
+Dateien oder Links direkt an Drop teilen — Dateien landen in der Liste, Text und
+Links in einem neuen Textfeld. Das Teilen-Menü auf Android braucht
+[HTTPS](#https-im-heimnetz).
+
 **Hell und dunkel** folgen dem System. Mit ☀ und ☾ neben *Hilfe* wählst du
 von Hand; ein zweiter Klick auf die gewählte Seite stellt wieder auf
 automatisch. Jeder Browser merkt sich seine Wahl.

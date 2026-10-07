@@ -66,6 +66,20 @@ check "upload chunk" test "$(code -X PUT -H "Host: $HOST" --data-binary "@$WORK/
 check "upload done"  test "$(code -X POST -H "Host: $HOST" "http://$LAN/api/upload/$uid/done")" = 200
 check "file downloads" cmp -s <(curl -sf -H "Host: $HOST" "http://$LAN/files/hello.txt") "$WORK/hello.txt"
 
+# The share sheet (Android, Drop on the home screen) — and other sites that try the same.
+check "manifest with share target" bash -c "curl -sf -H 'Host: $HOST' http://$LAN/manifest.webmanifest \
+  | python3 -c 'import json,sys; assert json.load(sys.stdin)[\"share_target\"][\"action\"] == \"/share-target\"'"
+check "share sheet: other sites refused"  test "$(code -H "Host: $HOST" -H 'Sec-Fetch-Site: cross-site' \
+  -F "files=@$WORK/hello.txt;filename=evil.txt" "http://$LAN/share-target")" = 403
+check "share sheet: unknown origin refused" test "$(code -H "Host: $HOST" \
+  -F "files=@$WORK/hello.txt;filename=evil.txt" "http://$LAN/share-target")" = 403
+check "share sheet: nothing stored then"  test ! -e "$DATA/files/evil.txt"
+check "share sheet: accepted"             test "$(code -H "Host: $HOST" -H 'Sec-Fetch-Site: none' \
+  -F "files=@$WORK/hello.txt;filename=shared.txt" -F 'text=https://example.com/shared' "http://$LAN/share-target")" = 303
+check "share sheet: file in the list"     cmp -s "$DATA/files/shared.txt" "$WORK/hello.txt"
+check "share sheet: link in a text field" grep -rqs 'https://example.com/shared' "$DATA/texts/"
+check "share sheet: no leftovers"         bash -c "! ls -A '$DATA/files' | grep -q '^\.shared-'"
+
 share() {   # share <json> → token
   curl -sf -H "Host: $HOST" -H 'Content-Type: application/json' -d "$1" "http://$LAN/api/shares" \
     | python3 -c 'import json,sys; print(json.load(sys.stdin)["token"])'
@@ -201,6 +215,10 @@ check "PIN: then locked, even the right one"      test "$(code -H "Host: $HOST" 
 check "PIN: signed-in browsers keep working"      test "$(code -H "Host: $HOST" -b "$COOKIE" "http://$PINLAN/api/state")" = 200
 start_pin other-PIN-9
 check "PIN: a changed PIN signs everyone out"     test "$(code -H "Host: $HOST" -b "$COOKIE" "http://$PINLAN/api/state")" = 401
+check "PIN: manifest and icons stay open"         test "$(code -H "Host: $HOST" "http://$PINLAN/manifest.webmanifest")$(code -H "Host: $HOST" "http://$PINLAN/static/icon-192.png")" = 200200
+check "PIN: shared while signed out → PIN page"   test "$(code -H "Host: $HOST" -H 'Sec-Fetch-Site: none' \
+  -F "files=@$WORK/hello.txt;filename=pinned.txt" "http://$PINLAN/share-target")" = 303
+check "PIN: and nothing stored"                   test ! -e "$WORK/pin/files/pinned.txt"
 
 # ------------------------------------------------- the public part refuses more
 if docker run --rm -e MODE=public -v "$DATA:/data:ro" "$IMAGE" >"$WORK/refused.log" 2>&1; then

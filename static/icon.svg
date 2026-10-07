@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Drop">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#18A7AC"/><stop offset="1" stop-color="#0A6D74"/>
+    </linearGradient>
+    <linearGradient id="drop" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FBFDFD"/><stop offset="1" stop-color="#E3EFF0"/>
+    </linearGradient>
+  </defs>
+  <rect x="6" y="6" width="244" height="244" rx="46" fill="url(#bg)"/>
+  <path d="M128 45C112 66 65 121 65 161a63 63 0 0 0 126 0C191 121 144 66 128 45Z" fill="url(#drop)"/>
+  <path d="M97 158c0 17 11 30 28 33" fill="none" stroke="#A2C8CB" stroke-width="10" stroke-linecap="round"/>
+</svg>

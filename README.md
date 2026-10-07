@@ -297,6 +297,12 @@ for yourself, put a file into `lang/` in the appdata folder — see
 shows Drop's address as a QR code: point the phone's camera at it, and the page
 opens there.
 
+**On the home screen** — Drop can sit there like an app: on the iPhone in Safari
+*Share* → *Add to Home Screen*, on Android *Install app* in the browser menu. On
+Android it then also shows up in the share menu: share pictures, files or a link
+straight to Drop — files land in the list, text and links in a new text field.
+The share menu on Android needs [HTTPS](#https-in-your-network).
+
 **Light and dark** follow the system. ☀ and ☾ next to *Help* pick one by hand;
 a second click on the chosen one goes back to automatic. Each browser remembers
 its choice.

@@ -28,6 +28,7 @@ import re
 import secrets
 import ssl
 import shutil
+import tempfile
 import threading
 import time
 import unicodedata
@@ -68,6 +69,10 @@ TEXTS_DIR = Path(os.environ.get("TEXTS_DIR", "/data/texts"))
 SHARES_DIR = Path(os.environ.get("SHARES_DIR", "/data/shares"))
 # Small previews of the pictures in FILES_DIR; next to it, never inside it.
 THUMBS_DIR = Path(os.environ.get("THUMBS_DIR", str(FILES_DIR.parent / ".thumbs")))
+# Temporary files (pictures shared from Android while they arrive) — on the data
+# disk, not in the container: on Unraid that would fill up docker.img.
+TMP_DIR = FILES_DIR.parent / ".tmp"
+SHARED_PREFIX = ".shared-"           # a file from the share sheet while it is copied
 
 # Number of text fields after the first start and after "Clear text fields";
 # "+" adds more, up to TEXT_FIELDS_MAX.
@@ -1060,6 +1065,11 @@ async def lifespan(app: FastAPI):
         own(d)
     setup_fields()
     restore_uploads()
+    TMP_DIR.mkdir(parents=True, exist_ok=True)
+    own(TMP_DIR)
+    tempfile.tempdir = str(TMP_DIR)
+    for left in FILES_DIR.glob(SHARED_PREFIX + "*"):      # copying cut off by a restart
+        left.unlink(missing_ok=True)
     if LAN_PIN:
         print("PIN is set: every new browser is asked for it once.", flush=True)
         if len(LAN_PIN) < 4:
@@ -1154,7 +1164,10 @@ def from_outside(scope) -> bool:
 # changed PIN invalidates every cookie.
 
 ACCESS_COOKIE = "drop_access"
-ACCESS_OPEN = {"/login", "/api/help"}      # the sign-in itself, and Docker's health check
+ACCESS_OPEN = {"/login", "/api/help",       # the sign-in itself, and Docker's health check
+               "/manifest.webmanifest",       # fetched by the browser without the cookie
+               "/static/icon.svg", "/static/icon-192.png", "/static/icon-512.png",
+               "/static/icon-maskable-512.png", "/static/apple-touch-icon.png"}
 PIN_FAILURES_EACH = 10                     # wrong PINs per browser address and quarter hour
 PIN_FAILURES_ALL = 50                      # all together, against guessing from many addresses
 _access_key: Optional[bytes] = None
@@ -1217,6 +1230,8 @@ async def pin_gate(request: Request, call_next):
     if request.url.path == "/" and request.method == "GET":
         lang, t = language_of(request)
         return pin_page(lang, t)
+    if request.url.path == "/share-target":       # shared while signed out: sign in first
+        return Response(status_code=303, headers={"location": "/"})
     # The page reloads on 401 and lands on the sign-in page.
     return JSONResponse({"error": "pin"}, status_code=401)
 
@@ -1321,6 +1336,88 @@ async def static_file(name: str) -> Response:
     if media.startswith("text/") or media in ("application/javascript",):
         media += "; charset=utf-8"
     return Response(path.read_bytes(), media_type=media)
+
+
+# ---- Home screen and share sheet --------------------------------------------
+# With the manifest, Drop can be put on the home screen like an app (iPhone:
+# Safari → Share → Add to Home Screen; Android: Install). On Android it then
+# also appears in the share sheet: pictures, files and links go to /share-target.
+
+@app.get("/manifest.webmanifest")
+async def manifest() -> Response:
+    data = {
+        "id": "/", "start_url": "/", "scope": "/",
+        "name": app_name(), "short_name": "Drop",
+        "display": "standalone",
+        "background_color": "#F2F5F6", "theme_color": "#0B6E75",
+        "icons": [
+            {"src": "/static/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+            {"src": "/static/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+            {"src": "/static/icon-maskable-512.png", "sizes": "512x512", "type": "image/png",
+             "purpose": "maskable"},
+        ],
+        "share_target": {
+            "action": "/share-target", "method": "POST", "enctype": "multipart/form-data",
+            "params": {"title": "title", "text": "text", "url": "url",
+                       "files": [{"name": "files", "accept": ["*/*"]}]},
+        },
+    }
+    return Response(json.dumps(data, ensure_ascii=False), media_type="application/manifest+json")
+
+
+SHARE_SHEET_FILES = 100
+
+
+@app.post("/share-target")
+async def share_target(request: Request) -> Response:
+    """What Android's share sheet sends: files go to the file list, text and
+    links into a new text field. Then on to the page."""
+    # This is the one write a plain HTML form on any web site could send. The
+    # browser says where a request comes from: the share sheet sends "none",
+    # Drop's own page "same-origin" — everything else is refused.
+    if request.headers.get("sec-fetch-site") not in ("none", "same-origin"):
+        raise HTTPException(403, "Only from the share sheet")
+    try:
+        form = await request.form(max_files=SHARE_SHEET_FILES, max_fields=10)
+    except Exception:            # malformed, too many parts: nothing taken
+        raise HTTPException(400, "Unreadable form")
+    try:
+        # A share of text only may still carry an empty file part.
+        files = [f for f in form.getlist("files") if getattr(f, "filename", None)]
+
+        def store(upload) -> None:
+            # Copied under a hidden name, shown under its own name once complete.
+            part = FILES_DIR / f"{SHARED_PREFIX}{uuid.uuid4().hex[:12]}"
+            with open(part, "xb") as out:
+                shutil.copyfileobj(upload.file, out, 4 * 1024 * 1024)
+            own(part)
+            os.replace(part, FILES_DIR / unique_name(clean_name(upload.filename)))
+
+        for upload in files:
+            await run_in_threadpool(store, upload)
+        if files:
+            announce_files()
+
+        parts = []
+        for key in ("title", "text", "url"):
+            value = form.get(key)
+            value = value.strip() if isinstance(value, str) else ""
+            if value and not any(value in p for p in parts):
+                parts.append(value)
+        if parts:
+            content = "\n".join(parts)[:MAX_SHARE_TEXT]
+            async with text_lock:
+                ids = await run_in_threadpool(field_ids)
+                if len(ids) < FIELDS_MAX:
+                    await run_in_threadpool(write_text, (ids[-1] + 1) if ids else 1, content)
+                else:            # all fields there: below the text of the last one
+                    old = await run_in_threadpool(read_text, ids[-1])
+                    await run_in_threadpool(write_text, ids[-1], (old.rstrip("\n") + "\n\n" + content).lstrip("\n"))
+                state = await run_in_threadpool(fields_state)
+            announce_fields(state)
+    finally:
+        await form.close()
+    return Response(status_code=303, headers={"location": "/"})
 
 
 @app.get("/api/lang")
