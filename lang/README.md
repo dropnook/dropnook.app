@@ -55,3 +55,11 @@ tells `_one` (exactly 1) from `_other`. For languages with more forms, phrase
 the `public.*` counts so they read correctly either way — e.g. `"Слов: {n}"`.
 
 `public.thousands_separator` is the digit-group separator used on that page.
+
+## Own area (`_own`)
+
+With users, a confirmation in someone's own area must not say "for everyone":
+nobody else is affected there. Keys such as `ui.delete_single` therefore have a
+variant with `_own` (`ui.delete_single_own`, for plurals
+`ui.delete_many_own_other`) — the same sentence without "for everyone". A
+language without them uses the normal text.

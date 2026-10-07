@@ -13,6 +13,9 @@ const DOWNLOAD_CONFIRM_AT = 25;     // ask first from this many files on
 const DRAFT_KEY           = 'drop.draft.';   // + field id
 const OLD_DRAFT_KEY       = 'drop.feld.';    // earlier builds; moved once
 const THEME_KEY           = 'drop.theme';    // light | dark; missing = automatic (theme.js)
+const PALETTE_KEY         = 'drop.palette';  // colour layout without users; missing = teal (theme.js)
+const AREA_KEY            = 'drop.area';     // with users: the area shown last
+const PALETTES            = ['teal', 'gold', 'blue', 'violet', 'coral'];
 const MAX_LINKS           = 12;
 
 // Choices when sharing. Anything beyond SHARE_MAX_DAYS is left out.
@@ -39,6 +42,17 @@ let shares           = [];
 let sharesList       = null;        // the <ul> in the open shares dialog
 let filesLoaded      = false;       // after the first full state: new files get highlighted
 const fresh          = new Map();   // name → when it arrived, for a short highlight
+
+// Users (compose.yaml): the server marks <html> with data-user and the user's
+// colour. Each user has an area of their own next to the shared one; the page
+// shows one of the two, and every request says which.
+const usersOn        = 'user' in document.documentElement.dataset;
+// Whom this page was opened for. Someone else signing in in another tab
+// replaces the cookie; the server then answers 401 and this page reloads,
+// instead of saving into the other person's area.
+const openedAs       = usersOn ? document.documentElement.dataset.palette || '' : '';
+let user             = null;        // { name, palette }
+let area             = 'shared';    // 'own' | 'shared'
 
 // ------------------------------------------------------------------ Language
 /* All texts come from lang/<code>.json on the server. The browser sends its
@@ -96,6 +110,16 @@ function t(key, values) {
   });
 }
 
+/* In the user's own area, "deleted for everyone" would not be true: there the
+   key_own variant of a text is used, where the language has one. */
+function tArea(key, values) {
+  if (area === 'own') {
+    const own = key + '_own';
+    if (strings[own] !== undefined || strings[own + '_other'] !== undefined) return t(own, values);
+  }
+  return t(key, values);
+}
+
 function translatePage() {
   document.querySelectorAll('[data-i18n]').forEach((n) => { n.textContent = t(n.dataset.i18n); });
   document.querySelectorAll('[data-i18n-placeholder]').forEach((n) => { n.placeholder = t(n.dataset.i18nPlaceholder); });
@@ -105,11 +129,18 @@ function translatePage() {
 // ------------------------------------------------------------------ Small helpers
 const $  = (s) => document.querySelector(s);
 
+// Which area a request is about — only with users; without, there is just one.
+function withArea(url, which = area) {
+  if (!usersOn) return url;
+  return url + (url.includes('?') ? '&' : '?') + 'area=' + which;
+}
+
 // With a PIN (compose.yaml): once the sign-in has run out or the PIN was
 // changed, every request answers 401 — reload, and the PIN page comes up.
 const plainFetch = window.fetch.bind(window);
-window.fetch = async (...args) => {
-  const response = await plainFetch(...args);
+window.fetch = async (url, options = {}) => {
+  if (openedAs) options = { ...options, headers: { ...(options.headers || {}), 'x-drop-as': openedAs } };
+  const response = await plainFetch(url, options);
   if (response.status === 401) location.reload();
   return response;
 };
@@ -393,7 +424,7 @@ function buildField(id) {
   card.append(head, ta, links, changedNote);
 
   const f = {
-    id, card, textarea: ta, name, count, badge, links, share, remove,
+    id, area, card, textarea: ta, name, count, badge, links, share, remove,
     version: null, timer: null, maxTimer: null, sending: false, changed: false, conflicts: 0, gone: false,
   };
 
@@ -418,12 +449,12 @@ function buildField(id) {
   };
   clear.onclick = () => {
     if (!ta.value) return;
-    confirmDialog(t('ui.clear_field_title'), t('ui.clear_field_text', { field: fieldName(f) }),
+    confirmDialog(t('ui.clear_field_title'), tArea('ui.clear_field_text', { field: fieldName(f) }),
       t('ui.clear'), () => { ta.value = ''; updateCount(f); saveDraft(f); save(f); });
   };
   remove.onclick = () => {
     if (!ta.value) { removeField(f); return; }
-    confirmDialog(t('ui.remove_field_title'), t('ui.remove_field_text', { field: fieldName(f) }),
+    confirmDialog(t('ui.remove_field_title'), tArea('ui.remove_field_text', { field: fieldName(f) }),
       t('ui.remove'), () => removeField(f));
   };
   return f;
@@ -476,7 +507,7 @@ function labelFields() {
 function fillNewField(f, x) {
   // A draft left over from an earlier session wins — if it builds on exactly
   // this version. Otherwise a person decides.
-  const draft = readDraft(f.id);
+  const draft = readDraft(f);
   f.version = x.version;
   f.textarea.value = x.text;
   if (draft && draft.text !== x.text) {
@@ -488,6 +519,8 @@ function fillNewField(f, x) {
       resolveConflict(f, draft.text, x);
       f.textarea.value = draft.text;
     }
+  } else if (draft) {
+    deleteDraft(f);                    // arrived after all
   }
   updateCount(f);
 }
@@ -502,14 +535,24 @@ function takeDownField(f) {
 
   // A draft only exists while something is unsaved. Whoever removes a field
   // themselves deleted it before — then there is nothing to rescue.
-  const draft = readDraft(f.id);
-  deleteDraft(f.id);
+  const draft = readDraft(f);
+  deleteDraft(f);
   if (draft && draft.text && draft.text.trim()) offerRescue(draft.text);
 }
 
+/* Another area is shown: the field leaves the page, but it was not removed —
+   its draft stays for when the area comes back. */
+function unmountField(f) {
+  f.gone = true;
+  f.card.remove();
+  const i = fields.indexOf(f);
+  if (i >= 0) fields.splice(i, 1);
+}
+
 async function addField(text) {
+  const asked = area;
   try {
-    const r = await fetch('/api/text', {
+    const r = await fetch(withArea('/api/text', asked), {
       method: 'POST',
       headers: { 'content-type': 'application/json; charset=utf-8' },
       body: JSON.stringify({ text: text || '' }),
@@ -517,6 +560,7 @@ async function addField(text) {
     if (r.status === 409) { toast(t('ui.field_limit', { n: fieldMax }), true); return null; }
     if (!r.ok) throw new Error(r.status);
     const d = await r.json();
+    if (asked !== area) return null;      // another area is shown now
     syncFields(d.texts);
     return fieldById(d.id) || null;
   } catch (e) {
@@ -528,13 +572,14 @@ async function addField(text) {
 async function removeField(f) {
   clearTimeout(f.timer); f.timer = null;
   clearTimeout(f.maxTimer); f.maxTimer = null;
-  deleteDraft(f.id);
+  deleteDraft(f);
   f.gone = true;                // no more saving from here on
   try {
-    const r = await fetch(`/api/text/${f.id}`, { method: 'DELETE' });
+    const r = await fetch(withArea(`/api/text/${f.id}`, f.area), { method: 'DELETE' });
     if (r.status === 409) { f.gone = false; toast(t('ui.last_field')); return; }
     if (!r.ok) throw new Error(r.status);
-    syncFields((await r.json()).texts);
+    const texts = (await r.json()).texts;
+    if (f.area === area) syncFields(texts);
   } catch (e) {
     f.gone = false;
     toast(t('ui.field_remove_failed'), true);
@@ -592,23 +637,29 @@ function updateCount(f) {
   updateLinks(f);
 }
 
-function draftKey(id) { return DRAFT_KEY + id; }
+/* Drafts of the shared area keep the key of the versions without users; those
+   of a user's own area carry the name, so two people on one browser never get
+   each other's text. */
+function draftPrefix(which) {
+  return which === 'own' && user ? `${DRAFT_KEY}@${encodeURIComponent(user.name)}.` : DRAFT_KEY;
+}
+function draftKey(f) { return draftPrefix(f.area) + f.id; }
 
 function saveDraft(f) {
   try {
-    localStorage.setItem(draftKey(f.id), JSON.stringify({
+    localStorage.setItem(draftKey(f), JSON.stringify({
       text: f.textarea.value, base: f.version, ts: Date.now(),
     }));
   } catch (e) { /* private mode or full — no reason to stop */ }
 }
 
-function readDraft(id) {
-  try { return JSON.parse(localStorage.getItem(draftKey(id)) || 'null'); }
+function readDraft(f) {
+  try { return JSON.parse(localStorage.getItem(draftKey(f)) || 'null'); }
   catch (e) { return null; }
 }
 
-function deleteDraft(id) {
-  try { localStorage.removeItem(draftKey(id)); } catch (e) {}
+function deleteDraft(f) {
+  try { localStorage.removeItem(draftKey(f)); } catch (e) {}
 }
 
 /* Earlier builds stored drafts under another key with other field names.
@@ -621,25 +672,26 @@ function moveOldDrafts() {
       const id = key.slice(OLD_DRAFT_KEY.length);
       let old = null;
       try { old = JSON.parse(localStorage.getItem(key) || 'null'); } catch (e) {}
-      if (old && localStorage.getItem(draftKey(id)) === null) {
-        localStorage.setItem(draftKey(id), JSON.stringify({ text: old.text, base: old.basis, ts: old.ts }));
+      if (old && localStorage.getItem(DRAFT_KEY + id) === null) {
+        localStorage.setItem(DRAFT_KEY + id, JSON.stringify({ text: old.text, base: old.basis, ts: old.ts }));
       }
       localStorage.removeItem(key);
     }
   } catch (e) {}
 }
 
-/* Drafts for fields that no longer exist at load time — removed while this
-   tab was closed. As with removal while running: offer the rescue. */
+/* Drafts for fields of this area that no longer exist at load time — removed
+   while this tab was closed. As with removal while running: offer the rescue. */
 function orphanedDrafts() {
   const present = new Set(fields.map((f) => String(f.id)));
+  const prefix = draftPrefix(area);
   const finds = [];
   try {
     for (let k = localStorage.length - 1; k >= 0; k--) {
       const key = localStorage.key(k);
-      if (!key || !key.startsWith(DRAFT_KEY)) continue;
-      const id = key.slice(DRAFT_KEY.length);
-      if (present.has(id)) continue;
+      if (!key || !key.startsWith(prefix)) continue;
+      const id = key.slice(prefix.length);
+      if (!/^\d+$/.test(id) || present.has(id)) continue;
       let draft = null;
       try { draft = JSON.parse(localStorage.getItem(key) || 'null'); } catch (e) {}
       localStorage.removeItem(key);
@@ -663,11 +715,15 @@ async function save(f) {
   const text = f.textarea.value;
   f.sending = true;
   try {
-    const response = await fetch(`/api/text/${f.id}`, {
+    const response = await fetch(withArea(`/api/text/${f.id}`, f.area), {
       method: 'PUT',
       headers: { 'content-type': 'application/json; charset=utf-8' },
       body: JSON.stringify({ text, base: f.version }),
     });
+    if (f.gone) {                // another area is shown now: only tidy up behind it
+      if (response.ok && f.textarea.value === text) deleteDraft(f);
+      return;
+    }
     if (response.status === 404) {
       // The field was removed on the server. Syncing takes it down and offers
       // to rescue the draft.
@@ -700,7 +756,7 @@ async function save(f) {
     f.card.classList.remove('changed');
     // Only delete if nobody typed on since sending — otherwise the newer
     // draft would be lost if the connection dropped now.
-    if (f.textarea.value === text) deleteDraft(f.id);
+    if (f.textarea.value === text) deleteDraft(f);
   } catch (e) {
     // Did not arrive. The draft is in localStorage and goes out by itself on
     // reconnect.
@@ -720,7 +776,7 @@ function resolveConflict(f, myText, server) {
       { text: t('ui.take_server_version'), action: () => {
           f.version = server.version;
           f.textarea.value = server.text;
-          updateCount(f); deleteDraft(f.id);
+          updateCount(f); deleteDraft(f);
         } },
       { text: t('ui.keep_mine'), kind: '', action: () => {
           f.version = server.version;   // build on the current version now
@@ -732,7 +788,7 @@ function resolveConflict(f, myText, server) {
 
 async function takeServerVersion(f) {
   try {
-    const response = await fetch('/api/state');
+    const response = await fetch(withArea('/api/state', f.area));
     if (!response.ok) throw new Error(response.status);
     const current = (await response.json()).texts.find((x) => x.id === f.id);
     if (!current) { toast(t('ui.field_gone'), true); return; }
@@ -747,7 +803,7 @@ async function takeServerVersion(f) {
     f.conflicts = 0;
     f.changed = false;
     f.card.classList.remove('changed');
-    deleteDraft(f.id);
+    deleteDraft(f);
     updateCount(f);
     toast(t('ui.server_version_taken', { field: fieldName(f) }));
   } catch (e) {
@@ -774,7 +830,7 @@ function fromServer(f, text, version) {
   }
   f.version = version;
   if (differs) { f.textarea.value = text; updateCount(f); }
-  deleteDraft(f.id);
+  deleteDraft(f);
 }
 
 // ------------------------------------------------------------------ Shares
@@ -898,7 +954,7 @@ async function createShare(what, duration, password) {
     ? { kind: 'text', text: what.text, title: what.title, field: what.field, duration, password }
     : { kind: 'file', name: what.name, duration, password };
   try {
-    const r = await fetch('/api/shares', {
+    const r = await fetch(withArea('/api/shares'), {
       method: 'POST',
       headers: { 'content-type': 'application/json; charset=utf-8' },
       body: JSON.stringify(body),
@@ -982,9 +1038,10 @@ function drawShares() {
     const main = el('div', 'share-main');
     const head = el('div', 'share-name');
     // A shared field is named in the viewer's language, by its current position.
-    const field = rec.kind === 'text' && fieldById(rec.field);
-    head.append(el('span', 'tag', t(rec.kind === 'text' ? 'ui.kind_text' : 'ui.kind_file')),
-      el('span', '', field ? fieldName(field) : rec.name));
+    const field = rec.kind === 'text' && inArea(rec) && fieldById(rec.field);
+    head.append(el('span', 'tag', t(rec.kind === 'text' ? 'ui.kind_text' : 'ui.kind_file')));
+    if (user) head.appendChild(el('span', 'tag', rec.area === 'own' ? user.name : t('ui.area_shared')));
+    head.appendChild(el('span', '', field ? fieldName(field) : rec.name));
     if (rec.password) head.appendChild(el('span', 'tag', t('ui.password')));
     main.appendChild(head);
     if (rec.preview) main.appendChild(el('div', 'share-preview', rec.preview));
@@ -1034,8 +1091,9 @@ function showShares() {
 /* What is public must always be visible: field and file row get the same
    "Public" badge and a coloured edge, the shares button at the top changes
    colour. A click on the badge opens the list. */
-const sharesForFile  = (name) => shares.filter((r) => r.kind === 'file' && r.name === name);
-const sharesForField = (id) => shares.filter((r) => r.kind === 'text' && r.field === id);
+const inArea         = (r) => (r.area || 'shared') === area;
+const sharesForFile  = (name) => shares.filter((r) => inArea(r) && r.kind === 'file' && r.name === name);
+const sharesForField = (id) => shares.filter((r) => inArea(r) && r.kind === 'text' && r.field === id);
 const latest = (list) => Math.max(...list.map((r) => r.expires));
 
 function badgeText(n) {
@@ -1058,7 +1116,7 @@ function markFields() {
 // ------------------------------------------------------------------ File list
 function allEntries() {
   const running = [];
-  ownUploads.forEach((u) => running.push({ ...u, own: true }));
+  ownUploads.forEach((u) => { if (u.area === area) running.push({ ...u, own: true }); });
   serverUploads.forEach((u) => { if (!ownUploads.has(u.id)) running.push({ ...u, own: false }); });
 
   const search = ($('#filter').value || '').trim().toLowerCase();
@@ -1121,10 +1179,10 @@ function uploadRow(u) {
 const THUMB_TYPES = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'avif'];
 const extOf    = (name) => (name.includes('.') ? name.split('.').pop().toLowerCase() : '');
 const isImage  = (d) => THUMB_TYPES.includes(extOf(d.name)) || extOf(d.name) === 'svg';
-const fileUrl  = (name) => '/files/' + encodeURIComponent(name);
+const fileUrl  = (name) => withArea('/files/' + encodeURIComponent(name));
 const thumbUrl = (d) => (extOf(d.name) === 'svg'      // drawn by the browser, never by the server
   ? fileUrl(d.name)
-  : `/api/thumb/${encodeURIComponent(d.name)}?v=${d.size}-${d.mtime}`);
+  : withArea(`/api/thumb/${encodeURIComponent(d.name)}?v=${d.size}-${d.mtime}`));
 const thumbs   = new Map();   // url → <img>, reused across redraws so nothing flickers
 
 function thumbFor(d) {
@@ -1247,7 +1305,15 @@ function showMenu(event, entries) {
   menu.innerHTML = '';
   entries.forEach((e) => {
     if (e.separator) { menu.appendChild(document.createElement('hr')); return; }
-    const b = el('button', e.kind === 'danger' ? 'danger' : '', e.text);
+    const b = el('button', e.kind === 'danger' ? 'danger' : '', e.swatch ? undefined : e.text);
+    if (e.swatch) {
+      const swatch = el('span', 'swatch');
+      swatch.dataset.p = e.swatch;
+      b.className = 'pick';
+      b.setAttribute('role', 'menuitemradio');
+      b.setAttribute('aria-checked', String(!!e.checked));
+      b.append(swatch, el('span', '', e.text));
+    }
     b.type = 'button';
     b.onclick = () => { hideMenu(); e.action(); };
     menu.appendChild(b);
@@ -1300,12 +1366,12 @@ async function showProperties(d) {
   if (images.includes(ext) && d.size < 40 * 1024 * 1024) {
     const img = document.createElement('img');
     img.className = 'preview';
-    img.src = '/files/' + encodeURIComponent(d.name);
+    img.src = fileUrl(d.name);
     img.alt = d.name;
     box.appendChild(img);
   } else if (texts.includes(ext) && d.size < 2 * 1024 * 1024) {
     try {
-      const r = await fetch('/api/preview/' + encodeURIComponent(d.name));
+      const r = await fetch(withArea('/api/preview/' + encodeURIComponent(d.name)));
       if (r.ok) box.appendChild(el('pre', 'preview', (await r.json()).text));
     } catch (e) { /* no preview, no drama */ }
   }
@@ -1336,10 +1402,11 @@ function startDownload(names) {
 /* Several downloads are triggered one after another with a gap. The browser
    does not report when one has finished — true one-by-one is not possible. */
 function triggerDownloads(names) {
+  const urls = names.map(fileUrl);      // the area shown now, even if it changes meanwhile
   names.forEach((name, i) => {
     setTimeout(() => {
       const a = document.createElement('a');
-      a.href = '/files/' + encodeURIComponent(name);
+      a.href = urls[i];
       a.download = name;
       a.style.display = 'none';
       document.body.appendChild(a);
@@ -1354,10 +1421,10 @@ function triggerDownloads(names) {
 async function deleteFiles(names) {
   const total = files.filter((d) => names.includes(d.name)).reduce((s, d) => s + d.size, 0);
   const what = names.length === 1
-    ? t('ui.delete_single', { name: names[0] })
-    : t('ui.delete_many', { n: names.length, size: formatSize(total) });
+    ? tArea('ui.delete_single', { name: names[0] })
+    : tArea('ui.delete_many', { n: names.length, size: formatSize(total) });
   confirmDialog(t('ui.delete_title'), what, t('ui.delete'), async () => {
-    await fetch('/api/files', {
+    await fetch(withArea('/api/files'), {
       method: 'DELETE',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ names }),
@@ -1529,6 +1596,11 @@ function pastedName(file, i) {
 }
 
 // ------------------------------------------------------------------ Upload
+// "Delete all files" ends the uploads of the area shown, not those of the other.
+function dropOwnUploads() {
+  ownUploads.forEach((u, id) => { if (u.area === area) { u.cancelled = true; ownUploads.delete(id); } });
+}
+
 function cancelUpload(id) {
   const own = ownUploads.get(id);
   if (own) own.cancelled = true;
@@ -1538,17 +1610,18 @@ function cancelUpload(id) {
 }
 
 async function uploadFiles(list) {
+  const into = area;      // all of them go where they were dropped, even if another area is shown meanwhile
   for (const file of list) {
     try {
-      await uploadFile(file);
+      await uploadFile(file, into);
     } catch (e) {
       toast(t('ui.upload_failed', { name: file.name, reason: e.message }), true);
     }
   }
 }
 
-async function uploadFile(file) {
-  const start = await fetch('/api/upload/init', {
+async function uploadFile(file, into) {
+  const start = await fetch(withArea('/api/upload/init', into), {
     method: 'POST',
     headers: { 'content-type': 'application/json; charset=utf-8' },
     body: JSON.stringify({ name: file.name, size: file.size }),
@@ -1560,7 +1633,7 @@ async function uploadFile(file) {
   const totalChunks = Math.max(1, Math.ceil(file.size / chunkSize));
   const done = new Set(init.chunks || []);
   const entry = {
-    id: init.id, name: file.name, size: file.size,
+    id: init.id, area: into, name: file.name, size: file.size,
     received: Math.min(file.size, done.size * chunkSize),
     cancelled: false,
   };
@@ -1721,6 +1794,83 @@ function chooseTheme(mode) {
   applyTheme(theme);
 }
 
+// ------------------------------------------------------------------ Colour layouts
+/* Without users each browser picks one of five; with users it is the user's,
+   set by the server. Light and dark work as before in every one of them. */
+function currentPalette() {
+  return document.documentElement.dataset.palette || 'teal';
+}
+
+function applyPalette(palette) {
+  const root = document.documentElement;
+  if (PALETTES.includes(palette) && palette !== 'teal') root.dataset.palette = palette;
+  else delete root.dataset.palette;
+  const button = $('#btn-palette');
+  $('#palette-swatch').dataset.p = currentPalette();
+  const label = `${t('ui.palette')}: ${t('ui.palette_' + currentPalette())}`;
+  button.title = label;
+  button.setAttribute('aria-label', label);
+}
+
+function choosePalette(palette) {
+  try {
+    if (palette === 'teal') localStorage.removeItem(PALETTE_KEY);
+    else localStorage.setItem(PALETTE_KEY, palette);
+  } catch (e) { /* not kept, but switched for now */ }
+  applyPalette(palette);
+}
+
+function showPalettes(event) {
+  showMenu(event, PALETTES.map((p) => ({
+    text: t('ui.palette_' + p), swatch: p, checked: p === currentPalette(), action: () => choosePalette(p),
+  })));
+}
+
+// ------------------------------------------------------------------ Areas
+/* With users: the own area (only this user sees it) and the shared one. The
+   tabs at the top switch; whatever is typed goes out to the area it was typed
+   in, uploads keep running in theirs. */
+function showAreas() {
+  $('#areas').hidden = !user;
+  if (!user) return;
+  $('#user-name').textContent = user.name;
+  $('#user-initial').textContent = (Array.from(user.name)[0] || '').toUpperCase();
+  ['own', 'shared'].forEach((which) => {
+    const tab = $('#tab-' + which);
+    tab.setAttribute('aria-selected', String(which === area));
+    if (which === area) { tab.classList.remove('has-news'); tab.title = ''; }
+  });
+  $('#area-hint').textContent = t(area === 'own' ? 'ui.area_own_hint' : 'ui.area_shared_hint');
+}
+
+function markNews(which) {
+  const tab = $('#tab-' + which);
+  if (!tab || which === area) return;
+  tab.classList.add('has-news');
+  tab.title = t('ui.area_news');
+}
+
+async function switchArea(next) {
+  if (!user || next === area || (next !== 'own' && next !== 'shared')) return;
+  fields.forEach((f) => { if (f.timer || f.maxTimer) save(f); });
+  fields.slice().forEach(unmountField);
+  closeViewer();
+  hideMenu();
+  area = next;
+  try { localStorage.setItem(AREA_KEY, area); } catch (e) {}
+  files = [];
+  filesLoaded = false;
+  serverUploads = new Map();
+  selection.clear();
+  fresh.clear();
+  thumbs.clear();
+  $('#filter').value = '';
+  firstLoad = true;          // drafts of fields removed meanwhile, in this area
+  showAreas();
+  updateShares();            // marks and the file list, for this area
+  await loadState();
+}
+
 // ------------------------------------------------------------------ QR code
 // The address of this page as a QR code, for the phone's camera. Only Drop in
 // the home network has it; drop-share serves nothing of this page.
@@ -1762,7 +1912,7 @@ function setConnected(on) {
 
 function connectEvents() {
   if (source) source.close();
-  source = new EventSource('/api/events');
+  source = new EventSource(openedAs ? '/api/events?as=' + openedAs : '/api/events');
 
   source.onopen = () => {
     setConnected(true);
@@ -1774,14 +1924,22 @@ function connectEvents() {
     fetch('/api/state').catch(() => {});   // signed out? then the reload above
   };
 
+  // With users, each event says which area it is about. The other one only
+  // gets a dot on its tab.
+  // Before the first state arrived the user is not known yet — nor where drafts belong.
+  const here = (d) => (!usersOn || user) && (!d.area || d.area === area);
+
   source.addEventListener('text', (e) => {
     const d = JSON.parse(e.data);
+    if (!here(d)) { markNews(d.area); return; }
     // Unknown id: the field was just created, "fields" follows.
     fromServer(fieldById(d.id), d.text, d.version);
   });
 
   source.addEventListener('fields', (e) => {
-    syncFields(JSON.parse(e.data).texts || []);
+    const d = JSON.parse(e.data);
+    if (!here(d)) { markNews(d.area); return; }
+    syncFields(d.texts || []);
   });
 
   source.addEventListener('shares', (e) => {
@@ -1791,6 +1949,7 @@ function connectEvents() {
 
   source.addEventListener('files', (e) => {
     const d = JSON.parse(e.data);
+    if (!here(d)) { if (d.files && d.files.length) markNews(d.area); return; }
     const before = new Set(files.map((x) => x.name));
     files = d.files || [];
     if (filesLoaded) files.forEach((x) => { if (!before.has(x.name)) markFresh(x.name); });
@@ -1801,6 +1960,7 @@ function connectEvents() {
 
   source.addEventListener('upload', (e) => {
     const u = JSON.parse(e.data);
+    if (!here(u)) return;
     serverUploads.set(u.id, u);
     if (!ownUploads.has(u.id)) drawList();
   });
@@ -1819,10 +1979,17 @@ function showSpace(space) {
 }
 
 async function loadState() {
+  const asked = area;
   try {
-    const r = await fetch('/api/state');
+    const r = await fetch(withArea('/api/state'));
+    // No own area any more: the users were taken out of compose.yaml.
+    if (r.status === 404 && asked === 'own') { location.reload(); return; }
     if (!r.ok) throw new Error(r.status);
     const d = await r.json();
+    if (asked !== area) return;        // switched meanwhile; that load is on its way
+    user = d.user || null;
+    if (user) applyPalette(user.palette);
+    showAreas();
     if (d.name) {
       appName = d.name;
       document.title = d.name;
@@ -1860,7 +2027,7 @@ async function loadState() {
 
 function resendDrafts() {
   fields.forEach((f) => {
-    const draft = readDraft(f.id);
+    const draft = readDraft(f);
     if (draft && f.textarea.value === draft.text) scheduleSave(f);
   });
 }
@@ -1869,7 +2036,7 @@ function stopAllSaves() {
   fields.forEach((f) => {
     clearTimeout(f.timer); f.timer = null;
     clearTimeout(f.maxTimer); f.maxTimer = null;
-    deleteDraft(f.id);
+    deleteDraft(f);
   });
 }
 
@@ -1885,6 +2052,18 @@ function wireButtons() {
     if (e.key === THEME_KEY || e.key === null) applyTheme(e.newValue || 'auto');
   });
   $('#btn-shares').onclick = showShares;
+  $('#btn-palette').hidden = usersOn;
+  $('#btn-palette').onclick = (e) => { e.stopPropagation(); showPalettes(e); };
+  window.addEventListener('storage', (e) => {
+    if (!usersOn && (e.key === PALETTE_KEY || e.key === null)) applyPalette(e.newValue || 'teal');
+  });
+  document.querySelectorAll('#areas [role=tab]').forEach((b) => { b.onclick = () => switchArea(b.dataset.area); });
+  // Signed out here: the other tabs of this browser follow at once.
+  if ('BroadcastChannel' in window) {
+    const tabs = new BroadcastChannel('drop');
+    tabs.onmessage = (e) => { if (e.data === 'signed-out') location.reload(); };
+    $('#areas form').addEventListener('submit', () => tabs.postMessage('signed-out'));
+  }
 
   $('#btn-add-field').onclick = async () => {
     const f = await addField('');
@@ -1912,10 +2091,10 @@ function wireButtons() {
   $('#sort').onchange = drawList;
 
   $('#btn-clear-texts').onclick = () => {
-    confirmDialog(t('ui.clear_texts_title'), t('ui.clear_texts_text', { n: fieldStart }),
+    confirmDialog(t('ui.clear_texts_title'), tArea('ui.clear_texts_text', { n: fieldStart }),
       t('ui.clear_texts'), async () => {
         stopAllSaves();
-        await fetch('/api/text', { method: 'DELETE' }).catch(() => {});
+        await fetch(withArea('/api/text'), { method: 'DELETE' }).catch(() => {});
         await loadState();
       });
   };
@@ -1924,30 +2103,31 @@ function wireButtons() {
     const total = files.reduce((s, d) => s + d.size, 0);
     if (!files.length) { toast(t('ui.no_files')); return; }
     confirmDialog(t('ui.delete_files_title'),
-      t('ui.delete_files_text', { files: t('ui.files_count', { n: files.length }), size: formatSize(total) }),
+      tArea('ui.delete_files_text', { files: t('ui.files_count', { n: files.length }), size: formatSize(total) }),
       t('ui.delete_files'), async () => {
-        await fetch('/api/files', {
+        await fetch(withArea('/api/files'), {
           method: 'DELETE', headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ all: true }),
         }).catch(() => {});
-        selection.clear(); ownUploads.clear();
+        selection.clear(); dropOwnUploads();
         await loadState();
       });
   };
 
   $('#btn-delete-all').onclick = () => {
     const total = files.reduce((s, d) => s + d.size, 0);
-    const parts = [t('ui.delete_all_text', { files: t('ui.files_count', { n: files.length }), size: formatSize(total) })];
-    if (shares.length) parts.push(t('ui.delete_all_shares', { n: shares.length }));
+    const here = shares.filter(inArea);
+    const parts = [tArea('ui.delete_all_text', { files: t('ui.files_count', { n: files.length }), size: formatSize(total) })];
+    if (here.length) parts.push(t('ui.delete_all_shares', { n: here.length }));
     confirmDialog(t('ui.delete_all_title'), parts.join(' '), t('ui.delete_all'), async () => {
       stopAllSaves();
-      if (shares.length) await fetch('/api/shares', { method: 'DELETE' }).catch(() => {});
-      await fetch('/api/text', { method: 'DELETE' }).catch(() => {});
-      await fetch('/api/files', {
+      if (here.length) await fetch(withArea('/api/shares'), { method: 'DELETE' }).catch(() => {});
+      await fetch(withArea('/api/text'), { method: 'DELETE' }).catch(() => {});
+      await fetch(withArea('/api/files'), {
         method: 'DELETE', headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ all: true }),
       }).catch(() => {});
-      selection.clear(); ownUploads.clear();
+      selection.clear(); dropOwnUploads();
       await loadState();
     });
   };
@@ -1968,9 +2148,18 @@ function wireButtons() {
 }
 
 async function start() {
+  if (usersOn) {
+    // ?area= from the share sheet, otherwise the one shown last; first time: my own.
+    const wanted = new URLSearchParams(location.search).get('area');
+    let last = null;
+    try { last = localStorage.getItem(AREA_KEY); } catch (e) {}
+    area = wanted === 'own' || wanted === 'shared' ? wanted : (last === 'shared' ? 'shared' : 'own');
+    if (wanted) history.replaceState(null, '', location.pathname);
+  }
   await loadLanguage();
   translatePage();
   applyTheme(currentTheme());
+  applyPalette(currentPalette());
   moveOldDrafts();
   wireButtons();
   setupDrop();

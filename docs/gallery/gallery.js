@@ -1,6 +1,7 @@
 // Dropnook screenshot gallery: arrows, keys, swipe, click to zoom, EN/DE.
 (() => {
-  const NAMES = ['1-overview', '2-share', '3-shares', '4-public', '5-phone', '6-languages', '7-theme'];
+  const NAMES = ['1-overview', '2-share', '3-shares', '4-public', '5-phone', '6-languages', '7-theme',
+    '8-colours', '9-users'];
   const TEXT = {
     en: {
       slides: [
@@ -11,6 +12,8 @@
         ['Made for the phone, too', 'On your home Wi-Fi or VPN, from the phone to the computer and back.'],
         ['Speaks 17 languages', 'Picked from the browser automatically.'],
         ['Light or dark', 'Follows the system — or one click switches.'],
+        ['Five colours', 'Teal, gold, blue, violet or coral — each in light and dark.'],
+        ['Users with their own area', 'Up to five, each with a PIN and a colour — next to the shared area.'],
       ],
       repo: 'View on GitHub →', prev: 'Previous screenshot', next: 'Next screenshot', all: 'All screenshots',
       keys: 'Click the picture to zoom in, move the mouse to look around · ← → to browse.',
@@ -27,6 +30,8 @@
         ['Auch fürs Handy gemacht', 'Im WLAN zu Hause oder per VPN, vom Handy zum Computer und zurück.'],
         ['Spricht 17 Sprachen', 'Automatisch nach dem Browser.'],
         ['Hell oder dunkel', 'Folgt dem System — oder ein Klick schaltet um.'],
+        ['Fünf Farben', 'Türkis, Gold, Blau, Violett oder Koralle — jede hell und dunkel.'],
+        ['Benutzer mit eigenem Bereich', 'Bis zu fünf, jeder mit PIN und Farbe — neben dem gemeinsamen Bereich.'],
       ],
       repo: 'Auf GitHub ansehen →', prev: 'Vorheriges Bild', next: 'Nächstes Bild', all: 'Alle Bilder',
       keys: 'Klick aufs Bild vergrössert, mit der Maus umsehen · ← → zum Blättern.',

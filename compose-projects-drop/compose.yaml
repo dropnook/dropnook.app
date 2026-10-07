@@ -19,7 +19,7 @@ x-settings:
   tls-cert:        &tls_cert        auto             # auto | yourdomain.com | "" | path of fullchain.pem
   tls-key:         &tls_key         ""               # only with a path in tls-cert
   share-subdomain: &share_subdomain drop-share       # links: https://drop-share.yourdomain.com/…
-  image:           &image           ghcr.io/dropnook/dropnook:1   # 1.x + weekly security rebuilds
+  image:           &image           ghcr.io/dropnook/dropnook:2   # 2.x + weekly security rebuilds
 
 services:
 
@@ -42,6 +42,13 @@ services:
       CERTS_DIR: *certs
       SHARE_SUBDOMAIN: *share_subdomain
       # PIN: "2468"                  # optional: asked once on every new device
+      # Or users, up to five, one per colour — "name:PIN", each with an area of
+      # their own next to the shared one (README, "Users"):
+      # USER_TEAL:   "Anna:2468"
+      # USER_GOLD:   "Tom:1357"
+      # USER_BLUE:   "Lena:8642"
+      # USER_VIOLET: "Max:9753"
+      # USER_CORAL:  "Mia"          # without ":PIN": the name alone (or PIN, if set)
       # TZ: Europe/Berlin            # log timestamps only
       # More settings: docs/DEVELOPMENT.md
     volumes:

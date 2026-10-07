@@ -18,9 +18,9 @@ cleanup() {
     echo "--- log drop";       docker logs ci-drop 2>&1 | tail -40 || true
     echo "--- log drop-share"; docker logs ci-drop-share 2>&1 | tail -40 || true
   fi
-  docker rm -f ci-drop ci-drop-share ci-drop-pin >/dev/null 2>&1 || true
+  docker rm -f ci-drop ci-drop-share ci-drop-pin ci-drop-users >/dev/null 2>&1 || true
   # The containers own the files (99:100); remove them from inside.
-  docker run --rm -v "$WORK:/w" --entrypoint rm "$IMAGE" -rf /w/data /w/pin >/dev/null 2>&1 || true
+  docker run --rm -v "$WORK:/w" --entrypoint rm "$IMAGE" -rf /w/data /w/pin /w/users >/dev/null 2>&1 || true
   rm -rf "$WORK" 2>/dev/null || true
 }
 trap cleanup EXIT
@@ -54,6 +54,8 @@ wait_healthy ci-drop
 check "page loads"              test "$(code -H "Host: $HOST" "http://$LAN/")" = 200
 check "state answers"           test "$(code -H "Host: $HOST" "http://$LAN/api/state")" = 200
 check "proxied request refused" test "$(code -H "Host: $HOST" -H 'X-Forwarded-For: 203.0.113.9' "http://$LAN/api/state")" = 404
+check "no changes from other sites" test "$(code -H "Host: $HOST" -H 'Sec-Fetch-Site: same-site' -H 'Content-Type: text/plain' \
+  -d '{"text":"spam"}' "http://$LAN/api/text")" = 403
 check "data folders created"    test -d "$DATA/files" -a -d "$DATA/texts" -a -d "$DATA/shares/counters"
 
 # A file, uploaded the way the page does it: init, one chunk, done.
@@ -219,6 +221,69 @@ check "PIN: manifest and icons stay open"         test "$(code -H "Host: $HOST" 
 check "PIN: shared while signed out → PIN page"   test "$(code -H "Host: $HOST" -H 'Sec-Fetch-Site: none' \
   -F "files=@$WORK/hello.txt;filename=pinned.txt" "http://$PINLAN/share-target")" = 303
 check "PIN: and nothing stored"                   test ! -e "$WORK/pin/files/pinned.txt"
+
+# ------------------------------------------------- users, each with an area of their own
+USRLAN=127.0.0.1:18083
+mkdir -p "$WORK/users"
+start_users() {   # start_users <PIN of Anna> [PIN for everyone]
+  docker rm -f ci-drop-users >/dev/null 2>&1 || true
+  docker run -d --name ci-drop-users -p "$USRLAN:80" \
+    --cap-drop ALL --cap-add CHOWN --cap-add DAC_OVERRIDE --cap-add FOWNER --cap-add NET_BIND_SERVICE \
+    --security-opt no-new-privileges:true --memory 2g --pids-limit 200 \
+    -e MODE=lan -e TLS_CERT= -e SERVER_NAME=CI -e CHUNK_MB=1 \
+    -e "USER_TEAL=Anna:$1" -e "USER_GOLD=Tom" -e "PIN=${2:-}" -v "$WORK/users:/data" "$IMAGE" >/dev/null
+  wait_healthy ci-drop-users
+}
+cookie_of() { grep -i '^set-cookie: drop_access=' "$1" | sed -E 's/^[^:]*: (drop_access=[^;]*).*/\1/' | tr -d '\r'; }
+start_users 2468
+U=(-H "Host: $HOST")
+check "users: the page lists them"         bash -c "curl -s -H 'Host: $HOST' http://$USRLAN/ | grep -q 'u-teal.*Anna' && curl -s -H 'Host: $HOST' http://$USRLAN/ | grep -q 'u-gold.*Tom'"
+check "users: nothing without signing in"  test "$(code "${U[@]}" "http://$USRLAN/api/state")" = 401
+check "users: a wrong PIN is refused"      test "$(code "${U[@]}" -d 'user=teal&pin=1111' "http://$USRLAN/login")" = 403
+check "users: no sign-in from other sites" test "$(code "${U[@]}" -H 'Sec-Fetch-Site: cross-site' -d 'user=gold' "http://$USRLAN/login")" = 403
+curl -s -o /dev/null -D "$WORK/anna.headers" "${U[@]}" -d 'user=teal&pin=2468' "http://$USRLAN/login"
+curl -s -o /dev/null -D "$WORK/tom.headers" "${U[@]}" -d 'user=gold' "http://$USRLAN/login"
+check "users: Anna signs in with her PIN"  grep -qiE '^set-cookie: drop_access=[0-9]+\.teal\.[0-9a-f]{64};.*httponly.*samesite=strict' "$WORK/anna.headers"
+check "users: Tom needs none"              grep -qiE '^set-cookie: drop_access=[0-9]+\.gold\.[0-9a-f]{64};' "$WORK/tom.headers"
+ANNA=$(cookie_of "$WORK/anna.headers"); TOM=$(cookie_of "$WORK/tom.headers")
+check "users: a cookie cannot change hands" test "$(code "${U[@]}" -b "${ANNA/.teal./.gold.}" "http://$USRLAN/api/state")" = 401
+check "users: a page opened for Tom is refused with Anna's cookie" test "$(code "${U[@]}" -b "$ANNA" -H 'X-Drop-As: gold' "http://$USRLAN/api/state")" = 401
+check "users: the page in Anna's colour"   bash -c "curl -s -H 'Host: $HOST' -b '$ANNA' http://$USRLAN/ | grep -q 'data-palette=\"teal\" data-user'"
+upload_as() {   # upload_as <cookie> <area> <name> <file> — prints the upload id
+  curl -sf "${U[@]}" -b "$1" -H 'Content-Type: application/json' -d "{\"name\":\"$3\",\"size\":$(stat -c %s "$4")}" \
+    "http://$USRLAN/api/upload/init?area=$2" | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])'
+}
+uid=$(upload_as "$ANNA" own secret.txt "$WORK/hello.txt")
+check "users: Tom cannot write into Anna's upload" test "$(code -X PUT "${U[@]}" -b "$TOM" --data-binary "@$WORK/hello.txt" "http://$USRLAN/api/upload/$uid/0")" = 404
+curl -s -o /dev/null -X PUT "${U[@]}" -b "$ANNA" --data-binary "@$WORK/hello.txt" "http://$USRLAN/api/upload/$uid/0"
+check "users: Anna's own upload done"      test "$(code -X POST "${U[@]}" -b "$ANNA" "http://$USRLAN/api/upload/$uid/done")" = 200
+check "users: stored in her folder"        cmp -s "$WORK/users/users/Anna/files/secret.txt" "$WORK/hello.txt"
+check "users: Anna downloads it"           cmp -s <(curl -sf "${U[@]}" -b "$ANNA" "http://$USRLAN/files/secret.txt?area=own") "$WORK/hello.txt"
+check "users: Tom does not, in either area" test "$(code "${U[@]}" -b "$TOM" "http://$USRLAN/files/secret.txt?area=own")$(code "${U[@]}" -b "$TOM" "http://$USRLAN/files/secret.txt")" = 404404
+uid=$(upload_as "$TOM" shared together.txt "$WORK/hello.txt")
+curl -s -o /dev/null -X PUT "${U[@]}" -b "$TOM" --data-binary "@$WORK/hello.txt" "http://$USRLAN/api/upload/$uid/0"
+curl -s -o /dev/null -X POST "${U[@]}" -b "$TOM" "http://$USRLAN/api/upload/$uid/done"
+check "users: the shared area is shared"   cmp -s <(curl -sf "${U[@]}" -b "$ANNA" "http://$USRLAN/files/together.txt") "$WORK/hello.txt"
+curl -s -o /dev/null -X PUT "${U[@]}" -b "$ANNA" -H 'Content-Type: application/json' -d '{"text":"only for Anna"}' "http://$USRLAN/api/text/1?area=own"
+check "users: own texts stay own"          bash -c "! curl -s -H 'Host: $HOST' -b '$TOM' 'http://$USRLAN/api/state?area=own' | grep -q 'only for Anna' \
+  && ! curl -s -H 'Host: $HOST' -b '$TOM' 'http://$USRLAN/api/state' | grep -q 'only for Anna' \
+  && curl -s -H 'Host: $HOST' -b '$ANNA' 'http://$USRLAN/api/state?area=own' | grep -q 'only for Anna'"
+sid=$(curl -sf "${U[@]}" -b "$ANNA" -H 'Content-Type: application/json' -d '{"kind":"file","name":"secret.txt","duration":3600}' \
+  "http://$USRLAN/api/shares?area=own" | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
+check "users: Tom does not see Anna's link" bash -c "! curl -s -H 'Host: $HOST' -b '$TOM' http://$USRLAN/api/state | grep -q '$sid'"
+check "users: nor can he end it"           test "$(code -X DELETE "${U[@]}" -b "$TOM" "http://$USRLAN/api/shares/$sid")" = 404
+curl -s -o /dev/null -X DELETE "${U[@]}" -b "$TOM" "http://$USRLAN/api/shares"
+check "users: not even with “end all”"     bash -c "curl -s -H 'Host: $HOST' -b '$ANNA' http://$USRLAN/api/state | grep -q '$sid'"
+start_users 1357
+check "users: a changed PIN signs her out" test "$(code "${U[@]}" -b "$ANNA" "http://$USRLAN/api/state")" = 401
+check "users: and only her"                test "$(code "${U[@]}" -b "$TOM" "http://$USRLAN/api/state")" = 200
+start_users 1357 4321
+check "users: with PIN set, it is Tom's too" test "$(code "${U[@]}" -b "$TOM" "http://$USRLAN/api/state")$(code "${U[@]}" -d 'user=gold' "http://$USRLAN/login")" = 401403
+check "users: and it lets him in"          test "$(code "${U[@]}" -d 'user=gold&pin=4321' "http://$USRLAN/login")" = 303
+if timeout 60 docker run --rm -e MODE=lan -e 'USER_BLUE=../evil' -v "$WORK/users:/data" "$IMAGE" >"$WORK/badusers.log" 2>&1; then
+  fail "starts with a user name that is a path"
+fi
+check "users: a bad name stops the start"  grep -q "Start aborted" "$WORK/badusers.log"
 
 # ------------------------------------------------- the public part refuses more
 if docker run --rm -e MODE=public -v "$DATA:/data:ro" "$IMAGE" >"$WORK/refused.log" 2>&1; then

@@ -8,7 +8,9 @@ Key facts:
 - Share links look like https://drop-share.yourdomain.com/k7m3x-9pq2r — 10 characters, no look-alike characters, about 50 bits; they expire after 15 minutes to 30 days.
 - HTTPS in the LAN with an existing certificate (e.g. from Nginx Proxy Manager), found automatically.
 - Picture previews, a large view and "Copy" of a picture into another computer's clipboard.
-- 17 languages, light and dark mode. Images are tested against a set of attacks before every release and rebuilt weekly for security updates.
+- 17 languages; five colour layouts (teal, gold, blue, violet, coral), each in light and dark.
+- Optional: one PIN for everyone, or up to five users (USER_<COLOUR>: "name:PIN"), each with an area of their own next to the shared one and their own colour.
+- Images are tested against a set of attacks before every release and rebuilt weekly for security updates.
 
 ## Docs
 

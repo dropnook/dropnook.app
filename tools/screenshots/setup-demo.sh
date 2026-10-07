@@ -7,17 +7,17 @@ set -e
 HERE=$(cd "$(dirname "$0")" && pwd)
 SET=${1:-en}
 WORK=${WORK:-/srv/demo}
-IMAGE=${IMAGE:-ghcr.io/dropnook/dropnook:1}
+IMAGE=${IMAGE:-ghcr.io/dropnook/dropnook:2}
 case $SET in
-  en) LAN=127.0.0.2; PUB=127.0.0.3 ;;
-  de) LAN=127.0.0.4; PUB=127.0.0.5 ;;
+  en) LAN=127.0.0.2; PUB=127.0.0.3; USR=127.0.0.6 ;;
+  de) LAN=127.0.0.4; PUB=127.0.0.5; USR=127.0.0.7 ;;
   *) echo "usage: $0 en|de"; exit 1 ;;
 esac
 mkdir -p "$WORK"
 mountpoint -q "$WORK" || mount -t tmpfs -o size=7800g tmpfs "$WORK"
 D=$WORK/$SET
-docker rm -f "demo-$SET" "demo-$SET-share" >/dev/null 2>&1 || true
-rm -rf "$D"                  # start clean: every run creates the same shares
+docker rm -f "demo-$SET" "demo-$SET-share" "demo-$SET-users" >/dev/null 2>&1 || true
+rm -rf "$D" "$D-users"       # start clean: every run creates the same shares
 mkdir -p "$D/files"
 echo 'NAME="Tower"' > "$WORK/ident.cfg"
 cd "$D/files"
@@ -101,3 +101,54 @@ U=$(json name "$UP" | sed 's/}$/, "size": 231735296}/' | curl -s --noproxy '*' -
 head -c 1048576 /dev/zero > "$WORK/chunk"
 i=0; while [ $i -lt 96 ]; do curl -s --noproxy '*' -o /dev/null -X PUT -H "$H" --data-binary "@$WORK/chunk" "$L/api/upload/$U/$i"; i=$((i+1)); done
 echo "demo $SET ready on $LAN (share $PUB), tokens in $WORK/tokens-$SET"
+
+# A second demo with users (compose.yaml: USER_<COLOUR>), on $USR: Tom's own
+# area next to the shared one.
+DU=$D-users
+mkdir -p "$DU/files" "$DU/users/Tom/files"
+cp -p "$D/files/"*.jpg "$DU/users/Tom/files/"     # the sunset — Tom's own photo
+cd "$DU/users/Tom/files"
+if [ "$SET" = en ]; then
+  mk "CV – Tom Berger.pdf" 412337 "today 09:12"
+  mk "Concert tickets – Zurich.pdf" 233144 "yesterday 21:40"
+  mk "Car insurance 2026.pdf" 1288410 "3 days ago 16:05"
+  cd "$DU/files"
+  mk "Holiday house – booking.pdf" 845120 "today 08:30"
+  mk "Family photos 2025.zip" 2147483648 "2 days ago 20:11"
+  mk "Shopping list.txt" 312 "today 07:15"
+  U1='Gift ideas for Anna 🎁
+– the blue scarf from the market
+– concert: Sophie Hunger, 14 November
+– that cookbook she keeps looking at'
+  U2='Gym: Mon / Wed / Fri 18:30
+Bench 3×8 · Squat 3×8 · Rows 3×10'
+  S1='Holiday house, 18–25 July
+Check-in from 15:00, key in the box by the door
+https://www.example.com/booking/4711'
+else
+  mk "Lebenslauf – Tom Berger.pdf" 412337 "today 09:12"
+  mk "Konzerttickets – Zürich.pdf" 233144 "yesterday 21:40"
+  mk "Autoversicherung 2026.pdf" 1288410 "3 days ago 16:05"
+  cd "$DU/files"
+  mk "Ferienhaus – Buchung.pdf" 845120 "today 08:30"
+  mk "Familienfotos 2025.zip" 2147483648 "2 days ago 20:11"
+  mk "Einkaufsliste.txt" 312 "today 07:15"
+  U1='Geschenkideen für Anna 🎁
+– der blaue Schal vom Markt
+– Konzert: Sophie Hunger, 14. November
+– das Kochbuch, das sie immer anschaut'
+  U2='Training: Mo / Mi / Fr 18:30
+Bankdrücken 3×8 · Kniebeugen 3×8 · Rudern 3×10'
+  S1='Ferienhaus, 18.–25. Juli
+Einchecken ab 15 Uhr, Schlüssel im Kästchen neben der Tür
+https://www.example.com/buchung/4711'
+fi
+docker run -d --name "demo-$SET-users" -p "$USR:80:80" -e MODE=lan -e CHUNK_MB=1 -e TLS_CERT= \
+  -e USER_TEAL=Anna:2468 -e USER_GOLD=Tom:1357 -e USER_BLUE=Lena:8642 -e USER_VIOLET=Max:9753 -e USER_CORAL=Mia \
+  -v "$DU:/data" -v "$WORK/ident.cfg:/unraid/ident.cfg:ro" "$IMAGE" >/dev/null
+until [ "$(docker inspect -f '{{.State.Health.Status}}' "demo-$SET-users")" = healthy ]; do sleep 1; done
+L=http://$USR
+curl -s --noproxy '*' -o /dev/null -c "$WORK/tom-$SET" -H "$H" -d 'user=gold&pin=1357' "$L/login"
+uput() { json text "$3" | curl -s --noproxy '*' -o /dev/null -b "$WORK/tom-$SET" -X PUT -H "$H" -H 'content-type: application/json' --data-binary @- "$L/api/text/$2?area=$1"; }
+uput own 1 "$U1"; uput own 2 "$U2"; uput shared 1 "$S1"
+echo "demo $SET with users ready on $USR"
