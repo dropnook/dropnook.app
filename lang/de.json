@@ -23,6 +23,7 @@
   "ui.theme_auto": "Darstellung: automatisch",
   "ui.theme_light": "Darstellung: hell",
   "ui.theme_dark": "Darstellung: dunkel",
+  "ui.theme_again": "nochmals klicken für automatisch",
   "ui.help_missing": "Der Hilfetext konnte nicht geladen werden.",
   "ui.close": "Schliessen",
   "ui.cancel": "Abbrechen",

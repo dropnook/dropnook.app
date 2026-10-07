@@ -1677,30 +1677,34 @@ function setupDrop() {
 // ------------------------------------------------------------------ Light and dark
 /* Automatic follows the system; light and dark are kept per browser. The
    button shows the current choice and moves on to the next one. */
-const THEMES = ['auto', 'light', 'dark'];
-const THEME_ICONS = {
-  auto:  '<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor"/>',
-  light: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8"/>',
-  dark:  '<path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"/>',
-};
+const systemDark = matchMedia('(prefers-color-scheme: dark)');
 
 function currentTheme() {
   const theme = document.documentElement.dataset.theme;
   return theme === 'light' || theme === 'dark' ? theme : 'auto';
 }
 
+// ☀ and ☾: the one the page shows is marked; one chosen by hand is filled,
+// and a second click on it goes back to automatic.
 function applyTheme(theme) {
   if (theme === 'light' || theme === 'dark') document.documentElement.dataset.theme = theme;
   else delete document.documentElement.dataset.theme;
-  const button = $('#btn-theme');
-  const label = t(`ui.theme_${currentTheme()}`);
-  button.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${THEME_ICONS[currentTheme()]}</svg>`;
-  button.title = label;
-  button.setAttribute('aria-label', label);
+  const chosen = currentTheme();
+  const shown = chosen === 'auto' ? (systemDark.matches ? 'dark' : 'light') : chosen;
+  const group = $('#theme-switch');
+  group.setAttribute('aria-label', t(`ui.theme_${chosen}`));
+  group.querySelectorAll('button').forEach((b) => {
+    const mode = b.dataset.mode;
+    const label = mode === chosen ? `${t(`ui.theme_${mode}`)} — ${t('ui.theme_again')}` : t(`ui.theme_${mode}`);
+    b.setAttribute('aria-pressed', String(mode === chosen));
+    b.classList.toggle('shown', mode === shown);
+    b.title = label;
+    b.setAttribute('aria-label', label);
+  });
 }
 
-function nextTheme() {
-  const theme = THEMES[(THEMES.indexOf(currentTheme()) + 1) % THEMES.length];
+function chooseTheme(mode) {
+  const theme = mode === currentTheme() ? 'auto' : mode;
   try {
     if (theme === 'auto') localStorage.removeItem(THEME_KEY);
     else localStorage.setItem(THEME_KEY, theme);
@@ -1843,7 +1847,8 @@ function stopAllSaves() {
 // ------------------------------------------------------------------ Start
 function wireButtons() {
   $('#btn-help').onclick = showHelp;
-  $('#btn-theme').onclick = nextTheme;
+  document.querySelectorAll('#theme-switch button').forEach((b) => { b.onclick = () => chooseTheme(b.dataset.mode); });
+  systemDark.addEventListener('change', () => applyTheme(currentTheme()));
   // Switched in another tab: follow along.
   window.addEventListener('storage', (e) => {
     if (e.key === THEME_KEY || e.key === null) applyTheme(e.newValue || 'auto');

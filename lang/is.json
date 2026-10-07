@@ -23,6 +23,7 @@
   "ui.theme_auto": "Útlit: sjálfvirkt",
   "ui.theme_light": "Útlit: ljóst",
   "ui.theme_dark": "Útlit: dökkt",
+  "ui.theme_again": "smelltu aftur fyrir sjálfvirkt",
   "ui.help_missing": "Ekki tókst að hlaða hjálpartextanum.",
   "ui.close": "Loka",
   "ui.cancel": "Hætta við",

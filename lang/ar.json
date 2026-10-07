@@ -25,6 +25,7 @@
   "ui.theme_auto": "المظهر: تلقائي",
   "ui.theme_light": "المظهر: فاتح",
   "ui.theme_dark": "المظهر: داكن",
+  "ui.theme_again": "انقر مرة أخرى للوضع التلقائي",
   "ui.help_missing": "تعذّر تحميل نص المساعدة.",
   "ui.close": "إغلاق",
   "ui.cancel": "إلغاء",

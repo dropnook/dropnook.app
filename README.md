@@ -293,8 +293,9 @@ Portuguese, Russian, Spanish and Turkish. To change wording or add a language
 for yourself, put a file into `lang/` in the appdata folder — see
 [`lang/README.md`](lang/README.md).
 
-**Light and dark** follow the system. The button next to *Help* switches
-between automatic, light and dark; each browser remembers its choice.
+**Light and dark** follow the system. ☀ and ☾ next to *Help* pick one by hand;
+a second click on the chosen one goes back to automatic. Each browser remembers
+its choice.
 
 <p align="center"><a href="https://dropnook.app/gallery/#7"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/7-theme-dark.webp"><img src="docs/screenshots/7-theme-light.webp" alt="The same page in light and in dark, side by side" width="80%"></picture></a></p>
 

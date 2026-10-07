@@ -22,6 +22,7 @@
   "ui.theme_auto": "Görünüm: otomatik",
   "ui.theme_light": "Görünüm: açık",
   "ui.theme_dark": "Görünüm: koyu",
+  "ui.theme_again": "otomatik için tekrar tıklayın",
   "ui.help_missing": "Yardım metni yüklenemedi.",
   "ui.close": "Kapat",
   "ui.cancel": "İptal",

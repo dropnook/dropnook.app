@@ -306,8 +306,9 @@ Türkisch. Um Texte zu ändern oder eine Sprache für dich hinzuzufügen, legst 
 eine Datei in `lang/` im appdata-Ordner ab — siehe
 [`lang/README.md`](lang/README.md).
 
-**Hell und dunkel** folgen dem System. Der Knopf neben *Hilfe* schaltet
-zwischen automatisch, hell und dunkel um; jeder Browser merkt sich seine Wahl.
+**Hell und dunkel** folgen dem System. Mit ☀ und ☾ neben *Hilfe* wählst du
+von Hand; ein zweiter Klick auf die gewählte Seite stellt wieder auf
+automatisch. Jeder Browser merkt sich seine Wahl.
 
 <p align="center"><a href="https://dropnook.app/gallery/?lang=de#7"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/de/7-theme-dark.webp"><img src="docs/screenshots/de/7-theme-light.webp" alt="Dieselbe Seite hell und dunkel, nebeneinander" width="80%"></picture></a></p>
 

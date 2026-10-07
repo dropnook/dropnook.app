@@ -23,6 +23,7 @@
   "ui.theme_auto": "Appearance: automatic",
   "ui.theme_light": "Appearance: light",
   "ui.theme_dark": "Appearance: dark",
+  "ui.theme_again": "click again for automatic",
   "ui.help_missing": "The help text could not be loaded.",
   "ui.close": "Close",
   "ui.cancel": "Cancel",

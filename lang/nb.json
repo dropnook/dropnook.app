@@ -22,6 +22,7 @@
   "ui.theme_auto": "Utseende: automatisk",
   "ui.theme_light": "Utseende: lyst",
   "ui.theme_dark": "Utseende: mørkt",
+  "ui.theme_again": "klikk igjen for automatisk",
   "ui.help_missing": "Hjelpeteksten kunne ikke lastes.",
   "ui.close": "Lukk",
   "ui.cancel": "Avbryt",

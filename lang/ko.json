@@ -22,6 +22,7 @@
   "ui.theme_auto": "화면 모드: 자동",
   "ui.theme_light": "화면 모드: 라이트",
   "ui.theme_dark": "화면 모드: 다크",
+  "ui.theme_again": "다시 클릭하면 자동",
   "ui.help_missing": "도움말을 불러오지 못했습니다.",
   "ui.close": "닫기",
   "ui.cancel": "취소",

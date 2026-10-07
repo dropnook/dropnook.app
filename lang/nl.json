@@ -22,6 +22,7 @@
   "ui.theme_auto": "Weergave: automatisch",
   "ui.theme_light": "Weergave: licht",
   "ui.theme_dark": "Weergave: donker",
+  "ui.theme_again": "klik nogmaals voor automatisch",
   "ui.help_missing": "De helptekst kon niet worden geladen.",
   "ui.close": "Sluiten",
   "ui.cancel": "Annuleren",

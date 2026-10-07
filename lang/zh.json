@@ -22,6 +22,7 @@
   "ui.theme_auto": "外观：自动",
   "ui.theme_light": "外观：浅色",
   "ui.theme_dark": "外观：深色",
+  "ui.theme_again": "再次点击改为自动",
   "ui.help_missing": "无法加载帮助内容。",
   "ui.close": "关闭",
   "ui.cancel": "取消",

@@ -24,6 +24,7 @@
   "ui.theme_auto": "Wygląd: automatyczny",
   "ui.theme_light": "Wygląd: jasny",
   "ui.theme_dark": "Wygląd: ciemny",
+  "ui.theme_again": "kliknij ponownie, aby wybrać automatyczny",
   "ui.help_missing": "Nie udało się wczytać pomocy.",
   "ui.close": "Zamknij",
   "ui.cancel": "Anuluj",

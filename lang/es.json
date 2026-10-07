@@ -22,6 +22,7 @@
   "ui.theme_auto": "Apariencia: automática",
   "ui.theme_light": "Apariencia: clara",
   "ui.theme_dark": "Apariencia: oscura",
+  "ui.theme_again": "pulsa de nuevo para automática",
   "ui.help_missing": "No se pudo cargar el texto de ayuda.",
   "ui.close": "Cerrar",
   "ui.cancel": "Cancelar",
