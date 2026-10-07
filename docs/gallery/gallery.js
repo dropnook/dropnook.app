@@ -40,7 +40,8 @@
   if (!TEXT[lang]) lang = 'en';
   const SLIDES = NAMES.map((n, i) => [n, ...TEXT[lang].slides[i]]);
   const dark = matchMedia('(prefers-color-scheme: dark)');
-  const scheme = () => (dark.matches ? 'dark' : 'light');
+  // The ☀/☾ choice made on the site wins over the system (theme.js).
+  const scheme = () => document.documentElement.dataset.theme || (dark.matches ? 'dark' : 'light');
   const src = (i, thumb) => `${TEXT[lang].dir}${SLIDES[i][0]}-${scheme()}${thumb ? '-thumb' : ''}.webp`;
 
   function applyLanguage() {
@@ -144,5 +145,6 @@
   };
   addEventListener('hashchange', () => show(fromHash(), true));
   dark.addEventListener('change', () => show(index, true));
+  document.addEventListener('dropnook-theme', () => show(index, true));
   show(fromHash(), true);
 })();

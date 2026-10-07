@@ -24,6 +24,7 @@
 <link rel="icon" href="{{root}}icon.png">
 <link rel="apple-touch-icon" href="{{root}}icon.png">
 <script src="{{root}}lang.js"></script>
+<script src="{{root}}theme.js"></script>
 <link rel="stylesheet" href="{{root}}site.css">
 <script src="{{root}}compare.js" defer></script>
 <script type="application/ld+json">{{jsonld}}</script>
@@ -48,6 +49,9 @@
       <nav class="langs" aria-label="{{nav.language}}">
         <a href="https://dropnook.app/" hreflang="en" lang="en" {{cur.en}}>EN</a><a href="https://dropnook.app/de/" hreflang="de" lang="de" {{cur.de}}>DE</a>
       </nav>
+      <div class="theme-switch" id="theme-switch" role="group" hidden data-auto="{{mode.auto}}" data-again="{{mode.again}}">
+        <button type="button" data-mode="light" data-label="{{mode.light}}"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8"/></svg></button><button type="button" data-mode="dark" data-label="{{mode.dark}}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"/></svg></button>
+      </div>
       <a class="btn small ghost" href="https://github.com/dropnook/dropnook.app">GitHub</a>
     </div>
   </div>

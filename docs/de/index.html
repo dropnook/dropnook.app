@@ -24,6 +24,7 @@
 <link rel="icon" href="../icon.png">
 <link rel="apple-touch-icon" href="../icon.png">
 <script src="../lang.js"></script>
+<script src="../theme.js"></script>
 <link rel="stylesheet" href="../site.css">
 <script src="../compare.js" defer></script>
 <script type="application/ld+json">{
@@ -148,6 +149,9 @@
       <nav class="langs" aria-label="Sprache">
         <a href="https://dropnook.app/" hreflang="en" lang="en" >EN</a><a href="https://dropnook.app/de/" hreflang="de" lang="de" aria-current="page">DE</a>
       </nav>
+      <div class="theme-switch" id="theme-switch" role="group" hidden data-auto="Darstellung: automatisch" data-again="nochmals klicken für automatisch">
+        <button type="button" data-mode="light" data-label="Darstellung: hell"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8"/></svg></button><button type="button" data-mode="dark" data-label="Darstellung: dunkel"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"/></svg></button>
+      </div>
       <a class="btn small ghost" href="https://github.com/dropnook/dropnook.app">GitHub</a>
     </div>
   </div>
@@ -178,19 +182,19 @@
 
 <section id="why" class="band">
   <div class="wrap">
-    <h2>Warum Dropnook?</h2>
-    <p class="sub">Was sonst im Weg steht — und wie es mit Dropnook läuft.</p>
+    <h2>Warum <span class="dn">Drop<span>nook</span></span>?</h2>
+    <p class="sub">Was sonst im Weg steht — und wie es mit <span class="dn">Drop<span>nook</span></span> läuft.</p>
     <div class="why">
-      <div class="why-head" aria-hidden="true"><span>Sonst</span><span>Mit Dropnook</span></div>
+      <div class="why-head" aria-hidden="true"><span>Sonst</span><span>Mit <span class="dn">Drop<span>nook</span></span></span></div>
       <ul>
-        <li><p class="no"><span class="vh">Sonst: </span>Auf jedem Gerät eine App installieren und aktuell halten</p><p class="yes"><span class="vh">Mit Dropnook: </span>Läuft im Browser — auf jedem Handy, Tablet und Computer</p></li>
-        <li><p class="no"><span class="vh">Sonst: </span>Jedes Gerät einzeln einrichten</p><p class="yes"><span class="vh">Mit Dropnook: </span>Einmal auf deinem Server einrichten, danach nur noch die Adresse öffnen</p></li>
-        <li><p class="no"><span class="vh">Sonst: </span>Empfangene Dateien füllen den Speicher der Geräte</p><p class="yes"><span class="vh">Mit Dropnook: </span>Alles liegt an einem Ort — jeder holt nur, was er wirklich braucht</p></li>
-        <li><p class="no"><span class="vh">Sonst: </span>Beide Geräte müssen gleichzeitig an sein</p><p class="yes"><span class="vh">Mit Dropnook: </span>Jetzt ablegen, später abholen</p></li>
-        <li><p class="no"><span class="vh">Sonst: </span>Upload abgebrochen — alles von vorn</p><p class="yes"><span class="vh">Mit Dropnook: </span>Dieselbe Datei nochmals ablegen — es geht dort weiter, wo es aufgehört hat</p></li>
-        <li><p class="no"><span class="vh">Sonst: </span>Fremde Cloud, Konto und Abo</p><p class="yes"><span class="vh">Mit Dropnook: </span>Dein eigener Server, kein Konto, kostenlos</p></li>
-        <li><p class="no"><span class="vh">Sonst: </span>Schwer im Griff, was ins Internet geht</p><p class="yes"><span class="vh">Mit Dropnook: </span>Ins Internet nur auf Wunsch: einzeln, mit Ablaufzeit und auf Wunsch mit Passwort</p></li>
-        <li><p class="no"><span class="vh">Sonst: </span>Umständlich für Familie und Gäste</p><p class="yes"><span class="vh">Mit Dropnook: </span>17 Sprachen, hell und dunkel — passt sich jedem von selbst an</p></li>
+        <li><p class="no"><span class="vh">Sonst: </span>Auf jedem Gerät eine App installieren und aktuell halten</p><p class="yes"><span class="vh">Mit <span class="dn">Drop<span>nook</span></span>: </span>Läuft im Browser — auf jedem Handy, Tablet und Computer</p></li>
+        <li><p class="no"><span class="vh">Sonst: </span>Jedes Gerät einzeln einrichten</p><p class="yes"><span class="vh">Mit <span class="dn">Drop<span>nook</span></span>: </span>Einmal auf deinem Server einrichten, danach nur noch die Adresse öffnen</p></li>
+        <li><p class="no"><span class="vh">Sonst: </span>Empfangene Dateien füllen den Speicher der Geräte</p><p class="yes"><span class="vh">Mit <span class="dn">Drop<span>nook</span></span>: </span>Alles liegt an einem Ort — jeder holt nur, was er wirklich braucht</p></li>
+        <li><p class="no"><span class="vh">Sonst: </span>Beide Geräte müssen gleichzeitig an sein</p><p class="yes"><span class="vh">Mit <span class="dn">Drop<span>nook</span></span>: </span>Jetzt ablegen, später abholen</p></li>
+        <li><p class="no"><span class="vh">Sonst: </span>Upload abgebrochen — alles von vorn</p><p class="yes"><span class="vh">Mit <span class="dn">Drop<span>nook</span></span>: </span>Dieselbe Datei nochmals ablegen — es geht dort weiter, wo es aufgehört hat</p></li>
+        <li><p class="no"><span class="vh">Sonst: </span>Fremde Cloud, Konto und Abo</p><p class="yes"><span class="vh">Mit <span class="dn">Drop<span>nook</span></span>: </span>Dein eigener Server, kein Konto, kostenlos</p></li>
+        <li><p class="no"><span class="vh">Sonst: </span>Schwer im Griff, was ins Internet geht</p><p class="yes"><span class="vh">Mit <span class="dn">Drop<span>nook</span></span>: </span>Ins Internet nur auf Wunsch: einzeln, mit Ablaufzeit und auf Wunsch mit Passwort</p></li>
+        <li><p class="no"><span class="vh">Sonst: </span>Umständlich für Familie und Gäste</p><p class="yes"><span class="vh">Mit <span class="dn">Drop<span>nook</span></span>: </span>17 Sprachen, hell und dunkel — passt sich jedem von selbst an</p></li>
       </ul>
     </div>
   </div>
@@ -296,7 +300,7 @@
       <li><h3>Compose Up</h3><p><code>drop.deinedomain.com</code> öffnen — auf jedem Gerät im Heimnetz.</p></li>
     </ol>
     <p class="ctas center"><a class="btn" href="https://github.com/dropnook/dropnook.app/blob/main/README.de.md#installation">Ganze Anleitung auf GitHub</a></p>
-    <p class="sub center">Kein Unraid? Dropnook läuft auf jedem Linux-Rechner mit Docker Compose — <a href="https://github.com/dropnook/dropnook.app/blob/main/docs/DEVELOPMENT.md#without-unraid">so geht’s</a>.</p>
+    <p class="sub center">Kein Unraid? <span class="dn">Drop<span>nook</span></span> läuft auf jedem Linux-Rechner mit Docker Compose — <a href="https://github.com/dropnook/dropnook.app/blob/main/docs/DEVELOPMENT.md#without-unraid">so geht’s</a>.</p>
   </div>
 </section>
 
@@ -306,8 +310,8 @@
     <details><summary>Geht etwas in eine Cloud?</summary><p>Nein. Alles bleibt auf deinem Server. Von aussen erreichbar ist nur, was du als Link teilst — und nur für den, der den Link hat.</p></details>
     <details><summary>Ist es kostenlos?</summary><p>Ja — kostenlos und Open Source unter der AGPL-3.0. Kein Konto, kein Abo, keine Telemetrie. Wenn es dir nützt, kannst du dich mit einer <a href="https://www.paypal.com/paypalme/vipermark2">Spende über PayPal</a> bedanken — am besten ab 5 €, weil PayPal von jeder Zahlung eine feste Gebühr einbehält.</p></details>
     <details><summary>Brauchen meine Geräte eine App?</summary><p>Nein. Ein aktueller Browser genügt — auf Handys, Tablets und Computern gleichermassen.</p></details>
-    <details><summary>Brauche ich Unraid?</summary><p>Dropnook ist für Unraid gemacht, und die Anleitung ist für Unraid. Es läuft aber auch auf jedem Linux-Rechner mit Docker Compose.</p></details>
-    <details><summary>Und wenn ich unterwegs bin?</summary><p>Über dein VPN funktioniert Dropnook wie zu Hause. Ohne VPN lassen sich nur die Freigabe-Links öffnen, die du erstellt hast.</p></details>
+    <details><summary>Brauche ich Unraid?</summary><p><span class="dn">Drop<span>nook</span></span> ist für Unraid gemacht, und die Anleitung ist für Unraid. Es läuft aber auch auf jedem Linux-Rechner mit Docker Compose.</p></details>
+    <details><summary>Und wenn ich unterwegs bin?</summary><p>Über dein VPN funktioniert <span class="dn">Drop<span>nook</span></span> wie zu Hause. Ohne VPN lassen sich nur die Freigabe-Links öffnen, die du erstellt hast.</p></details>
   </div>
 </section>
 
@@ -315,11 +319,11 @@
 
 <footer class="foot">
   <div class="wrap">
-    <p><b>Dropnook™</b> · freie Software unter der <a href="https://github.com/dropnook/dropnook.app/blob/main/LICENSE">AGPL-3.0</a>
+    <p><b><span class="dn">Drop<span>nook</span></span>™</b> · freie Software unter der <a href="https://github.com/dropnook/dropnook.app/blob/main/LICENSE">AGPL-3.0</a>
       · <a href="https://github.com/dropnook/dropnook.app/blob/main/TRADEMARKS.md">zum Namen</a>
       · <a href="https://www.paypal.com/paypalme/vipermark2">Spenden</a>
       · <a href="https://github.com/dropnook/dropnook.app">GitHub</a></p>
-    <p class="fine">Unraid ist eine Marke der Lime Technology, Inc.; AirDrop ist eine Marke der Apple Inc. Dropnook ist ein unabhängiges Projekt und mit keinem der beiden verbunden. Diese Seite setzt keine Cookies und lädt nichts von Dritten.</p>
+    <p class="fine">Unraid ist eine Marke der Lime Technology, Inc.; AirDrop ist eine Marke der Apple Inc. <span class="dn">Drop<span>nook</span></span> ist ein unabhängiges Projekt und mit keinem der beiden verbunden. Diese Seite setzt keine Cookies und lädt nichts von Dritten.</p>
   </div>
 </footer>
 </body>

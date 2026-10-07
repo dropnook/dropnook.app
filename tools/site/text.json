@@ -104,7 +104,11 @@
     "w8.no": "Awkward for family and guests",
     "w8.yes": "17 languages, light and dark — fits everyone by itself",
     "hero.install2": "or on Unraid",
-    "hero.install_anchor": "what-you-need"
+    "hero.install_anchor": "what-you-need",
+    "mode.auto": "Appearance: automatic",
+    "mode.light": "Appearance: light",
+    "mode.dark": "Appearance: dark",
+    "mode.again": "click again for automatic"
   },
   "de": {
     "meta.title": "Dropnook — Instant-Share fürs Heimnetz",
@@ -211,6 +215,10 @@
     "w8.no": "Umständlich für Familie und Gäste",
     "w8.yes": "17 Sprachen, hell und dunkel — passt sich jedem von selbst an",
     "hero.install2": "oder auf Unraid",
-    "hero.install_anchor": "was-du-brauchst"
+    "hero.install_anchor": "was-du-brauchst",
+    "mode.auto": "Darstellung: automatisch",
+    "mode.light": "Darstellung: hell",
+    "mode.dark": "Darstellung: dunkel",
+    "mode.again": "nochmals klicken für automatisch"
   }
 }

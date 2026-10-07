@@ -1,4 +1,5 @@
-/* dropnook.app — one stylesheet, no web fonts, light and dark follow the system. */
+/* dropnook.app — one stylesheet, no web fonts. Light and dark follow the system,
+   unless the ☀/☾ switch set data-theme on <html> (theme.js). */
 :root{
   --bg:#F4F7F8; --surface:#FFFFFF; --band:#EAF1F2; --ink:#121B21; --ink-2:#33434C; --muted:#5A6B75;
   --line:#D6DFE3; --accent:#0B6E75; --accent-ink:#075056; --accent-soft:#DFEFF0; --public:#B45309;
@@ -7,7 +8,7 @@
   --radius:14px; color-scheme:light;
 }
 @media (prefers-color-scheme: dark){
-  :root{
+  :root:not([data-theme="light"]){
     --bg:#0A1013; --surface:#141C21; --band:#0F171B; --ink:#E3EBEF; --ink-2:#C2CFD6; --muted:#93A4AE;
     --line:#24313A; --accent:#54C0C4; --accent-ink:#8CD9DC; --accent-soft:#13302F; --public:#F0A54A;
     --on-accent:#08161A; --shadow:0 24px 60px -28px rgba(0,0,0,.9), 0 4px 14px -8px rgba(0,0,0,.6);
@@ -15,6 +16,14 @@
     color-scheme:dark;
   }
 }
+:root[data-theme="dark"]{
+  --bg:#0A1013; --surface:#141C21; --band:#0F171B; --ink:#E3EBEF; --ink-2:#C2CFD6; --muted:#93A4AE;
+  --line:#24313A; --accent:#54C0C4; --accent-ink:#8CD9DC; --accent-soft:#13302F; --public:#F0A54A;
+  --on-accent:#08161A; --shadow:0 24px 60px -28px rgba(0,0,0,.9), 0 4px 14px -8px rgba(0,0,0,.6);
+  --no:#F07167; --yes:#4CC77A; --yes-soft:#11261A;
+  color-scheme:dark;
+}
+:root[data-theme="light"]{color-scheme:light}
 *{box-sizing:border-box}
 html{scroll-behavior:smooth; scroll-padding-top:76px}
 body{margin:0; background:var(--bg); color:var(--ink);
@@ -36,6 +45,9 @@ section{padding:84px 0}
 .center{text-align:center; justify-content:center}
 .ctas + .sub{margin-top:18px}
 
+/* "Dropnook" in running text, coloured as in the logo */
+.dn span{color:var(--accent)}
+
 /* ---------------------------------------------------------------- Header */
 .top{position:sticky; top:0; z-index:10; background:color-mix(in srgb, var(--bg) 86%, transparent);
      -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px); border-bottom:1px solid var(--line)}
@@ -48,6 +60,18 @@ section{padding:84px 0}
 .langs{display:flex; border:1px solid var(--line); border-radius:8px; overflow:hidden}
 .langs a{color:var(--muted); text-decoration:none; font-size:13px; font-weight:650; padding:6px 10px}
 .langs a[aria-current="page"]{background:var(--accent); color:var(--on-accent)}
+/* ☀/☾: the side the page shows is in the accent colour, the side chosen by hand is filled. */
+.theme-switch{display:flex; border:1px solid var(--line); border-radius:8px; overflow:hidden}
+.theme-switch[hidden]{display:none}
+.theme-switch button{border:0; background:transparent; color:var(--muted); padding:7px 9px; line-height:0; cursor:pointer;
+  transition:background .15s, color .15s}
+.theme-switch button + button{border-left:1px solid var(--line)}
+.theme-switch svg{width:16px; height:16px; display:block; fill:none; stroke:currentColor; stroke-width:1.9;
+  stroke-linecap:round; stroke-linejoin:round}
+.theme-switch button:hover{background:var(--accent-soft); color:var(--accent)}
+.theme-switch button.shown{color:var(--accent)}
+.theme-switch button[aria-pressed="true"]{background:var(--accent); color:var(--on-accent)}
+.theme-switch button:focus-visible{outline:2px solid var(--accent); outline-offset:-2px}
 
 /* ---------------------------------------------------------------- Buttons */
 .btn{display:inline-block; background:var(--accent); color:var(--on-accent); text-decoration:none;

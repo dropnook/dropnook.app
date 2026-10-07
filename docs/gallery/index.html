@@ -7,6 +7,7 @@
 <title>Dropnook — screenshots</title>
 <meta name="description" content="Dropnook is instant sharing for your home network, like AirDrop for every device: move text and files between phone, laptop and PC in the browser — no app, no login, no cloud. Runs on Unraid; single files can go out through expiring links.">
 <link rel="canonical" href="https://dropnook.app/gallery/">
+<script src="../theme.js"></script>
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Dropnook">
 <meta property="og:title" content="Dropnook — instant sharing for your home network">
@@ -23,11 +24,16 @@
     --accent:#0B6E75; --public:#B45309; --shadow:0 18px 50px -24px rgba(18,27,33,.45);
   }
   @media (prefers-color-scheme: dark){
-    :root{
+    :root:not([data-theme="light"]){
       --bg:#0A1013; --surface:#141C21; --ink:#E3EBEF; --muted:#97A8B2; --line:#26333A;
       --accent:#54C0C4; --public:#F0A54A; --shadow:0 18px 50px -24px rgba(0,0,0,.9);
     }
   }
+  :root[data-theme="dark"]{
+    --bg:#0A1013; --surface:#141C21; --ink:#E3EBEF; --muted:#97A8B2; --line:#26333A;
+    --accent:#54C0C4; --public:#F0A54A; --shadow:0 18px 50px -24px rgba(0,0,0,.9);
+  }
+  :root[data-theme="light"]{color-scheme:light}
   *{box-sizing:border-box}
   html,body{margin:0; height:100%}
   body{background:var(--bg); color:var(--ink); display:flex; flex-direction:column;

@@ -75,6 +75,27 @@ def jsonld(lang: str, t: dict, url: str) -> str:
                       ensure_ascii=False, indent=1).replace("<", "\\u003c")
 
 
+BRAND = '<span class="dn">Drop<span>nook</span></span>'
+
+
+def branded(page_html: str) -> str:
+    """"Dropnook" in the visible text of <body> in its two colours, as in the logo.
+    Titles, descriptions, alt texts and data stay plain; so do buttons, where the
+    accent colour would vanish on the accent background."""
+    head, mark, body = page_html.partition("<body>")
+    out, in_button = [], False
+    for part in re.split(r"(<[^>]+>)", body):
+        if part.startswith("<"):
+            if part.startswith("<a ") and 'class="btn' in part:
+                in_button = True
+            elif part == "</a>":
+                in_button = False
+            out.append(part)
+        else:
+            out.append(part if in_button else part.replace("Dropnook", BRAND))
+    return head + mark + "".join(out)
+
+
 def page(lang: str) -> str:
     t = TEXT[lang]
     de = lang == "de"
@@ -110,7 +131,7 @@ def page(lang: str) -> str:
     out = re.sub(r"\{\{([\w.]+)\}\}", fill, TEMPLATE)
     if "{{" in out:
         raise ValueError("unfilled placeholder")
-    return out
+    return branded(out)
 
 
 def main() -> None:
