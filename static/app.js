@@ -104,6 +104,15 @@ function translatePage() {
 
 // ------------------------------------------------------------------ Small helpers
 const $  = (s) => document.querySelector(s);
+
+// With a PIN (compose.yaml): once the sign-in has run out or the PIN was
+// changed, every request answers 401 — reload, and the PIN page comes up.
+const plainFetch = window.fetch.bind(window);
+window.fetch = async (...args) => {
+  const response = await plainFetch(...args);
+  if (response.status === 401) location.reload();
+  return response;
+};
 const el = (tag, cls, text) => {
   const n = document.createElement(tag);
   if (cls) n.className = cls;
@@ -1760,7 +1769,10 @@ function connectEvents() {
     loadState();          // catches up on what happened while offline
     resendDrafts();
   };
-  source.onerror = () => setConnected(false);
+  source.onerror = () => {
+    setConnected(false);
+    fetch('/api/state').catch(() => {});   // signed out? then the reload above
+  };
 
   source.addEventListener('text', (e) => {
     const d = JSON.parse(e.data);

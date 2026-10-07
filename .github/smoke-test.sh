@@ -18,9 +18,9 @@ cleanup() {
     echo "--- log drop";       docker logs ci-drop 2>&1 | tail -40 || true
     echo "--- log drop-share"; docker logs ci-drop-share 2>&1 | tail -40 || true
   fi
-  docker rm -f ci-drop ci-drop-share >/dev/null 2>&1 || true
+  docker rm -f ci-drop ci-drop-share ci-drop-pin >/dev/null 2>&1 || true
   # The containers own the files (99:100); remove them from inside.
-  docker run --rm -v "$WORK:/w" --entrypoint rm "$IMAGE" -rf /w/data >/dev/null 2>&1 || true
+  docker run --rm -v "$WORK:/w" --entrypoint rm "$IMAGE" -rf /w/data /w/pin >/dev/null 2>&1 || true
   rm -rf "$WORK" 2>/dev/null || true
 }
 trap cleanup EXIT
@@ -172,6 +172,35 @@ put("xxxxx-xxxxx", kind="text", text=["not", "a", "string"])
 check "forged id: no file from outside" test "$(code "http://$PUB/zzzzz-zzzzz/download")" = 404
 check "forged expiry: no error"         test "$(code "http://$PUB/yyyyy-yyyyy")" = 404
 check "forged text: no error"           test "$(code "http://$PUB/xxxxx-xxxxx")" = 404
+
+# ------------------------------------------------- the optional PIN
+PINLAN=127.0.0.1:18082
+mkdir -p "$WORK/pin"
+start_pin() {   # start_pin <pin>
+  docker rm -f ci-drop-pin >/dev/null 2>&1 || true
+  docker run -d --name ci-drop-pin -p "$PINLAN:80" \
+    --cap-drop ALL --cap-add CHOWN --cap-add DAC_OVERRIDE --cap-add FOWNER --cap-add NET_BIND_SERVICE \
+    --security-opt no-new-privileges:true --memory 2g --pids-limit 200 \
+    -e MODE=lan -e TLS_CERT= -e SERVER_NAME=CI -e "PIN=$1" -v "$WORK/pin:/data" "$IMAGE" >/dev/null
+  wait_healthy ci-drop-pin
+}
+start_pin 2468
+check "PIN: the page asks for it"         bash -c "curl -s -H 'Host: $HOST' http://$PINLAN/ | grep -q 'name=\"pin\"'"
+check "PIN: nothing else without it"      test "$(code -H "Host: $HOST" "http://$PINLAN/api/state")" = 401
+check "PIN: no files without it"          test "$(code -H "Host: $HOST" "http://$PINLAN/files/x")" = 401
+check "PIN: from outside still 404"       test "$(code -H "Host: $HOST" -H 'X-Forwarded-For: 203.0.113.9' "http://$PINLAN/")" = 404
+check "PIN: a wrong one is refused"       test "$(code -H "Host: $HOST" -d pin=1111 "http://$PINLAN/login")" = 403
+curl -s -o /dev/null -D "$WORK/pin.headers" -H "Host: $HOST" -d pin=2468 "http://$PINLAN/login"
+check "PIN: the right one signs in"       grep -qiE '^set-cookie: drop_access=[0-9]+\.[0-9a-f]{64};.*httponly.*samesite=strict' "$WORK/pin.headers"
+COOKIE=$(grep -i '^set-cookie: drop_access=' "$WORK/pin.headers" | sed -E 's/^[^:]*: (drop_access=[^;]*).*/\1/' | tr -d '\r')
+check "PIN: signed in, Drop answers"      test "$(code -H "Host: $HOST" -b "$COOKIE" "http://$PINLAN/api/state")" = 200
+check "PIN: a forged cookie is refused"   test "$(code -H "Host: $HOST" -b "${COOKIE%.*}.$(printf '0%.0s' $(seq 64))" "http://$PINLAN/api/state")" = 401
+seq 30 | xargs -P 30 -I{} curl -s -o /dev/null -w '%{http_code}\n' -H "Host: $HOST" -d pin=0000 "http://$PINLAN/login" > "$WORK/pinrace"
+check "PIN: parallel guesses, at most 10 checked" test "$(grep -c 403 "$WORK/pinrace")" -le 10
+check "PIN: then locked, even the right one"      test "$(code -H "Host: $HOST" -d pin=2468 "http://$PINLAN/login")" = 429
+check "PIN: signed-in browsers keep working"      test "$(code -H "Host: $HOST" -b "$COOKIE" "http://$PINLAN/api/state")" = 200
+start_pin other-PIN-9
+check "PIN: a changed PIN signs everyone out"     test "$(code -H "Host: $HOST" -b "$COOKIE" "http://$PINLAN/api/state")" = 401
 
 # ------------------------------------------------- the public part refuses more
 if docker run --rm -e MODE=public -v "$DATA:/data:ro" "$IMAGE" >"$WORK/refused.log" 2>&1; then

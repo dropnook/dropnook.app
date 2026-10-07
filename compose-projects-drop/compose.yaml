@@ -41,6 +41,7 @@ services:
       TLS_KEY: *tls_key
       CERTS_DIR: *certs
       SHARE_SUBDOMAIN: *share_subdomain
+      # PIN: "2468"                  # optional: asked once on every new device
       # TZ: Europe/Berlin            # log timestamps only
       # More settings: docs/DEVELOPMENT.md
     volumes:

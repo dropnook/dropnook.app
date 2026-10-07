@@ -13,6 +13,7 @@ come from its SETTINGS block.
 | `MODE` | `lan` | `lan` = Drop itself, `public` = share links only (`drop-share`) |
 | `APP_NAME` | `{server} Drop` | Page title; `{server}` is the Unraid server name |
 | `APP_NOTICE` | empty | A short line shown in the header; empty hides it |
+| `PIN` | empty | PIN or password every new browser is asked for once (signed in for 90 days); changing it signs everyone out. `lan` only |
 | `TEXT_FIELDS` | `3` | Fields after the first start and after "Clear text fields" |
 | `TEXT_FIELDS_MAX` | `12` | Maximum number of fields |
 | `CHUNK_MB` | `64` | Upload chunk size |
@@ -85,6 +86,13 @@ Unraid and can stay.
   was looked up by and its fields have the shape `drop` writes.
 * **Password attempts** are counted before the (deliberately slow, PBKDF2)
   check, so parallel guesses cannot exceed 10 per link and 15 minutes.
+* **The optional PIN** (`PIN`): without the cookie, `drop` answers only the
+  sign-in page (`/`, `POST /login`) and `/api/help` (Docker's health check);
+  everything else is 401, and the page reloads on it. The cookie holds the
+  time of the sign-in, signed with HMAC over that time and a hash of the PIN,
+  keyed by `/data/.access-key` — which `drop-share` never sees. HttpOnly,
+  SameSite=Strict, Secure with HTTPS, 90 days. Wrong PINs: 10 per address and
+  50 in all per 15 minutes, counted before the check.
 * **Tokens** are ten characters from `23456789abcdefghjkmnpqrstuvwxyz`, as
   `xxxxx-xxxxx` (about 50 bits); the longer links of the first versions
   (22 URL-safe characters) still work.

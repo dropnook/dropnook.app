@@ -350,6 +350,23 @@ Header-Injektion über Dateinamen, getarnte Bildformate.
 * Downloads sind immer Anhänge — eine geteilte HTML-Datei läuft nie im Browser.
   Abgelaufene Links verschwinden von selbst.
 
+### PIN oder Passwort (optional)
+
+Wer in deinem Netz ist, kann Drop öffnen — zu Hause meist genau richtig. Mit
+Gästen im WLAN oder in einem geteilten Netz setzt du für `drop` in der
+`compose.yaml` einen PIN oder ein Passwort:
+
+```yaml
+    environment:
+      PIN: "2468"
+```
+
+Jeder neue Browser wird einmal danach gefragt und bleibt 90 Tage angemeldet.
+PIN ändern (danach **Compose Up**) meldet alle Geräte ab; entfernen schaltet die
+Frage aus. Nach 10 Fehlversuchen in 15 Minuten muss ein Browser warten. Das hält
+Gäste im WLAN draussen — nicht jemanden, der an den Server selbst kommt.
+Freigabe-Links betrifft es nicht; sie haben ihr eigenes Passwort.
+
 ## Wenn etwas nicht geht
 
 **Compose Up: „bind source path does not exist: /mnt/user/drop“** — der Share

@@ -336,6 +336,23 @@ injection through file names, disguised picture formats.
 * Downloads are always attachments — a shared HTML file never runs in the
   browser. Expired links disappear by themselves.
 
+### PIN or password (optional)
+
+Anyone in your network can open Drop — at home that is usually just right.
+With guests in your Wi-Fi, or in a network you share, set a PIN or password
+for `drop` in `compose.yaml`:
+
+```yaml
+    environment:
+      PIN: "2468"
+```
+
+Every new browser is asked for it once and stays signed in for 90 days.
+Change the PIN (then **Compose Up**) to sign every device out; remove it to
+switch the question off. After 10 wrong tries in 15 minutes a browser has to
+wait. It keeps out guests in your Wi-Fi — not someone who can get at the
+server itself. Share links are not affected; they have a password of their own.
+
 ## Troubleshooting
 
 **Compose Up: "bind source path does not exist: /mnt/user/drop"** — the share

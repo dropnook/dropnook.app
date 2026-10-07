@@ -114,6 +114,12 @@ APP_NOTICE_TEMPLATE = os.environ.get("APP_NOTICE", "").strip()
 MODE = os.environ.get("MODE", "lan").strip().lower()
 PUBLIC = MODE == "public"
 
+# Optional PIN or password for Drop in the home network: every new browser is
+# asked for it once and then remembers it for ACCESS_DAYS. Empty: no question.
+# Changing it signs every browser out. Not used by drop-share.
+LAN_PIN = "" if PUBLIC else os.environ.get("PIN", "").strip()
+ACCESS_DAYS = 90
+
 # Sharing to the internet. No domain name appears anywhere: whatever arrives
 # through the reverse proxy is outside traffic and only sees share links. The
 # browser in the LAN derives the link address from its own host name
@@ -1054,6 +1060,10 @@ async def lifespan(app: FastAPI):
         own(d)
     setup_fields()
     restore_uploads()
+    if LAN_PIN:
+        print("PIN is set: every new browser is asked for it once.", flush=True)
+        if len(LAN_PIN) < 4:
+            print("The PIN is shorter than 4 characters — easy to guess.", flush=True)
 
     missing = missing_files()
     if missing:
@@ -1135,6 +1145,122 @@ def from_outside(scope) -> bool:
     # 100.64/10 (CGNAT) is not "private" to Python, but not routable from the
     # internet either — Tailscale and similar VPNs live there.
     return not (address.is_private or address in CGNAT)
+
+
+# ---- Optional PIN ------------------------------------------------------------
+# With PIN set, a browser without the cookie sees only the sign-in page. The
+# cookie holds when it signed in, signed with a key in /data that only drop can
+# read (drop-share never sees /data); the PIN is part of the signature, so a
+# changed PIN invalidates every cookie.
+
+ACCESS_COOKIE = "drop_access"
+ACCESS_OPEN = {"/login", "/api/help"}      # the sign-in itself, and Docker's health check
+PIN_FAILURES_EACH = 10                     # wrong PINs per browser address and quarter hour
+PIN_FAILURES_ALL = 50                      # all together, against guessing from many addresses
+_access_key: Optional[bytes] = None
+
+
+def access_key() -> bytes:
+    global _access_key
+    if _access_key is None:
+        path = FILES_DIR.parent / ".access-key"
+        try:
+            _access_key = bytes.fromhex(path.read_text().strip())
+            if len(_access_key) < 32:
+                raise ValueError("too short")
+        except (OSError, ValueError):
+            _access_key = secrets.token_bytes(32)
+            try:
+                fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+                with os.fdopen(fd, "w") as f:
+                    f.write(_access_key.hex())
+                own(path)
+            except OSError:
+                print("Could not keep the sign-in key — browsers are asked for the PIN "
+                      "again after a restart.", flush=True)
+    return _access_key
+
+
+def access_signature(issued: int) -> str:
+    pin = hashlib.sha256(LAN_PIN.encode("utf-8")).hexdigest()
+    return hmac.new(access_key(), f"access:{issued}:{pin}".encode(), "sha256").hexdigest()
+
+
+def signed_in(request: Request) -> bool:
+    issued, _, signature = request.cookies.get(ACCESS_COOKIE, "").partition(".")
+    if not re.fullmatch(r"[0-9]{1,12}", issued) or not signature:
+        return False
+    age = time.time() - int(issued)
+    return (-300 < age < ACCESS_DAYS * 86400
+            and hmac.compare_digest(signature, access_signature(int(issued))))
+
+
+def pin_page(lang: str, t: dict, message: str = "", status: int = 200) -> HTMLResponse:
+    e = html.escape
+    notice = f'<p class="error">{e(message)}</p>' if message else ""
+    content = f"""
+<h1>{e(t.get("pin_title", ""))}</h1>
+<p class="meta">{e(t.get("pin_body", ""))}</p>
+{notice}
+<form method="post" action="/login" class="password">
+  <input type="password" name="pin" autocomplete="current-password" autofocus required
+         aria-label="{e(t.get("pin", ""))}" placeholder="{e(t.get("pin", ""))}">
+  <button class="button" type="submit">{e(t.get("open", ""))}</button>
+</form>"""
+    return public_page(lang, t, t.get("pin_title", ""), content, status=status)
+
+
+@app.middleware("http")
+async def pin_gate(request: Request, call_next):
+    if not LAN_PIN or request.url.path in ACCESS_OPEN or signed_in(request):
+        return await call_next(request)
+    if request.url.path == "/" and request.method == "GET":
+        lang, t = language_of(request)
+        return pin_page(lang, t)
+    # The page reloads on 401 and lands on the sign-in page.
+    return JSONResponse({"error": "pin"}, status_code=401)
+
+
+@app.get("/login")
+async def login_page() -> Response:
+    return Response(status_code=303, headers={"location": "/"})
+
+
+@app.post("/login")
+async def login(request: Request) -> Response:
+    if not LAN_PIN:
+        return Response(status_code=303, headers={"location": "/"})
+    lang, t = language_of(request)
+    who = "pin:" + (request.client.host if request.client else "?")
+    if locked(who, PIN_FAILURES_EACH) or locked("pin:*", PIN_FAILURES_ALL):
+        return pin_page(lang, t, t.get("locked", ""), status=429)
+    # Counted before the check, as with share passwords: parallel guesses
+    # cannot slip past the limit while the earlier ones are still checked.
+    now = time.time()
+    failures.setdefault(who, []).append(now)
+    failures.setdefault("pin:*", []).append(now)
+
+    raw = b""
+    async for piece in request.stream():
+        raw += piece
+        if len(raw) > 4096:
+            raise HTTPException(413)
+    given = (parse_qs(raw.decode("utf-8", "replace")).get("pin") or [""])[0].strip()
+    if not hmac.compare_digest(hashlib.sha256(given.encode("utf-8")).digest(),
+                               hashlib.sha256(LAN_PIN.encode("utf-8")).digest()):
+        return pin_page(lang, t, t.get("pin_wrong", ""), status=403)
+
+    failures.pop(who, None)
+    try:
+        failures["pin:*"].remove(now)          # a right PIN does not count against the others
+    except (KeyError, ValueError):
+        pass
+    issued = int(time.time())
+    reply = Response(status_code=303, headers={"location": "/"})
+    reply.set_cookie(ACCESS_COOKIE, f"{issued}.{access_signature(issued)}",
+                     max_age=ACCESS_DAYS * 86400, path="/", httponly=True,
+                     samesite="strict", secure=request.url.scheme == "https")
+    return reply
 
 
 @app.middleware("http")
@@ -2073,14 +2199,14 @@ def unlocked(request: Request, rec: dict) -> bool:
     return bool(value) and hmac.compare_digest(value, unlock_value(rec))
 
 
-def locked(sid: str) -> bool:
+def locked(sid: str, limit: int = MAX_FAILURES) -> bool:
     now = time.time()
     recent = [t for t in failures.get(sid, []) if now - t < FAILURE_WINDOW]
     if recent:
         failures[sid] = recent
     else:
         failures.pop(sid, None)
-    return len(recent) >= MAX_FAILURES
+    return len(recent) >= limit
 
 
 def password_page(lang: str, t: dict, token: str, rec: dict, message: str = "",
