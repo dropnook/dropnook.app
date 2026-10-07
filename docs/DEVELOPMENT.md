@@ -161,7 +161,9 @@ requests.
 The product site [dropnook.app](https://dropnook.app/) is the `docs/` folder,
 served as it is by Cloudflare: Workers Builds runs `npx wrangler deploy` on
 every push to `main`, and [`wrangler.jsonc`](../wrangler.jsonc) says to publish
-`docs/` as static files — no build command. What is in there:
+`docs/` as static files — no build command. Cloudflare builds on pushes only:
+after connecting the repository or changing the build settings, the next push
+to `main` deploys. What is in there:
 
 - `index.html` (English) and `de/index.html` (German) are made by
   `python3 tools/site/build.py` from [`tools/site/page.html`](../tools/site/page.html)
