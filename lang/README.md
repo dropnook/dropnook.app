@@ -13,13 +13,15 @@ sends. The first one Drop has a file for wins; English is the fallback.
 
 1. Copy `en.json` to `<code>.json` and translate the values. Keep the keys and
    the `{placeholders}` exactly as they are.
-2. Copy `help/en.html` to `help/<code>.html` and translate it.
+2. Copy `help/en.html` to `help/<code>.html` and translate it. Plain HTML
+   only — no scripts, no `style` attributes: Drop's security policy blocks
+   them.
 3. Put both files where Drop finds them:
    * **for everyone:** into `lang/` and `help/` of this repository, as a pull
      request — the next image contains them;
    * **just for you, right away:** into Drop's appdata folder
-     (`/mnt/user/appdata/drop` by default), which the `compose.yaml` mounts
-     at `/config` — `<appdata>/lang/<code>.json` and
+     (`APPDATA_DIR` in the `.env`, `/mnt/user/appdata/drop` by default), which
+     `compose.yaml` mounts at `/config` — `<appdata>/lang/<code>.json` and
      `<appdata>/help/<code>.html`.
 4. Reload the page. No restart, no code change.
 

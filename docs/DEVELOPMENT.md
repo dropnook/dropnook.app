@@ -137,10 +137,11 @@ Unraid and can stay.
   text fields and share links are checked against that. Live updates of an own
   area go only to that user's pages. A share record remembers its area
   (`"area": "<name>"`; none = shared): only that user sees and ends it in the
-  LAN, and it ends by itself once the user is no longer in `compose.yaml`.
-  The page sends whom it was opened for (`X-Drop-As`, `?as=` for live
-  updates): after someone else signed in in another tab, it gets 401 and
-  reloads instead of working in their area. Without users nothing of this
+  LAN, and it ends by itself once the user is no longer in the `.env`.
+  The page sends whom it was opened for (`X-Drop-As`; `?as=` where the browser
+  sends no header: live updates, downloads, previews): after someone else
+  signed in in another tab, it gets 401 and reloads instead of working in
+  their area. Without users nothing of this
   applies, and nothing changes for 1.x data.
 * **Changes only from Drop's own page**: every request that is not GET or
   HEAD and that the browser marks as coming from elsewhere (`Sec-Fetch-Site`
@@ -154,8 +155,6 @@ Unraid and can stay.
 * **Tokens** are ten characters from `23456789abcdefghjkmnpqrstuvwxyz`, as
   `xxxxx-xxxxx` (about 50 bits); the longer links of the first versions
   (22 URL-safe characters) still work.
-* **Drop refuses proxied requests.** The `lan` app answers 404 to anything with
-  proxy headers or from a public address, so a misrouted proxy cannot reach it.
 * **Rights.** `drop` runs as root to own the data folders (files it creates
   belong to `PUID:PGID`), with only `CHOWN`, `DAC_OVERRIDE`, `FOWNER` (hard
   links to files it does not own) and `NET_BIND_SERVICE`, `no-new-privileges`
@@ -191,10 +190,13 @@ arm64 and publishes it to the GitHub Container Registry:
 Before anything is published, `.github/smoke-test.sh` starts both containers
 the way `compose.yaml` does (with the same capabilities and limits) and checks
 uploads, text and file shares, passwords, picture previews, the proxy guard,
-and that `drop-share` runs without root and refuses to start when it can see
-the files. It also runs the attacks found in a security review:
-parallel password guessing, forged share records, control characters in file
-names, picture formats in disguise, slash redirects. Locally: `.github/smoke-test.sh <image>`.
+PIN and users, and that `drop-share` runs without root and refuses to start
+when it can see the files. It also runs the attacks found in security
+reviews: parallel password and PIN guessing, forged share records and cookies,
+control characters and SMB-made names (NFD, backslash, not UTF-8), picture
+formats in disguise, slash redirects, DNS rebinding, oversized uploads, texts
+and JSON, garbage in drop-share's counters. And it checks `compose.yaml`
+against `.env.example`. Locally: `.github/smoke-test.sh <image>`.
 
 To release: *Actions* → *Image* → *Run workflow* on `main`, enter the version
 (e.g. `1.2.3`). The workflow builds and publishes the images, then creates the

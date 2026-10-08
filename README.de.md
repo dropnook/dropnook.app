@@ -108,7 +108,7 @@ Ein eigener Share für die Dateien und Texte von Drop. In der Unraid-Weboberflä
   zum Rand füllen.
 
 Diesen Share legt Drop nie selbst an. Darin legt es `files/`, `texts/` und
-`shares/` von selbst an.
+`shares/` von selbst an (mit Benutzern auch `users/`).
 
 ### 2. Das Docker-Netz von Unraid prüfen
 
@@ -280,7 +280,8 @@ Drop gefunden hat. Die Lösung kommt in die `.env` (*Edit Stack* → Reiter
 | Du willst genau ein bestimmtes Zertifikat | beide Dateien mit Pfad, z. B. bei Nginx Proxy Manager:<br>`TLS_CERT=/mnt/user/appdata/Nginx-Proxy-Manager-Official/letsencrypt/live/npm-<N>/fullchain.pem`<br>`TLS_KEY=/mnt/user/appdata/Nginx-Proxy-Manager-Official/letsencrypt/live/npm-<N>/privkey.pem` |
 
 Erneuerte Zertifikate übernimmt Drop von selbst: es startet kurz neu, sobald
-gerade nichts hochgeladen wird. Alte `http://`-Lesezeichen werden umgeleitet.
+kein Upload läuft (einer, der seit zehn Minuten stillsteht, zählt nicht). Alte
+`http://`-Lesezeichen werden umgeleitet.
 
 ## Aktualisieren
 
@@ -288,8 +289,9 @@ In der Unraid-Weboberfläche Reiter *Docker* → Bereich *Compose* → **Check f
 Updates**, danach beim Stack `drop` **Update**.
 Deine Dateien, Texte und Freigaben bleiben, wo sie sind.
 
-`:2` folgt jedem 2.x-Release — Fehlerkorrekturen und neue Sprachen, nie etwas,
-das bestehende Einrichtungen bricht. Ein Update ändert weder die
+`:2` folgt jedem 2.x-Release — Fehlerkorrekturen und neue Sprachen; braucht ein
+Release einmal etwas von dir, steht das zuoberst in den Release-Notizen. Ein
+Update ändert weder die
 `compose.yaml` noch die `.env`. Bringt ein Release eine neue `compose.yaml`,
 fügst du sie als Ganzes ein (*Edit Stack* → Reiter **Compose**) — deine Werte
 bleiben in der `.env`.
@@ -297,7 +299,8 @@ bleiben in der `.env`.
 **Von 1.x?** In der `compose.yaml` in der Zeile `image` `:1` durch `:2`
 ersetzen, dann *Compose Up*. Sonst ändert sich nichts: Ohne Benutzer
 funktioniert Drop wie bisher, Dateien, Texte, Links und PIN bleiben, wie sie
-sind. `:1` bekommt keine Updates mehr.
+sind. `:1` bekommt keine Updates mehr. Noch besser gleich auf die neue
+`compose.yaml` mit der `.env` umstellen — siehe nächster Abschnitt.
 
 ### Wozu die `.env`
 
@@ -305,11 +308,11 @@ Deine Werte — Adressen, Ordner, PIN, Benutzer — stehen in der `.env` neben d
 `compose.yaml`, und die `compose.yaml` enthält keinen davon (sie holt sie mit
 `${DROP_IP}` und dergleichen). So bleibt beides getrennt: Die `compose.yaml`
 kann als Ganzes durch eine neuere ersetzt, gezeigt oder in einem Forum gepostet
-werden, ohne eine Adresse oder einen PIN zu verraten; die `.env` gehört dir.
+werden, ohne eine Adresse oder eine PIN zu verraten; die `.env` gehört dir.
 
 * Ein Tresor ist sie nicht: Wie jede Einstellung landen die Werte in der
   Umgebung der Container, und wer den Server verwaltet, sieht sie (`docker
-  inspect`). Der PIN hält Gäste in deinem Netz fern, nicht den Admin des
+  inspect`). Die PIN hält Gäste in deinem Netz fern, nicht den Admin des
   Servers.
 * Die `.env` liegt mit dem Stack auf dem USB-Stick; kein Container sieht sie.
   Nie in Drops `appdata`-Ordner legen — den kann `drop-share` lesen.
@@ -339,9 +342,10 @@ dem Veröffentlichen getestet.
 ## Drop benutzen
 
 **Textfelder** — drei zum Start, mehr mit „+ Textfeld“; `×` entfernt eines für
-alle. Entfernt jemand ein Feld, in dem du noch ungespeicherten Text hast, bietet
-Drop an, ihn als neues Feld zu behalten. Speichern zwei dasselbe Feld
-gleichzeitig, wird der Zweite gefragt, welche Fassung bleibt.
+alle. Jedes fasst bis zu 2 Millionen Zeichen. Entfernt jemand ein Feld, in dem
+du noch ungespeicherten Text hast, bietet Drop an, ihn als neues Feld zu
+behalten. Speichern zwei dasselbe Feld gleichzeitig, wird der Zweite gefragt,
+welche Fassung bleibt.
 
 **Screenshots und Bilder** — einen Screenshot in die Zwischenablage nehmen und
 auf der Seite Strg+V drücken (⌘V am Mac): Er wird sofort hochgeladen und
@@ -435,7 +439,7 @@ grosse Uploads und Texte.
 
 Wer in deinem Netz ist, kann Drop öffnen — zu Hause meist genau richtig. Mit
 Gästen im WLAN oder in einem geteilten Netz setzt du in der `.env` des Stacks
-einen PIN oder ein Passwort (*Edit Stack* → Reiter **.env**):
+eine PIN oder ein Passwort (*Edit Stack* → Reiter **.env**):
 
 ```sh
 PIN=2468
@@ -544,8 +548,9 @@ ungespeicherter Text wird nachgeschickt, sobald die Verbindung zurück ist.
   sieht, alles — auch ins Internet teilen. Benutzer trennen nur eigene Bereiche
   vom gemeinsamen; einen Admin gibt es nicht.
 * Kein Papierkorb. Gelöscht ist gelöscht.
-* In Drop verfällt nichts von selbst — nur Freigabe-Links laufen ab. Den
-  freien Platz oben rechts im Auge behalten.
+* In Drop verfällt nichts von selbst — nur Freigabe-Links laufen ab, und
+  Uploads, die eine Woche lang niemand fortgesetzt hat. Den freien Platz oben
+  rechts im Auge behalten; ein Upload, der nicht passt, wird abgelehnt.
 * Keine Uploads von aussen. Teilen geht nur in eine Richtung: hinaus.
 
 ## Dropnook unterstützen

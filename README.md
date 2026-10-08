@@ -105,7 +105,7 @@ A share of its own for Drop's files and texts. In the Unraid web interface,
   brim.
 
 Drop never creates this share itself. Inside it, it creates `files/`, `texts/`
-and `shares/` on its own.
+and `shares/` on its own (with users also `users/`).
 
 ### 2. Check Unraid's Docker network
 
@@ -274,7 +274,8 @@ it says what it found, and the fix goes into the `.env` (*Edit Stack* → tab
 | You want one specific certificate | both files by path, e.g. for Nginx Proxy Manager:<br>`TLS_CERT=/mnt/user/appdata/Nginx-Proxy-Manager-Official/letsencrypt/live/npm-<N>/fullchain.pem`<br>`TLS_KEY=/mnt/user/appdata/Nginx-Proxy-Manager-Official/letsencrypt/live/npm-<N>/privkey.pem` |
 
 Renewed certificates are picked up by themselves: Drop restarts for a moment,
-once nothing is being uploaded. Old `http://` bookmarks are redirected.
+once no upload is running (one that has not moved for ten minutes does not
+count). Old `http://` bookmarks are redirected.
 
 ## Updating
 
@@ -282,15 +283,17 @@ In the Unraid web interface, tab *Docker* → section *Compose* → **Check for
 Updates**, then **Update** on the stack `drop`.
 Your files, texts and shares stay where they are.
 
-`:2` follows every 2.x release — fixes and new languages, never a breaking
-change. An update touches neither `compose.yaml` nor the `.env`. If a release
-brings a new `compose.yaml`, paste it in as a whole (*Edit Stack* → tab
-**Compose**) — your values stay in the `.env`.
+`:2` follows every 2.x release — fixes and new languages; should a release
+ever need something from you, its release notes say so first. An update
+touches neither `compose.yaml` nor the `.env`. If a release brings a new
+`compose.yaml`, paste it in as a whole (*Edit Stack* → tab **Compose**) — your
+values stay in the `.env`.
 
 **Coming from 1.x?** Change `:1` to `:2` in the `image` line of `compose.yaml`,
 then *Compose Up*. Nothing else changes: without users Drop works as before,
 and your files, texts, links and PIN stay as they are. `:1` gets no more
-updates.
+updates. Better still, switch to the new `compose.yaml` with the `.env` right
+away — see the next section.
 
 ### What the `.env` is for
 
@@ -300,7 +303,7 @@ Your values — addresses, folders, PIN, users — are in the `.env` next to
 replaced by a newer one as a whole, shown or posted in a forum without giving
 away an address or a PIN; the `.env` is yours.
 
-* It is no safe: like every setting, the values end up in the containers'
+* It is not a vault: like every setting, the values end up in the containers'
   environment, and whoever administers the server sees them (`docker
   inspect`). The PIN keeps out guests on your network, not the server's admin.
 * The `.env` lives with the stack on the flash drive; no container sees it.
@@ -330,8 +333,9 @@ it like any other. Every image is tested before it is published.
 ## Using Drop
 
 **Text fields** — three to start with, more with "+ Text field"; `×` removes one
-for everyone. If someone removes a field while you still have unsaved text in
-it, you are offered to keep it as a new field. If two people save the same
+for everyone. Each holds up to 2 million characters. If someone removes a field
+while you still have unsaved text in it, you are offered to keep it as a new
+field. If two people save the same
 field at once, the second one is asked which version to keep.
 
 **Screenshots and pictures** — take a screenshot into the clipboard and press
@@ -521,8 +525,9 @@ typing; unsaved text is sent once the connection is back.
   see, including sharing to the internet. Users only separate own areas from
   the shared one; there is no admin.
 * No recycle bin. Deleted is deleted.
-* Nothing in Drop expires by itself — only share links do. Keep an eye
-  on the free space shown at the top right.
+* Nothing in Drop expires by itself — only share links do, and uploads nobody
+  continued for a week. Keep an eye on the free space shown at the top right;
+  an upload that does not fit is refused.
 * No uploads from outside. Sharing works in one direction only: out.
 
 ## Support Dropnook
