@@ -126,7 +126,7 @@
      "name": "Can several people have their own space?",
      "acceptedAnswer": {
       "@type": "Answer",
-      "text": "Yes, if you want: up to five users in compose.yaml, each with a name, a PIN and a colour. Everyone signs in once per device and then switches between their own area — only they see it — and the shared one. Without users, everyone simply shares everything."
+      "text": "Yes, if you want: up to five users in the .env, each with a name, a PIN and a colour. Everyone signs in once per device and then switches between their own area — only they see it — and the shared one. Without users, everyone simply shares everything."
      }
     }
    ]
@@ -337,7 +337,7 @@
     <h2>Up and running <em>in minutes</em></h2>
     <ol class="steps">
       <li><h3>Create a share</h3><p>On your server, add a share or folder named “drop”. Your files and texts live there.</p></li>
-      <li><h3>Set up compose.yaml</h3><p>Take the <code>compose.yaml</code> and fill in two free IP addresses.</p></li>
+      <li><h3>compose.yaml and .env</h3><p>Take the <code>compose.yaml</code> as it is, and fill in two free IP addresses in the <code>.env</code> next to it.</p></li>
       <li><h3>Start it</h3><p><code>docker compose up -d</code> — then open <code>drop.yourdomain.com</code> on every device in your network.</p></li>
     </ol>
     <p class="tip"><b>Tip: HTTPS in your home network, too.</b> Over plain http://, browsers warn about or block downloads and pictures cannot be copied. At your domain hoster, point <code>drop</code> to drop’s LAN address (e.g. <code>drop → 192.168.1.20</code>) — Drop then finds your reverse proxy’s certificate by itself.</p>
@@ -354,7 +354,7 @@
     <details><summary>Do my devices need an app?</summary><p>No. Any current browser is enough — on phones, tablets and computers alike.</p></details>
     <details><summary>Do I need Unraid?</summary><p><span class="dn">Drop<span>nook</span></span> is made for Unraid, and the guide is for Unraid. It runs on any Linux host with Docker Compose, too.</p></details>
     <details><summary>And when I am away from home?</summary><p>Through your VPN, <span class="dn">Drop<span>nook</span></span> works just like at home. Without it, only the share links you create can be opened.</p></details>
-    <details><summary>Can several people have their own space?</summary><p>Yes, if you want: up to five users in <code>compose.yaml</code>, each with a name, a PIN and a colour. Everyone signs in once per device and then switches between their own area — only they see it — and the shared one. Without users, everyone simply shares everything.</p></details>
+    <details><summary>Can several people have their own space?</summary><p>Yes, if you want: up to five users in the <code>.env</code>, each with a name, a PIN and a colour. Everyone signs in once per device and then switches between their own area — only they see it — and the shared one. Without users, everyone simply shares everything.</p></details>
   </div>
 </section>
 

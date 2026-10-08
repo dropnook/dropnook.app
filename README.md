@@ -123,28 +123,32 @@ at the top right):
 In the Unraid web interface, tab *Docker* → section *Compose* further down →
 **Add New Stack** → name **`drop`**.
 
-On the new stack, **Edit Stack** → tab **Compose**: paste the content of
-[`compose-projects-drop/compose.yaml`](compose-projects-drop/compose.yaml)
-([raw](https://raw.githubusercontent.com/dropnook/dropnook.app/main/compose-projects-drop/compose.yaml)).
-A PIN or users (optional, can come later) go into the tab **.env** — see
-[Where PINs belong](#where-pins-belong-the-env).
+On the new stack, **Edit Stack**:
 
-Everything you normally change is in the **SETTINGS** block at the top:
+1. Tab **Compose**: paste the content of
+   [`compose-projects-drop/compose.yaml`](compose-projects-drop/compose.yaml)
+   ([raw](https://raw.githubusercontent.com/dropnook/dropnook.app/main/compose-projects-drop/compose.yaml))
+   — as it is, there is nothing to change in it.
+2. Tab **.env**: paste the content of
+   [`compose-projects-drop/.env.example`](compose-projects-drop/.env.example)
+   ([raw](https://raw.githubusercontent.com/dropnook/dropnook.app/main/compose-projects-drop/.env.example))
+   and fill in your values ([what the `.env` is for](#what-the-env-is-for)):
 
-| Setting | Preset | What to do |
+| Value | Preset | What to do |
 |---|---|---|
-| `drop-ip`, `share-ip` | `<drop-IP>`, `<share-IP>` | **Fill in** the two free addresses |
-| `data`, `shares`, `counters` | `/mnt/user/drop/…` | Only if your share has another name or path |
-| `appdata` | `/mnt/user/appdata/drop` | Translations of your own; may stay empty |
-| `certs` | `…/Nginx-Proxy-Manager-Official/letsencrypt` | The folder holding your certificates |
-| `tls-cert`, `tls-key` | `auto`, empty | Leave it — Drop finds the certificate itself (see [HTTPS](#https-in-your-network)) |
-| `share-subdomain` | `drop-share` | First part of the share links' name |
-| `image` | `ghcr.io/dropnook/dropnook:2` | Leave it — follows every 2.x release |
+| `DROP_IP`, `SHARE_IP` | empty | **Fill in** the two free addresses |
+| `DATA_DIR` | `/mnt/user/drop` | Only if your share has another name or path |
+| `APPDATA_DIR` | `/mnt/user/appdata/drop` | Translations of your own; may stay empty |
+| `CERTS_DIR` | `…/Nginx-Proxy-Manager-Official/letsencrypt` | The folder holding your certificates |
+| `TLS_CERT`, `TLS_KEY` | `auto`, empty | Leave it — Drop finds the certificate itself (see [HTTPS](#https-in-your-network)) |
+| `SHARE_SUBDOMAIN` | `drop-share` | First part of the share links' name |
+| `WEBUI` | `https://drop.yourdomain.com` | Your name for Drop — what *WebUI* in the Docker tab opens. Without a domain and without sharing: `http://[IP]/` |
+| `TZ` | empty | Optional: time zone of the log, e.g. `Europe/Berlin` |
+| `PIN`, `USER_…` | empty | Optional — see [PIN](#pin-or-password-optional) and [Users](#users-optional) |
 
-One line outside SETTINGS: at `drop`, the label `net.unraid.docker.webui` —
-put in your name instead of `https://drop.yourdomain.com`. It is what *WebUI* in the
-Docker tab opens. Only if you have no domain and do not share to the internet:
-`http://[IP]/` works too — Unraid fills in the address.
+Comments go on lines of their own, never behind a value. The image
+(`ghcr.io/dropnook/dropnook:2`, follows every 2.x release) is set in
+`compose.yaml`.
 
 **Save**. While in *Edit Stack*, tab **Settings** → **Icon URL** gives the stack
 its icon:
@@ -230,42 +234,44 @@ all. A certificate for `drop.yourdomain.com` fixes that — usually the one your
 reverse proxy already has, if it covers that name (a wildcard
 `*.yourdomain.com` does).
 
-Drop reads it from the folder `certs`, read-only. `tls-cert` decides how:
+Drop reads it from the folder `CERTS_DIR`, read-only. `TLS_CERT` in the `.env`
+decides how:
 
-| `tls-cert` | |
+| `TLS_CERT` | |
 |---|---|
 | `auto` (preset) | Drop picks the certificates for `drop.yourdomain.com` or `*.yourdomain.com` by itself — one per domain, `drop.yourdomain.com` before `*.yourdomain.com`. With several domains, each name you open Drop under gets its own. The log says which. |
 | `yourdomain.com` | The same, for this domain only. |
-| `""` | No HTTPS, no search. |
-| a file path | Exactly this certificate; `tls-key` then names the key file. |
+| empty | No HTTPS, no search. |
+| a file path | Exactly this certificate; `TLS_KEY` then names the key file. |
 
-`certs` is preset to Nginx Proxy Manager's folder; with something else, put in
+`CERTS_DIR` is preset to Nginx Proxy Manager's folder; with something else, put in
 the folder your certificates live in. Never put certificates into Drop's
 `appdata` folder — `drop-share` can read that one.
 
-**Rather not let Drop see all your certificates?** `certs` is mounted
+**Rather not let Drop see all your certificates?** `CERTS_DIR` is mounted
 read-only, but `drop` could read every certificate in it — that is how `auto`
-finds the right one, and a file path in `tls-cert` only turns off the search,
+finds the right one, and a file path in `TLS_CERT` only turns off the search,
 not the access. To give it just one: copy the certificate chain and its key
-into a folder of their own (e.g. `/mnt/user/appdata/drop-certs/`), set `certs`
-to that folder and `tls-cert`/`tls-key` to the two files. Drop then sees
+into a folder of their own (e.g. `/mnt/user/appdata/drop-certs/`), set
+`CERTS_DIR` to that folder and `TLS_CERT`/`TLS_KEY` to the two files. Drop then sees
 nothing else — but renewals are up to you: copy the new files there after
 each one (e.g. with the *User Scripts* plugin); Drop picks them up by itself.
 With Nginx Proxy Manager, mounting only `live/npm-<N>` does not work — the
 files there are links into `archive/`. Without HTTPS in your network at all:
-`tls-cert: ""`, and remove the `certs` entry under `volumes` of `drop`.
+`TLS_CERT=` (empty), and `CERTS_DIR=` any existing folder without certificates,
+e.g. `/mnt/user/appdata/drop` — otherwise Docker creates the preset one, empty.
 
 **If `auto` does not get a certificate** — on the stack `drop` in the
 *Compose* section, open **Logs** of the container `drop`. Right after the start
-it says what it found, and the fix goes into the SETTINGS of the `compose.yaml`
-(*Edit Stack* → *Compose*, then **Compose Up**):
+it says what it found, and the fix goes into the `.env` (*Edit Stack* → tab
+**.env**, then **Compose Up**):
 
 | The log says | What to change |
 |---|---|
-| `No certificate for drop.<domain> … in <folder>` and the folder is not where your certificates are | `certs` → the folder holding them, e.g. `/mnt/user/appdata/<your proxy>/letsencrypt` |
+| `No certificate for drop.<domain> … in <folder>` and the folder is not where your certificates are | `CERTS_DIR=` the folder holding them, e.g. `/mnt/user/appdata/<your proxy>/letsencrypt` |
 | `No certificate …` although the folder is right | None of the certificates covers `drop.yourdomain.com` — get one for `*.yourdomain.com` (or `drop.yourdomain.com`) in your proxy |
-| `Certificate found for …` lists a domain you do not want | `tls-cert: yourdomain.com` — only your domain is used |
-| You want one specific certificate | both files by path, e.g. for Nginx Proxy Manager:<br>`tls-cert: /mnt/user/appdata/Nginx-Proxy-Manager-Official/letsencrypt/live/npm-<N>/fullchain.pem`<br>`tls-key: /mnt/user/appdata/Nginx-Proxy-Manager-Official/letsencrypt/live/npm-<N>/privkey.pem` |
+| `Certificate found for …` lists a domain you do not want | `TLS_CERT=yourdomain.com` — only your domain is used |
+| You want one specific certificate | both files by path, e.g. for Nginx Proxy Manager:<br>`TLS_CERT=/mnt/user/appdata/Nginx-Proxy-Manager-Official/letsencrypt/live/npm-<N>/fullchain.pem`<br>`TLS_KEY=/mnt/user/appdata/Nginx-Proxy-Manager-Official/letsencrypt/live/npm-<N>/privkey.pem` |
 
 Renewed certificates are picked up by themselves: Drop restarts for a moment,
 once nothing is being uploaded. Old `http://` bookmarks are redirected.
@@ -277,13 +283,44 @@ Updates**, then **Update** on the stack `drop`.
 Your files, texts and shares stay where they are.
 
 `:2` follows every 2.x release — fixes and new languages, never a breaking
-change. An update never touches your `compose.yaml`; if a release changes it,
-its release notes say what to take over.
+change. An update touches neither `compose.yaml` nor the `.env`. If a release
+brings a new `compose.yaml`, paste it in as a whole (*Edit Stack* → tab
+**Compose**) — your values stay in the `.env`.
 
 **Coming from 1.x?** Change `:1` to `:2` in the `image` line of `compose.yaml`,
 then *Compose Up*. Nothing else changes: without users Drop works as before,
 and your files, texts, links and PIN stay as they are. `:1` gets no more
 updates.
+
+### What the `.env` is for
+
+Your values — addresses, folders, PIN, users — are in the `.env` next to
+`compose.yaml`, and `compose.yaml` holds none of them (it takes them with
+`${DROP_IP}` and the like). That keeps the two apart: `compose.yaml` can be
+replaced by a newer one as a whole, shown or posted in a forum without giving
+away an address or a PIN; the `.env` is yours.
+
+* It is no safe: like every setting, the values end up in the containers'
+  environment, and whoever administers the server sees them (`docker
+  inspect`). The PIN keeps out guests on your network, not the server's admin.
+* The `.env` lives with the stack on the flash drive; no container sees it.
+  Never put it into Drop's `appdata` folder — `drop-share` can read that.
+* Comments go on lines of their own; special characters (`$`, `#`, `"`, spaces
+  at the end) in single quotes: `PIN='a$b#c'`.
+* After a change: **Compose Up**. The log of `drop` says what it found
+  (`Starting on port 443 with TLS`, `PIN is set …`, `User Anna (teal) …`).
+* **From a `compose.yaml` with a SETTINGS block** (up to 2.0.0): it keeps
+  working. To switch, copy your values into the `.env` once, then replace
+  `compose.yaml` as a whole:
+
+  | SETTINGS | `.env` |
+  |---|---|
+  | `drop-ip`, `share-ip` | `DROP_IP`, `SHARE_IP` |
+  | `data`, `appdata`, `certs` | `DATA_DIR`, `APPDATA_DIR`, `CERTS_DIR` |
+  | `tls-cert`, `tls-key` | `TLS_CERT`, `TLS_KEY` (`""` becomes empty) |
+  | `share-subdomain` | `SHARE_SUBDOMAIN` |
+  | label `net.unraid.docker.webui` | `WEBUI` |
+  | `PIN`, `USER_…`, `TZ` under `environment` | `PIN`, `USER_…`, `TZ` |
 
 Security updates reach the image on their own: every Monday the current release is
 rebuilt on a fresh base image (Debian, Python, OpenSSL) whenever that base has
@@ -378,8 +415,7 @@ injection through file names, disguised picture formats.
 
 Anyone in your network can open Drop — at home that is usually just right.
 With guests in your Wi-Fi, or in a network you share, set a PIN or password
-in the `.env` of the stack (*Edit Stack* → tab **.env**, see
-[below](#where-pins-belong-the-env)):
+in the `.env` of the stack (*Edit Stack* → tab **.env**):
 
 ```sh
 PIN=2468
@@ -401,7 +437,8 @@ USER_TEAL=Anna:2468
 USER_GOLD=Tom:1357
 USER_BLUE=Lena:8642
 USER_VIOLET=Max:9753
-USER_CORAL=Mia            # without ":PIN": her name alone (or PIN, if set)
+# without ":PIN": the name alone signs in (or PIN, if set)
+USER_CORAL=Mia
 ```
 
 Drop then starts with "Who's there?": everyone taps their name once per device,
@@ -419,34 +456,15 @@ A user without a PIN of their own signs in with `PIN`, if that is set;
 otherwise their name alone does, and anyone in your network can open that
 area — fine for a living-room TV, not for something private.
 
-#### Where PINs belong: the `.env`
-
-PIN and users are not written into `compose.yaml` but into the **`.env`** next
-to it — on Unraid: *Edit Stack* → tab **.env**; elsewhere a file `.env` next to
-`compose.yaml`. Template: [`compose-projects-drop/.env.example`](compose-projects-drop/.env.example).
-`compose.yaml` only takes the values from there (`PIN: ${PIN:-}`), so the
-`.env` always decides, and `compose.yaml` can be shown, posted in a forum or
-replaced by a newer one without giving a PIN away.
-
-* Special characters (`$`, `#`, `"`, spaces at the end): put the value in
-  single quotes — `PIN='a$b#c'`.
-* After a change: **Compose Up**. The log of `drop` says what it found
-  (`PIN is set …`, `User Anna (teal): with PIN …`) — if it says nothing of the
-  kind, the `.env` was not read.
-* The `.env` stays on the server's flash drive with the stack; no container sees
-  it. Never put it into Drop's `appdata` folder — `drop-share` can read that.
-* Like every setting, the values end up in the container's environment:
-  whoever administers the server can see them (`docker inspect`). The PIN
-  keeps out guests on your network, not the server's admin.
-* From an older `compose.yaml` with `PIN: "…"` written in: move the value into
-  the `.env` when you take over the new file.
-
 <p align="center"><a href="https://dropnook.app/gallery/#9"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/9-users-dark.webp"><img src="docs/screenshots/9-users-light.webp" alt="Tom's own area in gold, next to the sign-in page with five names" width="80%"></picture></a></p>
 
 ## Troubleshooting
 
 **Compose Up: "bind source path does not exist: /mnt/user/drop"** — the share
-is missing or named differently (step 1, or `data` in SETTINGS).
+is missing or named differently (step 1, or `DATA_DIR` in the `.env`).
+
+**Compose Up: "required variable DROP_IP is missing a value"** — the `.env`
+is empty or was not saved: *Edit Stack* → tab **.env**, fill in (step 3).
 
 **Compose Up: "no configured subnet contains IP address …"** — `br0` does not
 carry your LAN's subnet (step 2). In *Settings* → *Docker*: stop Docker, set
@@ -476,9 +494,10 @@ limited without swap"** — harmless. Both containers have a memory limit (a
 safeguard); Unraid's kernel cannot also limit swap, and Unraid normally has no
 swap anyway. The limit works as it should.
 
-**PIN or users are not asked for** — the `.env` was not read: on Unraid it
-belongs into *Edit Stack* → tab **.env**, elsewhere into a file `.env` next to
-`compose.yaml`; then **Compose Up**. The log of `drop` says what it found.
+**PIN or users are not asked for** — after changing the `.env`, *Save* alone
+is not enough: **Compose Up**. The log of `drop` then says what it found
+(`PIN is set …`, `User Anna (teal) …`); if it does not, check the spelling —
+`PIN=2468`, in capitals, at the start of the line.
 
 **The dot at the top left stays red** — the browser does not reach `drop`: is
 the stack running, does `drop.yourdomain.com` point to `<drop-IP>`? You can keep

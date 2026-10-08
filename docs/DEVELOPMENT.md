@@ -5,11 +5,15 @@ Compose Manager Plus. This page has the rest.
 
 ## All settings
 
-Set as environment variables in `compose.yaml`; the ones you normally change
-come from its SETTINGS block. `PIN` and `USER_*` are filled in from the `.env`
-next to it (`${PIN:-}`, template `compose-projects-drop/.env.example`), so
-`compose.yaml` itself never holds one; Compose Manager Plus passes its *.env*
-tab with `--env-file`, plain `docker compose` reads `.env` by itself.
+Set as environment variables in `compose.yaml`. Your own values come from the
+`.env` next to it (`${PIN:-}`, template `compose-projects-drop/.env.example`),
+so `compose.yaml` itself holds none and can be replaced as a whole; Compose
+Manager Plus passes its *.env* tab with `--env-file`, plain `docker compose`
+reads `.env` by itself. Besides the variables below that it passes on
+(`CERTS_DIR`, `TLS_CERT`, `TLS_KEY`, `SHARE_SUBDOMAIN`, `PIN`, `USER_*`, `TZ`),
+the `.env` holds what only Compose uses: `DROP_IP`, `SHARE_IP` (required),
+`DATA_DIR`, `APPDATA_DIR` and `WEBUI`. Anything else from the table goes under
+`environment` of `drop`.
 
 | Variable | Default | Meaning |
 |---|---|---|
@@ -45,8 +49,9 @@ tab with `--env-file`, plain `docker compose` reads `.env` by itself.
 
 Unraid with Compose Manager Plus is the recommended way, and what the README
 describes. But `compose-projects-drop/compose.yaml` is a plain Compose file and
-runs on any Linux host with Docker. Put it in a folder of its own, fill in the
-SETTINGS with paths of that host, and change three things:
+runs on any Linux host with Docker. Put it in a folder of its own, next to it a
+`.env` from `.env.example` with addresses and paths of that host, and change
+three things:
 
 * **Network.** `br0` is Unraid's network for containers with their own LAN
   address. Elsewhere, create one like it once (macvlan on your network card,
@@ -63,7 +68,7 @@ SETTINGS with paths of that host, and change three things:
   another machine.
 * **Server name.** Remove the `/boot/config/ident.cfg` line and set
   `SERVER_NAME: <name>` (or `APP_NAME`) under `environment` of `drop`.
-* **Data folder.** `data` must exist before the first start (Drop does not
+* **Data folder.** `DATA_DIR` must exist before the first start (Drop does not
   create it); `drop` creates `files/`, `texts/` and `shares/` in it, owned by
   `99:100` (`PUID`/`PGID` to change that).
 
@@ -148,7 +153,7 @@ Unraid and can stay.
 docker build -t drop:local .
 ```
 
-Then set `image` in the SETTINGS to `drop:local`. To try changes without
+Then set the `x-image` line at the top of `compose.yaml` to `drop:local`. To try changes without
 building, mount your copy of the repository over `/app`: the web page files are
 read on every reload, `main.py` needs a restart of the container.
 

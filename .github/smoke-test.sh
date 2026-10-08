@@ -44,15 +44,32 @@ wait_healthy() {
 }
 
 # ---------------------------------------------------------------- compose.yaml
-# It parses, and PIN and users come from the .env next to it — with special
-# characters intact. Without a .env they stay off.
+# A pure template: every value comes from the .env next to it — special
+# characters intact, presets for whatever is left out. Without the two
+# addresses it refuses to start rather than guess.
 COMPOSE="$(cd "$(dirname "$0")/.." && pwd)/compose-projects-drop/compose.yaml"
-printf "%s\n" "PIN='a\$b#c 9'" 'USER_GOLD=Zoë Müller:1357' > "$WORK/ci.env"
-envof() { docker compose -f "$COMPOSE" "$@" config --format json \
-  | python3 -c 'import json,sys; e=json.load(sys.stdin)["services"]["drop"]["environment"]; print(e["PIN"] + "|" + e["USER_GOLD"] + "|" + e["USER_TEAL"])'; }
+printf "%s\n" 'DROP_IP=192.168.1.20' 'SHARE_IP=192.168.1.21' > "$WORK/min.env"
+cp "$WORK/min.env" "$WORK/ci.env"
+printf "%s\n" "PIN='a\$b#c 9'" 'USER_GOLD=Zoë Müller:1357' 'TLS_CERT=' 'DATA_DIR=/mnt/disk1/drop' >> "$WORK/ci.env"
+conf() { docker compose -f "$COMPOSE" "$@" config --format json | python3 -c '
+import json, sys
+s = json.load(sys.stdin)["services"]
+d, p = s["drop"], s["drop-share"]
+e = d["environment"]
+mount = lambda svc, t: next(v["source"] for v in svc["volumes"] if v["target"] == t)
+print("|".join([e["PIN"], e["USER_GOLD"], e["USER_TEAL"], e["TLS_CERT"], e["TLS_KEY"], e["TZ"],
+                d["networks"]["br0"]["ipv4_address"], p["networks"]["br0"]["ipv4_address"],
+                mount(d, "/data"), mount(p, "/data/shares")]))'; }
+refused() { ! out=$(docker compose -f "$COMPOSE" --env-file /dev/null config 2>&1) \
+  && grep -q "DROP_IP is missing in the .env" <<<"$out"; }
 # (config prints a $ as $$ — the container gets a single one)
-check "compose.yaml: PIN and users from .env" test "$(envof --env-file "$WORK/ci.env")" = 'a$$b#c 9|Zoë Müller:1357|'
-check "compose.yaml: without .env all off"   test "$(envof)" = '||'
+check "compose.yaml: values from .env" \
+  test "$(conf --env-file "$WORK/ci.env")" = 'a$$b#c 9|Zoë Müller:1357|||||192.168.1.20|192.168.1.21|/mnt/disk1/drop|/mnt/disk1/drop/shares'
+check "compose.yaml: presets for the rest" \
+  test "$(conf --env-file "$WORK/min.env")" = '|||auto|||192.168.1.20|192.168.1.21|/mnt/user/drop|/mnt/user/drop/shares'
+check "compose.yaml: .env.example as it is, with two addresses" \
+  test "$(conf --env-file "${COMPOSE%/*}/.env.example" --env-file "$WORK/min.env")" = '|||auto|||192.168.1.20|192.168.1.21|/mnt/user/drop|/mnt/user/drop/shares'
+check "compose.yaml: without .env it refuses, naming DROP_IP" refused
 
 # ---------------------------------------------------------------- drop (LAN)
 docker run -d --name ci-drop -p "$LAN:80" \

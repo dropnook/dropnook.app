@@ -126,7 +126,7 @@
      "name": "Können mehrere Leute einen eigenen Bereich haben?",
      "acceptedAnswer": {
       "@type": "Answer",
-      "text": "Ja, wenn du willst: bis zu fünf Benutzer in der compose.yaml, jeder mit Name, PIN und Farbe. Jeder meldet sich einmal pro Gerät an und wechselt dann zwischen seinem eigenen Bereich — nur er sieht ihn — und dem gemeinsamen. Ohne Benutzer teilen einfach alle alles."
+      "text": "Ja, wenn du willst: bis zu fünf Benutzer in der .env, jeder mit Name, PIN und Farbe. Jeder meldet sich einmal pro Gerät an und wechselt dann zwischen seinem eigenen Bereich — nur er sieht ihn — und dem gemeinsamen. Ohne Benutzer teilen einfach alle alles."
      }
     }
    ]
@@ -337,7 +337,7 @@
     <h2>In <em>wenigen Minuten</em> bereit</h2>
     <ol class="steps">
       <li><h3>Share anlegen</h3><p>Auf deinem Server einen Share oder Ordner namens „drop“ anlegen. Dort liegen deine Dateien und Texte.</p></li>
-      <li><h3>compose.yaml einrichten</h3><p>Die <code>compose.yaml</code> übernehmen und zwei freie IP-Adressen eintragen.</p></li>
+      <li><h3>compose.yaml und .env</h3><p>Die <code>compose.yaml</code> unverändert übernehmen und in der <code>.env</code> daneben zwei freie IP-Adressen eintragen.</p></li>
       <li><h3>Starten</h3><p><code>docker compose up -d</code> — danach <code>drop.deinedomain.com</code> auf jedem Gerät im Heimnetz öffnen.</p></li>
     </ol>
     <p class="tip"><b>Tipp: Auch im Heimnetz mit HTTPS.</b> Über einfaches http:// warnen Browser bei Downloads oder blockieren sie, und Bilder lassen sich nicht kopieren. Beim Domain-Hoster <code>drop</code> auf die LAN-Adresse von drop zeigen lassen (z. B. <code>drop → 192.168.1.20</code>) — dann findet Drop das Zertifikat deines Reverse Proxys von selbst.</p>
@@ -354,7 +354,7 @@
     <details><summary>Brauchen meine Geräte eine App?</summary><p>Nein. Ein aktueller Browser genügt — auf Handys, Tablets und Computern gleichermassen.</p></details>
     <details><summary>Brauche ich Unraid?</summary><p><span class="dn">Drop<span>nook</span></span> ist für Unraid gemacht, und die Anleitung ist für Unraid. Es läuft aber auch auf jedem Linux-Rechner mit Docker Compose.</p></details>
     <details><summary>Und wenn ich unterwegs bin?</summary><p>Über dein VPN funktioniert <span class="dn">Drop<span>nook</span></span> wie zu Hause. Ohne VPN lassen sich nur die Freigabe-Links öffnen, die du erstellt hast.</p></details>
-    <details><summary>Können mehrere Leute einen eigenen Bereich haben?</summary><p>Ja, wenn du willst: bis zu fünf Benutzer in der <code>compose.yaml</code>, jeder mit Name, PIN und Farbe. Jeder meldet sich einmal pro Gerät an und wechselt dann zwischen seinem eigenen Bereich — nur er sieht ihn — und dem gemeinsamen. Ohne Benutzer teilen einfach alle alles.</p></details>
+    <details><summary>Können mehrere Leute einen eigenen Bereich haben?</summary><p>Ja, wenn du willst: bis zu fünf Benutzer in der <code>.env</code>, jeder mit Name, PIN und Farbe. Jeder meldet sich einmal pro Gerät an und wechselt dann zwischen seinem eigenen Bereich — nur er sieht ihn — und dem gemeinsamen. Ohne Benutzer teilen einfach alle alles.</p></details>
   </div>
 </section>
 

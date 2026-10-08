@@ -1,25 +1,17 @@
 # Dropnook — instant sharing for your home network
 # Setup, HTTPS and updates: https://github.com/dropnook/dropnook.app
 #
-# Before the first start: create the Unraid share "drop" and fill in SETTINGS.
+# Nothing to change in here: your values go into the .env next to this file —
+# on Unraid: Edit Stack → tab .env; template: .env.example. So a newer
+# compose.yaml can simply replace this one, and this file can be shown or
+# posted without giving away an address or a PIN.
+#
+# Before the first start: create the Unraid share "drop", fill in the .env.
 # Without Unraid: see "Without Unraid" in docs/DEVELOPMENT.md.
 
 name: drop
 
-# --- SETTINGS: everything you normally change --------------------------------
-x-settings:
-  drop-ip:         &drop_ip         <drop-IP>        # free LAN address for drop
-  share-ip:        &share_ip        <share-IP>       # free LAN address for drop-share
-  data:            &data            /mnt/user/drop   # the Unraid share — create it first
-  shares:          &shares          /mnt/user/drop/shares            # always <data>/shares
-  counters:        &counters        /mnt/user/drop/shares/counters   # always <data>/shares/counters
-  appdata:         &appdata         /mnt/user/appdata/drop           # own translations, optional
-  # Folder with your certificates, read-only. Never the appdata folder above.
-  certs:           &certs           /mnt/user/appdata/Nginx-Proxy-Manager-Official/letsencrypt
-  tls-cert:        &tls_cert        auto             # auto | yourdomain.com | "" | path of fullchain.pem
-  tls-key:         &tls_key         ""               # only with a path in tls-cert
-  share-subdomain: &share_subdomain drop-share       # links: https://drop-share.yourdomain.com/…
-  image:           &image           ghcr.io/dropnook/dropnook:2   # 2.x + weekly security rebuilds
+x-image: &image ghcr.io/dropnook/dropnook:2   # 2.x + weekly security rebuilds
 
 services:
 
@@ -37,44 +29,41 @@ services:
     pids_limit: 200
     environment:
       MODE: lan
-      TLS_CERT: *tls_cert
-      TLS_KEY: *tls_key
-      CERTS_DIR: *certs
-      SHARE_SUBDOMAIN: *share_subdomain
-      # PIN and users come from the .env next to this file — Unraid: Edit Stack
-      # → tab .env; template: .env.example. Never written in here, so this file
-      # can be shown or replaced without giving a PIN away. Empty = off.
+      TLS_CERT: ${TLS_CERT-auto}            # empty in the .env: no HTTPS
+      TLS_KEY: ${TLS_KEY:-}
+      CERTS_DIR: ${CERTS_DIR:-/mnt/user/appdata/Nginx-Proxy-Manager-Official/letsencrypt}
+      SHARE_SUBDOMAIN: ${SHARE_SUBDOMAIN:-drop-share}
       PIN: ${PIN:-}
       USER_TEAL: ${USER_TEAL:-}
       USER_GOLD: ${USER_GOLD:-}
       USER_BLUE: ${USER_BLUE:-}
       USER_VIOLET: ${USER_VIOLET:-}
       USER_CORAL: ${USER_CORAL:-}
-      # TZ: Europe/Berlin            # log timestamps only
+      TZ: ${TZ:-}                            # log timestamps only
       # More settings: docs/DEVELOPMENT.md
     volumes:
       # One mount for files/, texts/ and shares/ — hard links need that. Not
       # created when missing, so a typo never turns into a new Unraid share.
       - type: bind
-        source: *data
+        source: ${DATA_DIR:-/mnt/user/drop}
         target: /data
         bind: { create_host_path: false }
       - type: bind
-        source: *appdata
+        source: ${APPDATA_DIR:-/mnt/user/appdata/drop}
         target: /config
         read_only: true
+      # Your certificates, read-only. Never the appdata folder above.
       - type: bind
-        source: *certs
-        target: *certs
+        source: ${CERTS_DIR:-/mnt/user/appdata/Nginx-Proxy-Manager-Official/letsencrypt}
+        target: ${CERTS_DIR:-/mnt/user/appdata/Nginx-Proxy-Manager-Official/letsencrypt}
         read_only: true
       - /boot/config/ident.cfg:/unraid/ident.cfg:ro   # Unraid server name
     networks:
       br0:
-        ipv4_address: *drop_ip
+        ipv4_address: ${DROP_IP:?DROP_IP is missing in the .env (Edit Stack - tab .env)}
     labels:
       # "WebUI" in the Docker tab: the name you open Drop under.
-      # Without a domain and without sharing: http://[IP]/
-      net.unraid.docker.webui: https://drop.yourdomain.com
+      net.unraid.docker.webui: ${WEBUI:-http://[IP]/}
       net.unraid.docker.icon: https://raw.githubusercontent.com/dropnook/dropnook.app/main/.github/icons/drop.png
 
   # Share links only — the one container your reverse proxy points to.
@@ -102,19 +91,19 @@ services:
     volumes:
       # Only what is shared, read-only — except the view counters.
       - type: bind
-        source: *shares
+        source: ${DATA_DIR:-/mnt/user/drop}/shares
         target: /data/shares
         read_only: true
       - type: bind
-        source: *counters
+        source: ${DATA_DIR:-/mnt/user/drop}/shares/counters
         target: /data/shares/counters
       - type: bind
-        source: *appdata
+        source: ${APPDATA_DIR:-/mnt/user/appdata/drop}
         target: /config
         read_only: true
     networks:
       br0:
-        ipv4_address: *share_ip
+        ipv4_address: ${SHARE_IP:?SHARE_IP is missing in the .env (Edit Stack - tab .env)}
     labels:
       net.unraid.docker.icon: https://raw.githubusercontent.com/dropnook/dropnook.app/main/.github/icons/drop-share.png
 

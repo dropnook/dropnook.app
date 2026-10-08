@@ -2794,7 +2794,7 @@ if __name__ == "__main__":
 
     if USER_PROBLEMS:
         # Better not to start than to run without the sign-in someone set up.
-        banner("USERS IN compose.yaml CANNOT BE USED:", *[f"  {p}" for p in USER_PROBLEMS],
+        banner("USERS (USER_…) CANNOT BE USED:", *[f"  {p}" for p in USER_PROBLEMS],
                "Start aborted — fix them and start again.")
         raise SystemExit(1)
     cert, key = tls_ready()

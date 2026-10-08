@@ -9,14 +9,15 @@ Key facts:
 - HTTPS in the LAN with an existing certificate (e.g. from Nginx Proxy Manager), found automatically.
 - Picture previews, a large view and "Copy" of a picture into another computer's clipboard.
 - 17 languages; five colour layouts (teal, gold, blue, violet, coral), each in light and dark.
-- Optional: one PIN for everyone, or up to five users (USER_<COLOUR>: "name:PIN"), each with an area of their own next to the shared one and their own colour.
+- Optional: one PIN for everyone, or up to five users (USER_<COLOUR>=name:PIN in the .env), each with an area of their own next to the shared one and their own colour.
 - Images are tested against a set of attacks before every release and rebuilt weekly for security updates.
 
 ## Docs
 
 - [README (English)](https://raw.githubusercontent.com/dropnook/dropnook.app/main/README.md): what it is, installation on Unraid step by step, HTTPS, updating, usage, security, troubleshooting
 - [README (Deutsch)](https://raw.githubusercontent.com/dropnook/dropnook.app/main/README.de.md): the same in German
-- [compose.yaml](https://raw.githubusercontent.com/dropnook/dropnook.app/main/compose-projects-drop/compose.yaml): the complete Docker Compose file with a SETTINGS block
+- [compose.yaml](https://raw.githubusercontent.com/dropnook/dropnook.app/main/compose-projects-drop/compose.yaml): the complete Docker Compose file, a template that takes every personal value from the .env
+- [.env.example](https://raw.githubusercontent.com/dropnook/dropnook.app/main/compose-projects-drop/.env.example): the values to fill in — two IP addresses, folders, HTTPS, PIN, users
 - [Developer notes](https://raw.githubusercontent.com/dropnook/dropnook.app/main/docs/DEVELOPMENT.md): all settings (environment variables), running without Unraid, how it works inside, releases
 
 ## Optional
