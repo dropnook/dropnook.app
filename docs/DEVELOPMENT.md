@@ -226,7 +226,7 @@ requests.
 
 ## Website, screenshots and gallery
 
-The product site [dropnook.app](https://dropnook.app/) is the `docs/` folder,
+The product site [dropnook.dropnook.app](https://dropnook.dropnook.app/) is the `docs/` folder,
 served as it is by Cloudflare: Workers Builds runs `npx wrangler deploy` on
 every push to `main`, and [`wrangler.jsonc`](../wrangler.jsonc) says to publish
 `docs/` as static files — no build command. Cloudflare builds on pushes only:

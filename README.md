@@ -5,7 +5,7 @@
   </picture>
 </h1>
 
-**English** · [Deutsch](README.de.md) · [dropnook.app](https://dropnook.app/)
+**English** · [Deutsch](README.de.md) · [dropnook.dropnook.app](https://dropnook.dropnook.app/)
 
 **Instant sharing for your home network — like AirDrop, but for every
 device.** Get a text or a file from your phone to your PC, from Windows to a
@@ -21,22 +21,22 @@ locked-down container — Drop itself is never reachable from the internet.
 page calls itself "Tower Drop", after your server.
 
 <p align="center">
-  <a href="https://dropnook.app/gallery/"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/slideshow-dark.webp"><img src="docs/screenshots/slideshow-light.webp" alt="Drop in pictures: text fields and files, sharing to the internet, what is public, the recipient's page, the phone layout, other languages, light and dark, five colours, users with their own area" width="100%"></picture></a>
+  <a href="https://dropnook.dropnook.app/gallery/"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/slideshow-dark.webp"><img src="docs/screenshots/slideshow-light.webp" alt="Drop in pictures: text fields and files, sharing to the internet, what is public, the recipient's page, the phone layout, other languages, light and dark, five colours, users with their own area" width="100%"></picture></a>
 </p>
 
 <p align="center">
-  <a href="https://dropnook.app/gallery/#1" title="Text and files"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/1-overview-dark-thumb.webp"><img src="docs/screenshots/1-overview-light-thumb.webp" alt="Text and files" width="32%"></picture></a>
-  <a href="https://dropnook.app/gallery/#2" title="Sharing"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/2-share-dark-thumb.webp"><img src="docs/screenshots/2-share-light-thumb.webp" alt="Sharing" width="32%"></picture></a>
-  <a href="https://dropnook.app/gallery/#3" title="What is public"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/3-shares-dark-thumb.webp"><img src="docs/screenshots/3-shares-light-thumb.webp" alt="What is public" width="32%"></picture></a>
-  <a href="https://dropnook.app/gallery/#4" title="Recipient's view"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/4-public-dark-thumb.webp"><img src="docs/screenshots/4-public-light-thumb.webp" alt="Recipient's view" width="32%"></picture></a>
-  <a href="https://dropnook.app/gallery/#5" title="Phone"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/5-phone-dark-thumb.webp"><img src="docs/screenshots/5-phone-light-thumb.webp" alt="Phone" width="32%"></picture></a>
-  <a href="https://dropnook.app/gallery/#6" title="17 languages"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/6-languages-dark-thumb.webp"><img src="docs/screenshots/6-languages-light-thumb.webp" alt="17 languages" width="32%"></picture></a>
-  <a href="https://dropnook.app/gallery/#7" title="Light and dark"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/7-theme-dark-thumb.webp"><img src="docs/screenshots/7-theme-light-thumb.webp" alt="Light and dark" width="32%"></picture></a>
-  <a href="https://dropnook.app/gallery/#8" title="Five colours"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/8-colours-dark-thumb.webp"><img src="docs/screenshots/8-colours-light-thumb.webp" alt="Five colours" width="32%"></picture></a>
-  <a href="https://dropnook.app/gallery/#9" title="Users"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/9-users-dark-thumb.webp"><img src="docs/screenshots/9-users-light-thumb.webp" alt="Users" width="32%"></picture></a>
+  <a href="https://dropnook.dropnook.app/gallery/#1" title="Text and files"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/1-overview-dark-thumb.webp"><img src="docs/screenshots/1-overview-light-thumb.webp" alt="Text and files" width="32%"></picture></a>
+  <a href="https://dropnook.dropnook.app/gallery/#2" title="Sharing"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/2-share-dark-thumb.webp"><img src="docs/screenshots/2-share-light-thumb.webp" alt="Sharing" width="32%"></picture></a>
+  <a href="https://dropnook.dropnook.app/gallery/#3" title="What is public"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/3-shares-dark-thumb.webp"><img src="docs/screenshots/3-shares-light-thumb.webp" alt="What is public" width="32%"></picture></a>
+  <a href="https://dropnook.dropnook.app/gallery/#4" title="Recipient's view"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/4-public-dark-thumb.webp"><img src="docs/screenshots/4-public-light-thumb.webp" alt="Recipient's view" width="32%"></picture></a>
+  <a href="https://dropnook.dropnook.app/gallery/#5" title="Phone"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/5-phone-dark-thumb.webp"><img src="docs/screenshots/5-phone-light-thumb.webp" alt="Phone" width="32%"></picture></a>
+  <a href="https://dropnook.dropnook.app/gallery/#6" title="17 languages"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/6-languages-dark-thumb.webp"><img src="docs/screenshots/6-languages-light-thumb.webp" alt="17 languages" width="32%"></picture></a>
+  <a href="https://dropnook.dropnook.app/gallery/#7" title="Light and dark"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/7-theme-dark-thumb.webp"><img src="docs/screenshots/7-theme-light-thumb.webp" alt="Light and dark" width="32%"></picture></a>
+  <a href="https://dropnook.dropnook.app/gallery/#8" title="Five colours"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/8-colours-dark-thumb.webp"><img src="docs/screenshots/8-colours-light-thumb.webp" alt="Five colours" width="32%"></picture></a>
+  <a href="https://dropnook.dropnook.app/gallery/#9" title="Users"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/9-users-dark-thumb.webp"><img src="docs/screenshots/9-users-light-thumb.webp" alt="Users" width="32%"></picture></a>
 </p>
 
-<p align="center"><sub><a href="https://dropnook.app/gallery/">Open the gallery</a> — browse with arrows, zoom in with a click.</sub></p>
+<p align="center"><sub><a href="https://dropnook.dropnook.app/gallery/">Open the gallery</a> — browse with arrows, zoom in with a click.</sub></p>
 
 * Text fields with word, character and link counts; unsaved text survives
   reloads and lost connections.
@@ -380,7 +380,7 @@ system; ☀ and ☾ next to *Help* pick one by hand, a second click on the chose
 one goes back to automatic. Each browser remembers both. With
 [users](#users-optional), the colour is the user's.
 
-<p align="center"><a href="https://dropnook.app/gallery/#8"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/8-colours-dark.webp"><img src="docs/screenshots/8-colours-light.webp" alt="Drop on five phones, one in each colour: teal, gold, blue, violet and coral" width="80%"></picture></a></p>
+<p align="center"><a href="https://dropnook.dropnook.app/gallery/#8"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/8-colours-dark.webp"><img src="docs/screenshots/8-colours-light.webp" alt="Drop on five phones, one in each colour: teal, gold, blue, violet and coral" width="80%"></picture></a></p>
 
 **Times** are shown in each viewer's own time zone; nothing to set.
 
@@ -464,7 +464,7 @@ A user without a PIN of their own signs in with `PIN`, if that is set;
 otherwise their name alone does, and anyone in your network can open that
 area — fine for a living-room TV, not for something private.
 
-<p align="center"><a href="https://dropnook.app/gallery/#9"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/9-users-dark.webp"><img src="docs/screenshots/9-users-light.webp" alt="Tom's own area in gold, next to the sign-in page with five names" width="80%"></picture></a></p>
+<p align="center"><a href="https://dropnook.dropnook.app/gallery/#9"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/9-users-dark.webp"><img src="docs/screenshots/9-users-light.webp" alt="Tom's own area in gold, next to the sign-in page with five names" width="80%"></picture></a></p>
 
 ## Troubleshooting
 
