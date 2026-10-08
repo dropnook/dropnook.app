@@ -2,4 +2,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://dropnook.app/sitemap.xml
+Sitemap: https://dropnook.dropnook.app/sitemap.xml

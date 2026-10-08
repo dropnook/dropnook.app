@@ -25,4 +25,4 @@ Key facts:
 - [Source code](https://github.com/dropnook/dropnook.app)
 - [Releases](https://github.com/dropnook/dropnook.app/releases)
 - [Name and trademark](https://raw.githubusercontent.com/dropnook/dropnook.app/main/TRADEMARKS.md)
-- [Screenshot gallery](https://dropnook.app/gallery/)
+- [Screenshot gallery](https://dropnook.dropnook.app/gallery/)
