@@ -43,6 +43,17 @@ wait_healthy() {
   fail "$1 did not get healthy"
 }
 
+# ---------------------------------------------------------------- compose.yaml
+# It parses, and PIN and users come from the .env next to it — with special
+# characters intact. Without a .env they stay off.
+COMPOSE="$(cd "$(dirname "$0")/.." && pwd)/compose-projects-drop/compose.yaml"
+printf "%s\n" "PIN='a\$b#c 9'" 'USER_GOLD=Zoë Müller:1357' > "$WORK/ci.env"
+envof() { docker compose -f "$COMPOSE" "$@" config --format json \
+  | python3 -c 'import json,sys; e=json.load(sys.stdin)["services"]["drop"]["environment"]; print(e["PIN"] + "|" + e["USER_GOLD"] + "|" + e["USER_TEAL"])'; }
+# (config prints a $ as $$ — the container gets a single one)
+check "compose.yaml: PIN and users from .env" test "$(envof --env-file "$WORK/ci.env")" = 'a$$b#c 9|Zoë Müller:1357|'
+check "compose.yaml: without .env all off"   test "$(envof)" = '||'
+
 # ---------------------------------------------------------------- drop (LAN)
 docker run -d --name ci-drop -p "$LAN:80" \
   --cap-drop ALL --cap-add CHOWN --cap-add DAC_OVERRIDE --cap-add FOWNER --cap-add NET_BIND_SERVICE \

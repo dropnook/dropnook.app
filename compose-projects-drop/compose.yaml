@@ -41,14 +41,15 @@ services:
       TLS_KEY: *tls_key
       CERTS_DIR: *certs
       SHARE_SUBDOMAIN: *share_subdomain
-      # PIN: "2468"                  # optional: asked once on every new device
-      # Or users, up to five, one per colour — "name:PIN", each with an area of
-      # their own next to the shared one (README, "Users"):
-      # USER_TEAL:   "Anna:2468"
-      # USER_GOLD:   "Tom:1357"
-      # USER_BLUE:   "Lena:8642"
-      # USER_VIOLET: "Max:9753"
-      # USER_CORAL:  "Mia"          # without ":PIN": the name alone (or PIN, if set)
+      # PIN and users come from the .env next to this file — Unraid: Edit Stack
+      # → tab .env; template: .env.example. Never written in here, so this file
+      # can be shown or replaced without giving a PIN away. Empty = off.
+      PIN: ${PIN:-}
+      USER_TEAL: ${USER_TEAL:-}
+      USER_GOLD: ${USER_GOLD:-}
+      USER_BLUE: ${USER_BLUE:-}
+      USER_VIOLET: ${USER_VIOLET:-}
+      USER_CORAL: ${USER_CORAL:-}
       # TZ: Europe/Berlin            # log timestamps only
       # More settings: docs/DEVELOPMENT.md
     volumes:

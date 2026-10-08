@@ -126,6 +126,8 @@ In the Unraid web interface, tab *Docker* → section *Compose* further down →
 On the new stack, **Edit Stack** → tab **Compose**: paste the content of
 [`compose-projects-drop/compose.yaml`](compose-projects-drop/compose.yaml)
 ([raw](https://raw.githubusercontent.com/dropnook/dropnook.app/main/compose-projects-drop/compose.yaml)).
+A PIN or users (optional, can come later) go into the tab **.env** — see
+[Where PINs belong](#where-pins-belong-the-env).
 
 Everything you normally change is in the **SETTINGS** block at the top:
 
@@ -376,11 +378,11 @@ injection through file names, disguised picture formats.
 
 Anyone in your network can open Drop — at home that is usually just right.
 With guests in your Wi-Fi, or in a network you share, set a PIN or password
-for `drop` in `compose.yaml`:
+in the `.env` of the stack (*Edit Stack* → tab **.env**, see
+[below](#where-pins-belong-the-env)):
 
-```yaml
-    environment:
-      PIN: "2468"
+```sh
+PIN=2468
 ```
 
 Every new browser is asked for it once and stays signed in for 90 days.
@@ -392,15 +394,14 @@ server itself. Share links are not affected; they have a password of their own.
 ### Users (optional)
 
 Several people, each with something of their own? Give up to five of them a
-name, a PIN and a colour — one user per colour, in `compose.yaml` at `drop`:
+name, a PIN and a colour — one user per colour, in the `.env` of the stack:
 
-```yaml
-    environment:
-      USER_TEAL:   "Anna:2468"
-      USER_GOLD:   "Tom:1357"
-      USER_BLUE:   "Lena:8642"
-      USER_VIOLET: "Max:9753"
-      USER_CORAL:  "Mia"          # without ":PIN": her name alone (or PIN, if set)
+```sh
+USER_TEAL=Anna:2468
+USER_GOLD=Tom:1357
+USER_BLUE=Lena:8642
+USER_VIOLET=Max:9753
+USER_CORAL=Mia            # without ":PIN": her name alone (or PIN, if set)
 ```
 
 Drop then starts with "Who's there?": everyone taps their name once per device,
@@ -417,6 +418,28 @@ shared from their area. A changed PIN signs that user out, nobody else.
 A user without a PIN of their own signs in with `PIN`, if that is set;
 otherwise their name alone does, and anyone in your network can open that
 area — fine for a living-room TV, not for something private.
+
+#### Where PINs belong: the `.env`
+
+PIN and users are not written into `compose.yaml` but into the **`.env`** next
+to it — on Unraid: *Edit Stack* → tab **.env**; elsewhere a file `.env` next to
+`compose.yaml`. Template: [`compose-projects-drop/.env.example`](compose-projects-drop/.env.example).
+`compose.yaml` only takes the values from there (`PIN: ${PIN:-}`), so the
+`.env` always decides, and `compose.yaml` can be shown, posted in a forum or
+replaced by a newer one without giving a PIN away.
+
+* Special characters (`$`, `#`, `"`, spaces at the end): put the value in
+  single quotes — `PIN='a$b#c'`.
+* After a change: **Compose Up**. The log of `drop` says what it found
+  (`PIN is set …`, `User Anna (teal): with PIN …`) — if it says nothing of the
+  kind, the `.env` was not read.
+* The `.env` stays on the server's flash drive with the stack; no container sees
+  it. Never put it into Drop's `appdata` folder — `drop-share` can read that.
+* Like every setting, the values end up in the container's environment:
+  whoever administers the server can see them (`docker inspect`). The PIN
+  keeps out guests on your network, not the server's admin.
+* From an older `compose.yaml` with `PIN: "…"` written in: move the value into
+  the `.env` when you take over the new file.
 
 <p align="center"><a href="https://dropnook.app/gallery/#9"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/9-users-dark.webp"><img src="docs/screenshots/9-users-light.webp" alt="Tom's own area in gold, next to the sign-in page with five names" width="80%"></picture></a></p>
 
@@ -448,6 +471,15 @@ address. Open `https://drop.yourdomain.com` (see [HTTPS](#https-in-your-network)
 picture larger than 80 MB or 60 megapixels, nor a file whose content is not
 what its extension says.
 
+**Compose Up: "Your kernel does not support swap limit capabilities … Memory
+limited without swap"** — harmless. Both containers have a memory limit (a
+safeguard); Unraid's kernel cannot also limit swap, and Unraid normally has no
+swap anyway. The limit works as it should.
+
+**PIN or users are not asked for** — the `.env` was not read: on Unraid it
+belongs into *Edit Stack* → tab **.env**, elsewhere into a file `.env` next to
+`compose.yaml`; then **Compose Up**. The log of `drop` says what it found.
+
 **The dot at the top left stays red** — the browser does not reach `drop`: is
 the stack running, does `drop.yourdomain.com` point to `<drop-IP>`? You can keep
 typing; unsaved text is sent once the connection is back.
@@ -455,8 +487,9 @@ typing; unsaved text is sent once the connection is back.
 ## What Drop deliberately does not do
 
 * No folders — zip them first. An uploaded ZIP is stored, not extracted.
-* No users, no permissions: whoever is in your network may do everything,
-  including sharing to the internet.
+* No permissions or roles: whoever gets in may do everything in the areas they
+  see, including sharing to the internet. Users only separate own areas from
+  the shared one; there is no admin.
 * No recycle bin. Deleted is deleted.
 * Nothing in Drop expires by itself — only share links do. Keep an eye
   on the free space shown at the top right.

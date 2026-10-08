@@ -6,7 +6,10 @@ Compose Manager Plus. This page has the rest.
 ## All settings
 
 Set as environment variables in `compose.yaml`; the ones you normally change
-come from its SETTINGS block.
+come from its SETTINGS block. `PIN` and `USER_*` are filled in from the `.env`
+next to it (`${PIN:-}`, template `compose-projects-drop/.env.example`), so
+`compose.yaml` itself never holds one; Compose Manager Plus passes its *.env*
+tab with `--env-file`, plain `docker compose` reads `.env` by itself.
 
 | Variable | Default | Meaning |
 |---|---|---|
