@@ -1,0 +1,37 @@
+# One-off: puts .github/release-notes/unmaintained.md at the top of the given
+# releases on GitHub (Actions → Retire releases → Run workflow). Marking twice
+# does nothing. Only 1.x releases.
+name: Retire releases
+
+on:
+  workflow_dispatch:
+    inputs:
+      tags:
+        description: "Releases to mark, e.g. v1.0.0 v1.1.0 v1.2.0"
+        required: true
+
+permissions:
+  contents: write          # editing the release notes
+
+jobs:
+  retire:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          sparse-checkout: .github/release-notes
+      - name: Note at the top
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAGS: ${{ inputs.tags }}
+        run: |
+          note=.github/release-notes/unmaintained.md
+          first=$(head -n1 "$note")
+          for tag in $TAGS; do
+            [[ $tag =~ ^v1\.[0-9]+\.[0-9]+$ ]] || { echo "::error::not a 1.x release: $tag"; exit 1; }
+            body=$(gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json body --jq .body)
+            if [ "$(printf '%s\n' "$body" | head -n1)" = "$first" ]; then echo "$tag: already marked"; continue; fi
+            { cat "$note"; printf '%s\n' "$body"; } > "$RUNNER_TEMP/body.md"
+            gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --notes-file "$RUNNER_TEMP/body.md"
+            echo "$tag: marked"
+          done
