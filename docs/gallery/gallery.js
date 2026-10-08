@@ -42,7 +42,7 @@
   };
   const params = new URLSearchParams(location.search);
   let lang = params.get('lang') || ((navigator.language || '').toLowerCase().startsWith('de') ? 'de' : 'en');
-  if (!TEXT[lang]) lang = 'en';
+  if (!Object.hasOwn(TEXT, lang)) lang = 'en';
   const SLIDES = NAMES.map((n, i) => [n, ...TEXT[lang].slides[i]]);
   const dark = matchMedia('(prefers-color-scheme: dark)');
   // The ☀/☾ choice made on the site wins over the system (theme.js).

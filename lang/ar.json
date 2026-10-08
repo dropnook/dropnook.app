@@ -139,6 +139,8 @@
   "ui.delete_all_shares_other": "ستُوقف المشاركات على الإنترنت (العدد: {n}).",
   "ui.upload_failed": "تعذّر رفع «{name}»: {reason}",
   "ui.upload_refused": "رفض الخادم الرفع",
+  "ui.error_no_space": "لا توجد مساحة كافية على الخادم",
+  "ui.field_too_long": "هذا الحقل أطول من أن يُحفظ — مليونا حرف على الأكثر. سيبقى في هذا المتصفح فقط إلى أن يصبح أقصر.",
   "ui.upload_interrupted": "انقطع الاتصال — سيُستأنف في المحاولة التالية",
   "ui.upload_finish_failed": "تعذّر الإكمال",
   "ui.upload_resumed": "يجري استئناف «{name}».",
@@ -275,5 +277,7 @@
   "public.copy_failed": "تعذّر النسخ — حدّد النص",
   "public.download_text": "تنزيل كملف نصي",
   "public.download": "تنزيل",
+  "public.unknown_host_title": "اسم غير معروف",
+  "public.unknown_host_body": "لا يستجيب Drop للاسم {name}. إذا كان هذا اسمك لـ Drop فأضِفه إلى WEBUI في ملف .env (في Unraid: Edit Stack ثم .env)، ثم نفّذ Compose Up.",
   "public.thousands_separator": ","
 }

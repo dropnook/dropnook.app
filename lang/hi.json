@@ -141,6 +141,8 @@
   "ui.delete_all_shares_other": "इंटरनेट पर साझा {n} लिंक भी बंद हो जाएँगे।",
   "ui.upload_failed": "“{name}” अपलोड नहीं हो सकी: {reason}",
   "ui.upload_refused": "सर्वर ने अपलोड अस्वीकार कर दिया",
+  "ui.error_no_space": "सर्वर पर पर्याप्त खाली जगह नहीं है",
+  "ui.field_too_long": "यह फ़ील्ड सहेजने के लिए बहुत लंबा है — अधिकतम 20 लाख अक्षर। छोटा होने तक यह केवल इसी ब्राउज़र में रहेगा।",
   "ui.upload_interrupted": "कनेक्शन टूट गया — अगली कोशिश में वहीं से जारी रहेगा",
   "ui.upload_finish_failed": "पूरा नहीं हो सका",
   "ui.upload_resumed": "“{name}” फिर से जारी है।",
@@ -258,5 +260,7 @@
   "public.copy_failed": "कॉपी नहीं हो सका — टेक्स्ट चुनें",
   "public.download_text": "टेक्स्ट फ़ाइल के रूप में डाउनलोड करें",
   "public.download": "डाउनलोड करें",
+  "public.unknown_host_title": "अज्ञात नाम",
+  "public.unknown_host_body": "Drop नाम {name} पर जवाब नहीं देता। अगर यह Drop के लिए आपका नाम है, तो इसे .env में WEBUI में डालें (Unraid पर: Edit Stack → .env), फिर Compose Up करें।",
   "public.thousands_separator": ","
 }

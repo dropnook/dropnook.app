@@ -148,6 +148,8 @@
   "ui.delete_all_shares_other": "The {n} internet shares are ended.",
   "ui.upload_failed": "“{name}” could not be uploaded: {reason}",
   "ui.upload_refused": "the server refused the upload",
+  "ui.error_no_space": "not enough free space on the server",
+  "ui.field_too_long": "This field is too long to save — at most 2 million characters. Until it is shorter, it stays only in this browser.",
   "ui.upload_interrupted": "connection lost — it resumes on the next attempt",
   "ui.upload_finish_failed": "finishing failed",
   "ui.upload_resumed": "“{name}” is being resumed.",
@@ -278,5 +280,7 @@
   "public.copy_failed": "Copying failed — please select the text",
   "public.download_text": "Download as text file",
   "public.download": "Download",
+  "public.unknown_host_title": "Unknown name",
+  "public.unknown_host_body": "Drop does not answer to {name}. If that is your name for Drop: put it into WEBUI in the .env (on Unraid: Edit Stack → .env), then Compose Up.",
   "public.thousands_separator": ","
 }

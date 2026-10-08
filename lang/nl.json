@@ -145,6 +145,8 @@
   "ui.delete_all_shares_other": "De {n} delingen op internet worden beëindigd.",
   "ui.upload_failed": "‘{name}’ kon niet worden geüpload: {reason}",
   "ui.upload_refused": "de server weigerde de upload",
+  "ui.error_no_space": "niet genoeg vrije ruimte op de server",
+  "ui.field_too_long": "Dit veld is te lang om op te slaan — hooguit 2 miljoen tekens. Tot het korter is, blijft het alleen in deze browser.",
   "ui.upload_interrupted": "verbinding verbroken — bij de volgende poging gaat het verder",
   "ui.upload_finish_failed": "afronden mislukt",
   "ui.upload_resumed": "‘{name}’ wordt hervat.",
@@ -267,5 +269,7 @@
   "public.copy_failed": "Kopiëren mislukt — selecteer de tekst",
   "public.download_text": "Downloaden als tekstbestand",
   "public.download": "Downloaden",
+  "public.unknown_host_title": "Onbekende naam",
+  "public.unknown_host_body": "Drop reageert niet op de naam {name}. Is dit jouw naam voor Drop, zet hem dan bij WEBUI in de .env (op Unraid: Edit Stack → .env) en doe daarna Compose Up.",
   "public.thousands_separator": "."
 }

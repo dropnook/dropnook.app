@@ -28,6 +28,7 @@ import re
 import secrets
 import ssl
 import shutil
+import stat
 import tempfile
 import threading
 import time
@@ -36,7 +37,7 @@ import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Dict, Optional, Set
-from urllib.parse import parse_qs, quote
+from urllib.parse import parse_qs, quote, urlsplit
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import (HTMLResponse, JSONResponse, PlainTextResponse,
@@ -142,7 +143,30 @@ SHARE_SUBDOMAIN = os.environ.get("SHARE_SUBDOMAIN", "drop-share").strip().strip(
 SHARE_BASE_URL = os.environ.get("SHARE_BASE_URL", "").strip().rstrip("/")
 SHARE_MAX_DAYS = max(1, int(os.environ.get("SHARE_MAX_DAYS", "30")))
 MAX_SHARE_TEXT = 2 * 1024 * 1024     # characters; a text field, not an archive
+MAX_TEXT = MAX_SHARE_TEXT            # the same for a text field in Drop
+JSON_MAX = 16 * 1024 * 1024          # bytes of a request; MAX_TEXT fits even escaped
 MAX_PASSWORD = 200
+
+# The names Drop answers to (see known_host): IP addresses, names without a
+# domain or with a local one, the names of its certificates — and these: the
+# host of WEBUI (what "WebUI" in Unraid's Docker tab opens, from the .env) and
+# HOSTS, comma-separated, "*.example.org" for every name under example.org.
+LOCAL_SUFFIXES = (".local", ".lan", ".home", ".home.arpa", ".internal", ".intranet", ".private",
+                  ".corp", ".localdomain", ".fritz.box", ".ts.net")
+
+
+def configured_hosts() -> list:
+    names = re.split(r"[\s,]+", os.environ.get("HOSTS", ""))
+    webui = os.environ.get("WEBUI", "").strip()
+    if webui and "[" not in webui:                   # http://[IP]/ is Unraid's placeholder
+        try:
+            names.append(urlsplit(webui if "://" in webui else "//" + webui).hostname or "")
+        except ValueError:
+            pass
+    return [n.strip().lower().strip(".") for n in names if n.strip().strip(".")]
+
+
+KNOWN_HOSTS = configured_hosts()
 
 
 def server_name() -> str:
@@ -298,6 +322,25 @@ def tls_ready() -> tuple:
     return (chosen[0][1], chosen[0][2]) if chosen else (None, None)
 
 
+_certificate_names: Optional[list] = None
+
+
+def certificate_names() -> list:
+    """The names the certificates in use are for, e.g. drop.example.org or
+    *.example.org. A renewal restarts Drop, so they are read once."""
+    global _certificate_names
+    if _certificate_names is None:
+        names = []
+        for _, cert, _, _ in tls_certificates():
+            try:
+                info = ssl._ssl._test_decode_cert(cert)
+            except (OSError, ValueError, AttributeError, ssl.SSLError):
+                continue
+            names += [n.lower() for kind, n in info.get("subjectAltName", ()) if kind == "DNS"]
+        _certificate_names = names
+    return _certificate_names
+
+
 def tls_context_factory(config, default_factory) -> ssl.SSLContext:
     """uvicorn's TLS context, plus one per further domain: during the handshake
     the browser names the host it wants (SNI), and gets that domain's
@@ -442,6 +485,29 @@ def api_error(status: int, code: str, message: str) -> HTTPException:
     return HTTPException(status, {"code": code, "message": message})
 
 
+def no_constant(name: str):
+    raise ValueError(f"{name} is not a number here")
+
+
+async def json_body(request: Request, empty: Optional[dict] = None):
+    """The JSON a request carries, read only up to JSON_MAX — and only as
+    application/json: a form from another web site cannot be sent with that
+    type without the browser asking Drop first. No body: `empty`, if given."""
+    raw = bytearray()
+    async for piece in request.stream():
+        raw += piece
+        if len(raw) > JSON_MAX:
+            raise HTTPException(413, "Request too large")
+    if not raw and empty is not None:
+        return empty
+    if request.headers.get("content-type", "").split(";", 1)[0].strip().lower() != "application/json":
+        raise HTTPException(415, "Expected application/json")
+    try:
+        return json.loads(raw, parse_constant=no_constant)
+    except (ValueError, RecursionError):
+        raise HTTPException(400, "Invalid JSON")
+
+
 # ---------------------------------------------------------------- Helpers
 
 def own(path: Path) -> None:
@@ -477,6 +543,8 @@ def truncate_bytes(name: str, limit: int) -> str:
     if not dot:
         stem, ext = name, ""
     ext_bytes = len(("." + ext).encode("utf-8")) if ext else 0
+    if ext_bytes > 32:                   # "Dr. Müller …" — a dot, but no extension
+        stem, ext, ext_bytes = name, "", 0
     room = max(limit - ext_bytes, 16)
     out = stem
     while len(out.encode("utf-8")) > room:
@@ -484,20 +552,41 @@ def truncate_bytes(name: str, limit: int) -> str:
     return out + (("." + ext) if ext else "")
 
 
-def unique_name(area: Area, name: str) -> str:
-    """Never overwrite: 'file.txt' → 'file (2).txt'."""
-    if not (area.files / name).exists():
-        return name
+def numbered(name: str, n: int) -> str:
+    """'file.txt', 2 → 'file (2).txt'."""
     stem, dot, ext = name.rpartition(".")
-    if not dot:
+    if not dot or len(ext.encode("utf-8")) > 31:
         stem, ext = name, ""
     suffix = ("." + ext) if ext else ""
-    n = 2
+    return truncate_bytes(f"{stem} ({n})", MAX_NAME_BYTES - len(suffix.encode())) + suffix
+
+
+def unique_name(area: Area, name: str) -> str:
+    """Never overwrite: 'file.txt' → 'file (2).txt'."""
+    candidate, n = name, 2
+    while (area.files / candidate).exists():
+        candidate, n = numbered(name, n), n + 1
+    return candidate
+
+
+def place(area: Area, source: Path, wanted: str) -> str:
+    """Moves a finished file in under its name, or 'name (2)' if that is taken
+    — never over another file, even when two with the same name finish at the
+    same moment: a hard link fails if the name exists, a rename would not."""
+    candidate, n = wanted, 2
     while True:
-        candidate = truncate_bytes(f"{stem} ({n})", MAX_NAME_BYTES - len(suffix.encode())) + suffix
-        if not (area.files / candidate).exists():
-            return candidate
-        n += 1
+        target = area.files / candidate
+        try:
+            os.link(source, target)
+        except FileExistsError:
+            candidate, n = numbered(wanted, n), n + 1
+            continue
+        except OSError:                  # no hard links here: the old way
+            target = area.files / unique_name(area, wanted)
+            os.replace(source, target)
+            return target.name
+        source.unlink()
+        return candidate
 
 
 def content_disposition(name: str) -> str:
@@ -514,11 +603,22 @@ def content_disposition(name: str) -> str:
 
 
 def safe_target(area: Area, name: str) -> Path:
-    """Resolves a name to a file directly inside the area's files — nowhere else."""
+    """Resolves a name to a file directly inside the area's files — nowhere
+    else. The name exactly as listed first: one made over SMB may be NFD (from a
+    Mac) or hold a backslash. Then as Drop stores names, NFC."""
+    if "\x00" in name:
+        raise HTTPException(400, "Invalid name")
+    folder = area.files.resolve()
+    if "/" not in name and name not in ("", ".", ".."):
+        exact = area.files / name
+        if not name.startswith(".") and os.path.lexists(exact) and exact.resolve().parent == folder:
+            return exact.resolve()
     cleaned = unicodedata.normalize("NFC", name).replace("\\", "/").rsplit("/", 1)[-1]
     target = (area.files / cleaned).resolve()
-    if target.parent != area.files.resolve():
+    if target.parent != folder:
         raise HTTPException(400, "Invalid name")
+    if target.name.startswith("."):      # uploads in progress, things of the system
+        raise HTTPException(404, "File not found")
     return target
 
 
@@ -610,6 +710,10 @@ def list_files(area: Area) -> list:
     for entry in os.scandir(area.files):
         if entry.name.startswith("."):
             continue
+        try:
+            entry.name.encode("utf-8")
+        except UnicodeEncodeError:       # not UTF-8 (made over SMB): cannot be named on a page
+            continue
         if not entry.is_file():
             continue
         st = entry.stat()
@@ -697,8 +801,12 @@ def counter_path(sid: str) -> Path:
     return COUNTERS_DIR / f"{sid}.json"
 
 
-def password_hash(password: str, salt: bytes) -> str:
-    return hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, 200_000).hex()
+PW_ITERATIONS = 600_000              # PBKDF2-SHA256, as OWASP advises; records keep theirs
+PW_ITERATIONS_KNOWN = (200_000, 600_000)   # before 2.0.1: 200 000
+
+
+def password_hash(password: str, salt: bytes, iterations: int = PW_ITERATIONS) -> str:
+    return hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, iterations).hex()
 
 
 _secret: Optional[bytes] = None
@@ -769,7 +877,10 @@ def remove_share(sid: str) -> None:
 def shared_file(rec: dict) -> Optional[Path]:
     """The hard link behind a file share, if it is (still) there."""
     blob = share_blob(rec["id"])
-    return blob if blob.is_file() else None
+    try:                                 # the hard link itself, never a symlink planted there
+        return blob if stat.S_ISREG(blob.lstat().st_mode) else None
+    except OSError:
+        return None
 
 
 def original_present(rec: dict) -> bool:
@@ -788,7 +899,7 @@ def original_present(rec: dict) -> bool:
 def share_valid(rec: dict, now: float) -> bool:
     if not isinstance(rec.get("expires"), (int, float)) or rec["expires"] <= now:
         return False
-    # The area of a user who is no longer in compose.yaml: nobody could see or
+    # The area of a user who is no longer configured: nobody could see or
     # end the link any more, so it ends here.
     if not PUBLIC and area_by_key(rec.get("area", "")) is None:
         return False
@@ -823,7 +934,8 @@ def tidy_shares() -> tuple:
             removed += 1
 
     # Hard links and counters without a record (crash halfway through creating
-    # one). One minute of grace: the hard link is made before the record.
+    # one). One minute of grace: the hard link is made before the record. A hard
+    # link keeps the file's old mtime — its ctime is when it was made.
     known = {r["id"] for r in valid}
     for folder in (BLOB_DIR, COUNTERS_DIR):
         if not folder.is_dir():
@@ -831,7 +943,8 @@ def tidy_shares() -> tuple:
         for entry in os.scandir(folder):
             sid = entry.name.split(".", 1)[0]
             try:
-                if sid not in known and now - entry.stat().st_mtime > 60:
+                st = entry.stat(follow_symlinks=False)
+                if sid not in known and now - max(st.st_mtime, st.st_ctime) > 60:
                     os.unlink(entry.path)
             except OSError:
                 pass
@@ -851,9 +964,7 @@ def share_for_lan(rec: dict) -> dict:
     a preview is enough. The counters come from the public container."""
     out = {k: rec.get(k) for k in ("id", "kind", "name", "created", "expires", "size", "field")}
     out["area"] = rec.get("area", "")
-    counters = read_json(counter_path(rec["id"])) or {}
-    out["views"] = int(counters.get("views", 0))
-    out["downloads"] = int(counters.get("downloads", 0))
+    out.update(read_counters(rec["id"]))
     out["token"] = rec["token"]
     out["password"] = bool(rec.get("pw_hash"))
     if rec.get("kind") == "text":
@@ -877,11 +988,35 @@ def visible_shares(shares: list, user: Optional["User"]) -> list:
     return out
 
 
+def read_counters(sid: str) -> dict:
+    """Views and downloads. Written by drop-share, the container facing the
+    internet — so taken with care: a regular file, small, whole numbers only.
+    Anything else counts as 0 and cannot hold up or break the LAN page."""
+    counts = {"views": 0, "downloads": 0}
+    try:
+        fd = os.open(counter_path(sid), os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW)
+    except OSError:
+        return counts
+    try:
+        info = os.fstat(fd)
+        data = json.loads(os.read(fd, 4096)) \
+            if stat.S_ISREG(info.st_mode) and info.st_size <= 4096 else {}
+    except (OSError, ValueError, RecursionError):
+        data = {}
+    finally:
+        os.close(fd)
+    for key in counts:
+        value = data.get(key) if isinstance(data, dict) else None
+        if isinstance(value, int) and not isinstance(value, bool) and 0 <= value < 10 ** 12:
+            counts[key] = value
+    return counts
+
+
 def count_access(sid: str, what: str) -> None:
     """Public container only — counters/ is the one place it may write to."""
     with share_lock:
-        data = read_json(counter_path(sid)) or {}
-        data[what] = int(data.get(what, 0)) + 1
+        data = read_counters(sid)
+        data[what] += 1
         try:
             write_json(counter_path(sid), data)
         except OSError:
@@ -914,14 +1049,18 @@ class Upload:
     """An upload in progress. Its state is also kept in a sidecar file, so a
     container restart in the middle of an upload costs nothing."""
 
-    def __init__(self, area: Area, uid: str, name: str, size: int):
+    def __init__(self, area: Area, uid: str, name: str, size: int, modified: Optional[int] = None):
         self.area = area
         self.id = uid
         self.name = name                    # cleaned, wanted name
         self.size = size
+        # When the browser says the file was last changed: a file of the same
+        # name and size, but changed since, starts over instead of resuming.
+        self.modified = modified
         self.chunks: Set[int] = set()
         self.total = max(1, -(-size // CHUNK_SIZE)) if size else 1
         self.started = time.time()
+        self.active = self.started          # the last time a chunk came in
         self.last_broadcast = 0.0
         self.finishing = False
         # Two chunks run in parallel and report completion from two thread-pool
@@ -956,7 +1095,8 @@ class Upload:
     def save_meta(self) -> None:
         with self.lock:
             payload = {"id": self.id, "name": self.name, "size": self.size,
-                       "chunks": sorted(self.chunks), "started": self.started}
+                       "modified": self.modified, "chunks": sorted(self.chunks),
+                       "started": self.started, "active": self.active}
             tmp = self.meta.with_name(f"{self.meta.name}.{uuid.uuid4().hex[:8]}.tmp")
             try:
                 with open(tmp, "w", encoding="utf-8") as f:
@@ -1000,15 +1140,39 @@ def restore_uploads(area: Area) -> None:
             data = json.loads(meta.read_text(encoding="utf-8"))
             if not re.fullmatch(r"[0-9a-f]{12}", str(data["id"])):
                 continue
-            up = Upload(area, data["id"], clean_name(str(data["name"])), int(data["size"]))
-            up.chunks = set(int(c) for c in data.get("chunks", []))
+            modified = data.get("modified")
+            up = Upload(area, data["id"], clean_name(str(data["name"])), int(data["size"]),
+                        int(modified) if isinstance(modified, int) else None)
+            up.chunks = set(int(c) for c in data.get("chunks", []) if 0 <= int(c) < up.total)
             up.started = float(data.get("started", time.time()))
+            up.active = float(data.get("active", up.started))
             if up.part.exists():
                 uploads[up.id] = up
             else:
                 meta.unlink()
         except Exception:
             continue
+
+
+UPLOAD_IDLE_DAYS = 7                 # an upload nobody continued for so long is given up
+UPLOAD_QUIET = 10 * 60               # no chunk for so long: no longer "running"
+
+
+def running_uploads() -> bool:
+    now = time.time()
+    return any(now - up.active < UPLOAD_QUIET for up in uploads.values())
+
+
+def expire_uploads() -> list:
+    """Gives up uploads nobody continued for UPLOAD_IDLE_DAYS — a phone that
+    went to sleep, a tab that was closed. Their space comes back."""
+    now = time.time()
+    gone = [up for up in list(uploads.values())
+            if now - up.active > UPLOAD_IDLE_DAYS * 86400 and not up.finishing]
+    for up in gone:
+        uploads.pop(up.id, None)
+        up.discard()
+    return gone
 
 
 # ---------------------------------------------------------------- SSE hub
@@ -1124,7 +1288,9 @@ async def http_redirect(fallback: str, port: int = 80):
 async def watch_certificate(paths: list, interval: int = 300) -> None:
     """Let's Encrypt renews every 60 days; uvicorn only reads certificates at
     start-up. So: notice the change and exit — `restart: unless-stopped` brings
-    the container straight back. Only while no upload is running."""
+    the container straight back. Only while no upload is running — one that
+    has not moved for UPLOAD_QUIET does not count, or a single abandoned upload
+    would keep the old certificate until it expires."""
     def stamps() -> list:
         out = []
         for path in paths:
@@ -1137,7 +1303,7 @@ async def watch_certificate(paths: list, interval: int = 300) -> None:
     while True:
         await asyncio.sleep(interval)
         now = stamps()
-        if now != last and None not in now and not uploads:
+        if now != last and None not in now and not running_uploads():
             print("Certificate renewed — restarting so it takes effect.", flush=True)
             os._exit(0)
 
@@ -1242,8 +1408,12 @@ app = FastAPI(title="Drop", docs_url=None, redoc_url=None, openapi_url=None,
 # Headers set by a reverse proxy or CDN. In the LAN the browser talks to the
 # container directly — a request carrying one of these came from outside.
 CGNAT = ipaddress.ip_network("100.64.0.0/10")
+# IPv6 in IPv4 tunnels: Python calls them private, but they come from anywhere.
+TUNNELS = (ipaddress.ip_network("2001::/32"), ipaddress.ip_network("2002::/16"))
 PROXY_HEADERS = (b"x-forwarded-for", b"x-real-ip", b"forwarded", b"cf-connecting-ip",
-                 b"true-client-ip", b"x-forwarded-host")
+                 b"true-client-ip", b"x-forwarded-host", b"x-forwarded-proto",
+                 b"x-forwarded-scheme", b"x-forwarded-port", b"x-forwarded-server",
+                 b"x-client-ip", b"via", b"cf-ray")
 
 
 def from_outside(scope) -> bool:
@@ -1269,13 +1439,47 @@ def from_outside(scope) -> bool:
         return True
     if getattr(address, "ipv4_mapped", None):
         address = address.ipv4_mapped
+    if address.version == 6 and any(address in net for net in TUNNELS):
+        return True
     # 100.64/10 (CGNAT) is not "private" to Python, but not routable from the
     # internet either — Tailscale and similar VPNs live there.
     return not (address.is_private or address in CGNAT)
 
 
+def known_host(value: str) -> bool:
+    """Is this a name Drop may be opened under? Against DNS rebinding: a web
+    site that points its own name at Drop's address is, to the browser, the
+    same site as Drop — it could read and change whatever needs no PIN. Such a
+    name is always a public domain of someone else; Drop's own names are IP
+    addresses, names without a domain or with a local one, the names of its
+    certificates and those in WEBUI and HOSTS."""
+    host = host_without_port(value)
+    if "." not in host:                  # no Host header at all, localhost, tower
+        return True
+    try:
+        ipaddress.ip_address(host)
+        return True
+    except ValueError:
+        pass
+    if host.endswith(LOCAL_SUFFIXES):
+        return True
+    for name in KNOWN_HOSTS + certificate_names():
+        if name.startswith(("*.", ".")):
+            if host.endswith(name[name.index("."):]):
+                return True
+        elif host == name:
+            return True
+    return False
+
+
+def share_host(value: str) -> bool:
+    """drop-share.<domain> belongs to the public container. Arriving here under
+    that name means the reverse proxy points at the wrong address."""
+    return host_without_port(value).startswith(SHARE_SUBDOMAIN + ".")
+
+
 # ---- Signing in --------------------------------------------------------------
-# Optional, set in compose.yaml: one PIN for everyone (PIN), or up to five
+# Optional, set in the .env: one PIN for everyone (PIN), or up to five
 # users (USER_<COLOUR>), each with a name, a PIN and an area of their own. A
 # browser without the cookie sees only the sign-in page. The cookie holds when
 # it signed in, and as whom, signed with a key in /data that only drop can read
@@ -1288,7 +1492,8 @@ ACCESS_OPEN = {"/login", "/logout", "/api/help",  # signing in and out, Docker's
                "/static/icon.svg", "/static/icon-192.png", "/static/icon-512.png",
                "/static/icon-maskable-512.png", "/static/apple-touch-icon.png"}
 SIGN_IN = bool(USERS or LAN_PIN)
-PIN_FAILURES_EACH = 10                     # wrong PINs per browser address and quarter hour
+PIN_FAILURES_EACH = 10                     # wrong PINs per address and quarter hour, for one PIN
+PIN_FAILURES_ONE = 30                      # for one PIN from all addresses together
 PIN_FAILURES_ALL = 50                      # all together, against guessing from many addresses
 _access_key: Optional[bytes] = None
 
@@ -1329,7 +1534,10 @@ def access_signature(issued: int, user: Optional[User] = None) -> str:
 def session(request: Request) -> tuple:
     """(signed in, as which user). Without users the user is always None.
     Cookie: <issued>.<signature>, with users <issued>.<colour>.<signature>."""
-    parts = request.cookies.get(ACCESS_COOKIE, "").split(".")
+    value = request.cookies.get(ACCESS_COOKIE, "")
+    if not value.isascii():
+        return False, None
+    parts = value.split(".")
     user = None
     if USERS:
         if len(parts) != 3 or parts[1] not in USERS:
@@ -1508,23 +1716,29 @@ async def login(request: Request) -> Response:
 
     if expected:
         lang, t = language_of(request)
-        who = "pin:" + (request.client.host if request.client else "?")
-        if locked(who, PIN_FAILURES_EACH) or locked("pin:*", PIN_FAILURES_ALL):
+        # Counted per PIN asked for: knowing one's own PIN does not reset the
+        # count for someone else's.
+        target = user.palette if user else ""
+        who = f"pin:{request.client.host if request.client else '?'}:{target}"
+        everyone = f"pin:*:{target}"
+        if locked(who, PIN_FAILURES_EACH) or locked(everyone, PIN_FAILURES_ONE) \
+                or locked("pin:*", PIN_FAILURES_ALL):
             return sign_in_page(lang, t, user, t.get("locked", ""), status=429)
         # Counted before the check, as with share passwords — and nothing is
         # awaited in between, so parallel guesses cannot slip past the limit.
         now = time.time()
-        failures.setdefault(who, []).append(now)
-        failures.setdefault("pin:*", []).append(now)
+        for key in (who, everyone, "pin:*"):
+            failures.setdefault(key, []).append(now)
         given = (form.get("pin") or [""])[0].strip()
         if not hmac.compare_digest(hashlib.sha256(given.encode("utf-8")).digest(),
                                    hashlib.sha256(expected.encode("utf-8")).digest()):
             return sign_in_page(lang, t, user, t.get("pin_wrong", ""), status=403)
         failures.pop(who, None)
-        try:
-            failures["pin:*"].remove(now)      # a right PIN does not count against the others
-        except (KeyError, ValueError):
-            pass
+        for key in (everyone, "pin:*"):        # a right PIN does not count against the others
+            try:
+                failures[key].remove(now)
+            except (KeyError, ValueError):
+                pass
 
     issued = int(time.time())
     value = f"{issued}.{user.palette}.{access_signature(issued, user)}" if user \
@@ -1555,12 +1769,32 @@ async def own_page_only(request: Request, call_next):
     return await call_next(request)
 
 
+refused_hosts: Set[str] = set()
+
+
+@app.middleware("http")
+async def known_hosts_only(request: Request, call_next):
+    host = request.headers.get("host", "")
+    if known_host(host):
+        return await call_next(request)
+    name = host_without_port(host)
+    if name not in refused_hosts and len(refused_hosts) < 100:
+        refused_hosts.add(name)
+        print(f"Refused the name {name}: not one of Drop's. If you open Drop under it, "
+              "put it into WEBUI in the .env (or HOSTS), then Compose Up.", flush=True)
+    lang, t = language_of(request)
+    e = html.escape
+    return public_page(lang, t, t.get("unknown_host_title", ""), f"""
+<h1>{e(t.get("unknown_host_title", ""))}</h1>
+<p class="meta">{e(fill(t.get("unknown_host_body", ""), name=name))}</p>""", status=421)
+
+
 @app.middleware("http")
 async def lan_only(request: Request, call_next):
     """Second line of defence: the drop box is never meant as the proxy's
     target (that is the public container). If something from outside lands here
     anyway — wrong IP in the reverse proxy, port forwarding — it gets a 404."""
-    if SHARING_ENABLED and from_outside(request.scope):
+    if from_outside(request.scope) or share_host(request.headers.get("host", "")):
         return PlainTextResponse("Not found", status_code=404)
     return await call_next(request)
 
@@ -1570,6 +1804,24 @@ async def no_store(request: Request, call_next):
     response = await call_next(request)
     if request.url.path.startswith(("/static", "/api")) or request.url.path == "/":
         response.headers.setdefault("cache-control", "no-cache, must-revalidate")
+    return response
+
+
+# Drop's own page loads nothing from elsewhere and has no inline script or
+# style; no other site may frame it, embed its files or read them as scripts.
+LAN_CSP = ("default-src 'self'; img-src 'self' blob: data:; media-src 'self' blob:; "
+           "object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'")
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    headers = response.headers
+    headers.setdefault("content-security-policy", LAN_CSP)    # the sign-in page sets its own
+    headers.setdefault("x-frame-options", "DENY")
+    headers["x-content-type-options"] = "nosniff"
+    headers.setdefault("referrer-policy", "same-origin")
+    headers.setdefault("cross-origin-resource-policy", "same-origin")
     return response
 
 
@@ -1676,7 +1928,7 @@ async def share_target(request: Request) -> Response:
             with open(part, "xb") as out:
                 shutil.copyfileobj(upload.file, out, 4 * 1024 * 1024)
             own(part)
-            os.replace(part, area.files / unique_name(area, clean_name(upload.filename)))
+            place(area, part, clean_name(upload.filename))
 
         for upload in files:
             await run_in_threadpool(store, upload)
@@ -1697,8 +1949,8 @@ async def share_target(request: Request) -> Response:
                     await run_in_threadpool(write_text, area, (ids[-1] + 1) if ids else 1, content)
                 else:            # all fields there: below the text of the last one
                     old = await run_in_threadpool(read_text, area, ids[-1])
-                    await run_in_threadpool(write_text, area, ids[-1],
-                                            (old.rstrip("\n") + "\n\n" + content).lstrip("\n"))
+                    joined = (old.rstrip("\n") + "\n\n" + content).lstrip("\n")
+                    await run_in_threadpool(write_text, area, ids[-1], joined[:MAX_TEXT])
                 state = await run_in_threadpool(fields_state, area)
             announce_fields(area, state)
     finally:
@@ -1805,10 +2057,12 @@ def announce_fields(area: Area, state: list) -> None:
 async def put_text(fid: int, request: Request) -> JSONResponse:
     check_field(fid)
     area = area_of(request)
-    body = await request.json()
+    body = await json_body(request)
     if not isinstance(body, dict):
         raise HTTPException(400, "Expected an object")
     new = str(body.get("text", ""))
+    if len(new) > MAX_TEXT:
+        raise api_error(413, "field_too_long", "Text too long for a field")
     base = body.get("base")
 
     async with text_lock:
@@ -1839,8 +2093,10 @@ async def add_text(request: Request) -> JSONResponse:
     """Appends a new field, optionally with content — that is how the page
     rescues text from a field someone removed under its fingers."""
     area = area_of(request)
-    body = await request.json() if await request.body() else {}
+    body = await json_body(request, empty={})
     content = str(body.get("text", "")) if isinstance(body, dict) else ""
+    if len(content) > MAX_TEXT:
+        raise api_error(413, "field_too_long", "Text too long for a field")
 
     async with text_lock:
         ids = await run_in_threadpool(field_ids, area)
@@ -1894,32 +2150,51 @@ def upload_for(uid: str, request: Request) -> Upload:
 @app.post("/api/upload/init")
 async def upload_init(request: Request) -> JSONResponse:
     area = area_of(request)
-    body = await request.json()
+    body = await json_body(request)
+    if not isinstance(body, dict):
+        raise HTTPException(400, "Expected an object")
     name = clean_name(str(body.get("name", "")))
     try:
         size = int(body.get("size", 0))
-    except (TypeError, ValueError):
+        modified = body.get("modified")
+        modified = int(modified) if modified is not None else None
+    except (TypeError, ValueError, OverflowError):
         raise HTTPException(400, "Invalid size")
     if size < 0:
         raise HTTPException(400, "Invalid size")
 
-    # Same name, same size and still open? Then resume instead of starting over.
+    # Same file, still open? Then resume instead of starting over. Same means
+    # name, size and — when both times are known — when it was last changed.
     for up in uploads.values():
-        if up.area is area and up.name == name and up.size == size and not up.finishing \
-                and up.part.exists():
+        if up.area is area and up.name == name and up.size == size \
+                and (up.modified is None or modified is None or up.modified == modified) \
+                and not up.finishing and up.part.exists():
+            up.active = time.time()
             return JSONResponse({"id": up.id, "chunk_size": CHUNK_SIZE,
                                  "received": up.contiguous(), "chunks": sorted(up.chunks),
                                  "resumed": True})
 
-    up = Upload(area, uuid.uuid4().hex[:12], name, size)
+    # It has to fit. The files of uploads still running do not take their
+    # space yet (sparse), so that is only checked here, against what is free.
+    if size > disk_space(area)["free"]:
+        raise api_error(507, "no_space", "Not enough space")
+
+    up = Upload(area, uuid.uuid4().hex[:12], name, size, modified)
 
     def prepare():
-        with open(up.part, "wb") as f:
-            f.truncate(size)     # sparse, so chunks may land at any offset
-        own(up.part)
-        up.save_meta()
+        try:
+            with open(up.part, "wb") as f:
+                f.truncate(size)     # sparse, so chunks may land at any offset
+            own(up.part)
+            up.save_meta()
+        except OSError:
+            up.discard()
+            raise
 
-    await run_in_threadpool(prepare)
+    try:
+        await run_in_threadpool(prepare)
+    except OSError:
+        raise api_error(507, "no_space", "Not enough space")
     uploads[up.id] = up
     announce_files(area)
     return JSONResponse({"id": up.id, "chunk_size": CHUNK_SIZE,
@@ -1943,6 +2218,7 @@ async def upload_chunk(uid: str, index: int, request: Request) -> JSONResponse:
 
     expected = up.chunk_length(index)
     offset = index * CHUNK_SIZE
+    up.active = time.time()
     try:
         handle = await run_in_threadpool(open, up.part, "r+b")
     except FileNotFoundError:
@@ -1978,6 +2254,7 @@ async def upload_chunk(uid: str, index: int, request: Request) -> JSONResponse:
         raise HTTPException(400, f"Chunk incomplete: {written} of {expected} bytes")
 
     up.chunks.add(index)
+    up.active = time.time()
     await run_in_threadpool(up.save_meta)
 
     now = time.time()
@@ -1994,15 +2271,11 @@ async def upload_done(uid: str, request: Request) -> JSONResponse:
     if up.finishing:
         raise HTTPException(404, "Unknown upload")
     if len(up.chunks) < up.total:
-        missing = [i for i in range(up.total) if i not in up.chunks]
-        raise HTTPException(409, f"{len(missing)} chunks still missing")
+        raise HTTPException(409, f"{up.total - len(up.chunks)} chunks still missing")
     up.finishing = True                  # a second "done" must not move the file again
 
     def finish() -> str:
-        final = unique_name(up.area, up.name)
-        target = up.area.files / final
-        os.replace(up.part, target)      # same directory: atomic, no copying
-        own(target)
+        final = place(up.area, up.part, up.name)   # same directory: no copying
         try:
             up.meta.unlink()
         except FileNotFoundError:
@@ -2014,6 +2287,9 @@ async def upload_done(uid: str, request: Request) -> JSONResponse:
     except FileNotFoundError:
         uploads.pop(uid, None)
         raise HTTPException(404, "Unknown upload")
+    except OSError:
+        up.finishing = False             # it can be tried again
+        raise HTTPException(500, "Could not finish the upload")
     uploads.pop(uid, None)
     announce_files(up.area)
     return JSONResponse({"name": name})
@@ -2036,7 +2312,8 @@ async def download(name: str, request: Request):
     path = safe_target(area_of(request), name)
     if not path.is_file():
         raise HTTPException(404, "File not found")
-    return file_response(path, request)
+    # Always a download; should a browser show it anyway, nothing in it runs.
+    return file_response(path, request, extra={"content-security-policy": "sandbox"})
 
 
 def file_response(path: Path, request: Request, extra: Optional[dict] = None,
@@ -2129,10 +2406,13 @@ def make_thumb(area: Area, path: Path, target: Path) -> None:
         im.draft("RGB", (THUMB_EDGE * 2, THUMB_EDGE * 2))   # JPEG: decode at 1/2…1/8
         if im.width * im.height > THUMB_MAX_PIXELS:         # what is really decoded
             raise ValueError("too many pixels")
-        im = ImageOps.exif_transpose(im)
-        im = im.convert("RGBA" if im.mode in ("RGBA", "LA", "PA", "P") or "transparency" in im.info
-                        else "RGB")
+        mode = "RGBA" if im.mode in ("RGBA", "LA", "PA", "P") or "transparency" in im.info else "RGB"
+        if im.mode not in ("RGB", "RGBA", "L", "LA", "CMYK"):
+            im = im.convert(mode)            # palette, 16 bit: scaled as colours, not indices
+        # Small first, then turned and converted — so the picture exists in
+        # full size only once, not three times.
         im.thumbnail((THUMB_EDGE, THUMB_EDGE))
+        im = ImageOps.exif_transpose(im).convert(mode)
         for old in THUMBS_DIR.glob(thumb_key(area, path.name) + "-*"):
             old.unlink(missing_ok=True)
         part = target.with_suffix(".part")
@@ -2160,11 +2440,16 @@ def tidy_thumbs() -> None:
 
 
 async def watch_thumbs(interval: int = 900) -> None:
+    """Every quarter hour: previews of files that are gone, uploads given up."""
     while True:
         try:
             await run_in_threadpool(tidy_thumbs)
+            for up in await run_in_threadpool(expire_uploads):
+                print(f"Upload of {up.name} given up after {UPLOAD_IDLE_DAYS} days without "
+                      "progress.", flush=True)
+                announce_files(up.area)
         except Exception as error:
-            print(f"Tidying previews: {error}", flush=True)
+            print(f"Tidying previews and uploads: {error}", flush=True)
         await asyncio.sleep(interval)
 
 
@@ -2213,7 +2498,7 @@ async def preview(name: str, request: Request) -> JSONResponse:
 @app.delete("/api/files")
 async def delete_files(request: Request) -> JSONResponse:
     area = area_of(request)
-    body = await request.json() if await request.body() else {}
+    body = await json_body(request, empty={})
     if not isinstance(body, dict):
         raise HTTPException(400, "Expected an object")
     everything = bool(body.get("all"))
@@ -2281,15 +2566,15 @@ async def create_share(request: Request) -> JSONResponse:
         raise api_error(400, "share_needs_name",
                         "Open Drop by its name, not its IP address, to share")
     area = area_of(request)
-    body = await request.json()
+    body = await json_body(request)
     if not isinstance(body, dict):
         raise HTTPException(400, "Expected an object")
     kind = body.get("kind")
     try:
         duration = int(body.get("duration", 86400))
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         raise api_error(400, "bad_duration", "Invalid duration")
-    duration = min(max(duration, 60), SHARE_MAX_DAYS * 86400)
+    duration = min(max(duration, 15 * 60), SHARE_MAX_DAYS * 86400)
 
     password = str(body.get("password") or "")
     if len(password) > MAX_PASSWORD:
@@ -2301,6 +2586,13 @@ async def create_share(request: Request) -> JSONResponse:
            "created": int(now), "expires": int(now + duration)}
     if area.key:
         rec["area"] = area.key           # only its user sees it in the LAN
+    if password:
+        # Before the hard link, not after: hashing takes a moment, and a hard
+        # link without its record is tidied away.
+        salt = secrets.token_bytes(16)
+        rec["pw_salt"] = salt.hex()
+        rec["pw_hash"] = await run_in_threadpool(password_hash, password, salt)
+        rec["pw_iter"] = PW_ITERATIONS
 
     if kind == "text":
         text = str(body.get("text", ""))
@@ -2333,11 +2625,6 @@ async def create_share(request: Request) -> JSONResponse:
         rec.update({"name": path.name, "size": size})
     else:
         raise HTTPException(400, "Unknown kind")
-
-    if password:
-        salt = secrets.token_bytes(16)
-        rec["pw_salt"] = salt.hex()
-        rec["pw_hash"] = await run_in_threadpool(password_hash, password, salt)
 
     try:
         await run_in_threadpool(write_share, rec)
@@ -2452,7 +2739,11 @@ def record_sound(rec: dict, sid: str) -> bool:
         return False
     if rec.get("pw_hash") is not None and not (
             isinstance(rec.get("pw_hash"), str) and re.fullmatch(r"[0-9a-f]{64}", rec["pw_hash"])
-            and isinstance(rec.get("pw_salt"), str) and re.fullmatch(r"[0-9a-f]{32}", rec["pw_salt"])):
+            and isinstance(rec.get("pw_salt"), str) and re.fullmatch(r"[0-9a-f]{32}", rec["pw_salt"])
+            and rec.get("pw_iter", PW_ITERATIONS_KNOWN[0]) in PW_ITERATIONS_KNOWN):
+        return False
+    if rec["kind"] == "file" and (isinstance(rec.get("size"), bool)
+                                  or not isinstance(rec.get("size"), int) or rec["size"] < 0):
         return False
     return True
 
@@ -2628,7 +2919,7 @@ def unlocked(request: Request, rec: dict) -> bool:
     if not rec.get("pw_hash"):
         return True
     value = request.cookies.get(cookie_name(rec), "")
-    return bool(value) and hmac.compare_digest(value, unlock_value(rec))
+    return bool(value) and value.isascii() and hmac.compare_digest(value, unlock_value(rec))
 
 
 def locked(sid: str, limit: int = MAX_FAILURES) -> bool:
@@ -2679,7 +2970,8 @@ async def public_password(token: str, request: Request) -> Response:
     password = (fields.get("password") or [""])[0]
 
     salt = bytes.fromhex(rec.get("pw_salt", ""))
-    attempt = await run_in_threadpool(password_hash, password[:MAX_PASSWORD], salt)
+    attempt = await run_in_threadpool(password_hash, password[:MAX_PASSWORD], salt,
+                                      rec.get("pw_iter", PW_ITERATIONS_KNOWN[0]))
     if not hmac.compare_digest(attempt, rec["pw_hash"]):
         return password_page(lang, t, token, rec, t.get("wrong_password", ""), status=403)
 

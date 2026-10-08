@@ -137,6 +137,8 @@
   "ui.delete_all_shares_other": "İnternetteki {n} paylaşım sonlandırılır.",
   "ui.upload_failed": "“{name}” yüklenemedi: {reason}",
   "ui.upload_refused": "sunucu yüklemeyi reddetti",
+  "ui.error_no_space": "sunucuda yeterli boş alan yok",
+  "ui.field_too_long": "Bu alan kaydedilemeyecek kadar uzun — en fazla 2 milyon karakter. Kısalana kadar yalnızca bu tarayıcıda kalır.",
   "ui.upload_interrupted": "bağlantı koptu — bir sonraki denemede kaldığı yerden devam eder",
   "ui.upload_finish_failed": "tamamlanamadı",
   "ui.upload_resumed": "“{name}” devam ettiriliyor.",
@@ -249,5 +251,7 @@
   "public.copy_failed": "Kopyalanamadı — lütfen metni seç",
   "public.download_text": "Metin dosyası olarak indir",
   "public.download": "İndir",
+  "public.unknown_host_title": "Bilinmeyen ad",
+  "public.unknown_host_body": "Drop, {name} adına yanıt vermiyor. Drop için kullandığınız ad buysa .env dosyasındaki WEBUI’ye yazın (Unraid’de: Edit Stack → .env), ardından Compose Up yapın.",
   "public.thousands_separator": "."
 }

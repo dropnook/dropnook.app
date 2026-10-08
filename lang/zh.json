@@ -136,6 +136,8 @@
   "ui.delete_all_shares_other": "{n} 个公开链接将被停用。",
   "ui.upload_failed": "无法上传“{name}”：{reason}",
   "ui.upload_refused": "服务器拒绝了上传",
+  "ui.error_no_space": "服务器上的可用空间不足",
+  "ui.field_too_long": "此文本框太长，无法保存（最多 200 万个字符）。在缩短之前，它只保存在此浏览器中。",
   "ui.upload_interrupted": "连接中断——下次尝试时会继续上传",
   "ui.upload_finish_failed": "无法完成",
   "ui.upload_resumed": "正在继续上传“{name}”。",
@@ -248,5 +250,7 @@
   "public.copy_failed": "复制失败——请手动选择文本",
   "public.download_text": "下载为文本文件",
   "public.download": "下载",
+  "public.unknown_host_title": "未知名称",
+  "public.unknown_host_body": "Drop 不响应名称 {name}。如果这是你给 Drop 用的名称，请把它填入 .env 中的 WEBUI（在 Unraid 上：Edit Stack → .env），然后执行 Compose Up。",
   "public.thousands_separator": ","
 }

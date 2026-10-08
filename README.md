@@ -142,7 +142,7 @@ On the new stack, **Edit Stack**:
 | `CERTS_DIR` | `…/Nginx-Proxy-Manager-Official/letsencrypt` | The folder holding your certificates |
 | `TLS_CERT`, `TLS_KEY` | `auto`, empty | Leave it — Drop finds the certificate itself (see [HTTPS](#https-in-your-network)) |
 | `SHARE_SUBDOMAIN` | `drop-share` | First part of the share links' name |
-| `WEBUI` | `https://drop.yourdomain.com` | Your name for Drop — what *WebUI* in the Docker tab opens. Without a domain and without sharing: `http://[IP]/` |
+| `WEBUI` | `https://drop.yourdomain.com` | Your name for Drop — what *WebUI* in the Docker tab opens, and a name Drop answers to. Without a domain and without sharing: `http://[IP]/` |
 | `TZ` | empty | Optional: time zone of the log, e.g. `Europe/Berlin` |
 | `PIN`, `USER_…` | empty | Optional — see [PIN](#pin-or-password-optional) and [Users](#users-optional) |
 
@@ -397,11 +397,15 @@ ignores any that drop did not write that way.
 capabilities it uses (file ownership, hard links, ports 80/443), cannot gain
 more, and has a memory limit. Picture previews are made only from PNG, JPEG,
 GIF, WebP, BMP and AVIF, within size and pixel limits — no other decoder ever
-sees the file.
+sees the file. It answers only to its own names — IP addresses, local ones
+such as `tower.local`, the names of its certificates and `WEBUI` — so a web
+site that points its own name at drop's address (DNS rebinding) gets nothing;
+and no other site may frame its page or embed its files.
 
 Every image is tested before it is published — including these attacks:
 path traversal, forged share records, password guessing in parallel, header
-injection through file names, disguised picture formats.
+injection through file names, disguised picture formats, DNS rebinding,
+uploads and texts too large to handle.
 
 * A shared file is a hard link, not a copy — no extra space. Delete the file in
   Drop and its link stops working.
@@ -463,8 +467,15 @@ area — fine for a living-room TV, not for something private.
 **Compose Up: "bind source path does not exist: /mnt/user/drop"** — the share
 is missing or named differently (step 1, or `DATA_DIR` in the `.env`).
 
-**Compose Up: "required variable DROP_IP is missing a value"** — the `.env`
-is empty or was not saved: *Edit Stack* → tab **.env**, fill in (step 3).
+**Compose Up: "required variable DROP_IP is missing a value"** (or `SHARE_IP`)
+— the `.env` is empty or was not saved: *Edit Stack* → tab **.env**, fill in (step 3).
+
+**The page says "Unknown name"** — Drop answers only to names that are
+clearly yours: IP addresses, local ones (`tower.local`, `….lan`,
+`….fritz.box`), the names of its certificates and `WEBUI` in the `.env`. Put
+the name you open Drop under into `WEBUI` (several: `HOSTS=drop.example.org,*.example.net`),
+then **Compose Up**. Still on a `compose.yaml` with a SETTINGS block? Then
+[switch to the `.env`](#what-the-env-is-for) — only the new one passes `WEBUI` on.
 
 **Compose Up: "no configured subnet contains IP address …"** — `br0` does not
 carry your LAN's subnet (step 2). In *Settings* → *Docker*: stop Docker, set

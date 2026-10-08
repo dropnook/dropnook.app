@@ -142,6 +142,8 @@
   "ui.delete_all_shares_other": "Deilingum á netinu ({n}) er lokið.",
   "ui.upload_failed": "Ekki tókst að hlaða upp „{name}“: {reason}",
   "ui.upload_refused": "þjónninn hafnaði upphleðslunni",
+  "ui.error_no_space": "ekki nóg laust pláss á þjóninum",
+  "ui.field_too_long": "Þessi reitur er of langur til að vista hann — í mesta lagi 2 milljónir stafa. Þar til hann styttist er hann aðeins í þessum vafra.",
   "ui.upload_interrupted": "tengingin rofnaði — haldið verður áfram í næstu tilraun",
   "ui.upload_finish_failed": "ekki tókst að ljúka",
   "ui.upload_resumed": "Haldið áfram með „{name}“.",
@@ -257,5 +259,7 @@
   "public.copy_failed": "Ekki tókst að afrita — veldu textann",
   "public.download_text": "Sækja sem textaskrá",
   "public.download": "Sækja",
+  "public.unknown_host_title": "Óþekkt nafn",
+  "public.unknown_host_body": "Drop svarar ekki nafninu {name}. Ef þetta er nafnið þitt fyrir Drop skaltu setja það í WEBUI í .env (á Unraid: Edit Stack → .env) og keyra svo Compose Up.",
   "public.thousands_separator": "."
 }

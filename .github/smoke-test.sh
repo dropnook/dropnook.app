@@ -60,8 +60,9 @@ mount = lambda svc, t: next(v["source"] for v in svc["volumes"] if v["target"] =
 print("|".join([e["PIN"], e["USER_GOLD"], e["USER_TEAL"], e["TLS_CERT"], e["TLS_KEY"], e["TZ"],
                 d["networks"]["br0"]["ipv4_address"], p["networks"]["br0"]["ipv4_address"],
                 mount(d, "/data"), mount(p, "/data/shares")]))'; }
+# Compose checks the services in no fixed order: it names DROP_IP or SHARE_IP.
 refused() { ! out=$(docker compose -f "$COMPOSE" --env-file /dev/null config 2>&1) \
-  && grep -q "DROP_IP is missing in the .env" <<<"$out"; }
+  && grep -qE "(DROP|SHARE)_IP is missing in the .env" <<<"$out"; }
 # (config prints a $ as $$ — the container gets a single one)
 check "compose.yaml: values from .env" \
   test "$(conf --env-file "$WORK/ci.env")" = 'a$$b#c 9|Zoë Müller:1357|||||192.168.1.20|192.168.1.21|/mnt/disk1/drop|/mnt/disk1/drop/shares'
@@ -69,13 +70,13 @@ check "compose.yaml: presets for the rest" \
   test "$(conf --env-file "$WORK/min.env")" = '|||auto|||192.168.1.20|192.168.1.21|/mnt/user/drop|/mnt/user/drop/shares'
 check "compose.yaml: .env.example as it is, with two addresses" \
   test "$(conf --env-file "${COMPOSE%/*}/.env.example" --env-file "$WORK/min.env")" = '|||auto|||192.168.1.20|192.168.1.21|/mnt/user/drop|/mnt/user/drop/shares'
-check "compose.yaml: without .env it refuses, naming DROP_IP" refused
+check "compose.yaml: without .env it refuses, naming the address" refused
 
 # ---------------------------------------------------------------- drop (LAN)
 docker run -d --name ci-drop -p "$LAN:80" \
   --cap-drop ALL --cap-add CHOWN --cap-add DAC_OVERRIDE --cap-add FOWNER --cap-add NET_BIND_SERVICE \
   --security-opt no-new-privileges:true --memory 2g --pids-limit 200 \
-  -e MODE=lan -e TLS_CERT= -e SERVER_NAME=CI -e CHUNK_MB=1 \
+  -e MODE=lan -e TLS_CERT= -e SERVER_NAME=CI -e CHUNK_MB=1 -e "WEBUI=http://$HOST/" \
   -v "$DATA:/data" "$IMAGE" >/dev/null
 wait_healthy ci-drop
 
@@ -86,6 +87,39 @@ check "no changes from other sites" test "$(code -H "Host: $HOST" -H 'Sec-Fetch-
   -d '{"text":"spam"}' "http://$LAN/api/text")" = 403
 check "data folders created"    test -d "$DATA/files" -a -d "$DATA/texts" -a -d "$DATA/shares/counters"
 
+# Only names that are Drop's — against DNS rebinding: another site pointing its
+# name at Drop's address would otherwise be the same site to the browser.
+check "name of another site refused"   test "$(code -H 'Host: drop.attacker.example' "http://$LAN/api/state")" = 421
+check "by IP address"                  test "$(code -H "Host: $LAN" "http://$LAN/api/state")" = 200
+check "by a local name"                test "$(code -H 'Host: tower.local' "http://$LAN/api/state")" = 200
+check "drop-share's name refused here" test "$(code -H 'Host: drop-share.ci.test' "http://$LAN/api/state")" = 404
+check "any proxy header refused"       test "$(code -H "Host: $HOST" -H 'Via: 1.1 proxy' "http://$LAN/api/state")" = 404
+has_header() { curl -s -o /dev/null -D - -H "Host: $HOST" "$1" | tr -d '\r' | grep -qi "$2"; }
+check "page: no framing by other sites" has_header "http://$LAN/" "^content-security-policy:.*frame-ancestors 'none'"
+check "page: no type sniffing"          has_header "http://$LAN/" '^x-content-type-options: nosniff'
+
+# Limits: nothing a guest sends can take Drop down.
+check "upload bigger than the disk refused" test "$(code -H "Host: $HOST" -H 'Content-Type: application/json' \
+  -d '{"name":"huge.bin","size":4611686018427387904}' "http://$LAN/api/upload/init")" = 507
+check "and nothing left behind"         bash -c "! ls -A '$DATA/files' | grep -q '^\.upload-'"
+python3 -c 'import json; print(json.dumps({"text": "x" * (2 * 1024 * 1024 + 1)}))' > "$WORK/long.json"
+check "text field too long refused"     test "$(code -X PUT -H "Host: $HOST" -H 'Content-Type: application/json' \
+  --data-binary "@$WORK/long.json" "http://$LAN/api/text/1")" = 413
+check "JSON only as application/json"   test "$(code -H "Host: $HOST" -H 'Content-Type: text/plain' \
+  -d '{"text":"x"}' "http://$LAN/api/text")" = 415
+check "no Infinity as a size"           test "$(code -H "Host: $HOST" -H 'Content-Type: application/json' \
+  -d '{"name":"i","size":Infinity}' "http://$LAN/api/upload/init")" = 400
+
+# Resuming: the same file goes on, a changed one of the same name and size starts over.
+init() { curl -sf -H "Host: $HOST" -H 'Content-Type: application/json' -d "$1" "http://$LAN/api/upload/init" \
+  | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d["id"], d["resumed"])'; }
+first=$(init '{"name":"same.img","size":10,"modified":1000}')
+again=$(init '{"name":"same.img","size":10,"modified":1000}')
+changed=$(init '{"name":"same.img","size":10,"modified":2000}')
+check "resume: the same file goes on"     test "$again" = "${first% *} True"
+check "resume: a changed one starts over" test "${changed% *}" != "${first% *}" -a "${changed#* }" = False
+for id in "${first% *}" "${changed% *}"; do curl -s -o /dev/null -X DELETE -H "Host: $HOST" "http://$LAN/api/upload/$id"; done
+
 # A file, uploaded the way the page does it: init, one chunk, done.
 printf 'Drop smoke test %s\n' "$(date +%s)" > "$WORK/hello.txt"
 size=$(stat -c %s "$WORK/hello.txt")
@@ -95,6 +129,7 @@ uid=$(curl -sf -H "Host: $HOST" -H 'Content-Type: application/json' \
 check "upload chunk" test "$(code -X PUT -H "Host: $HOST" --data-binary "@$WORK/hello.txt" "http://$LAN/api/upload/$uid/0")" = 200
 check "upload done"  test "$(code -X POST -H "Host: $HOST" "http://$LAN/api/upload/$uid/done")" = 200
 check "file downloads" cmp -s <(curl -sf -H "Host: $HOST" "http://$LAN/files/hello.txt") "$WORK/hello.txt"
+check "downloads run nothing" has_header "http://$LAN/files/hello.txt" '^content-security-policy: sandbox'
 
 # The share sheet (Android, Drop on the home screen) — and other sites that try the same.
 check "manifest with share target" bash -c "curl -sf -H 'Host: $HOST' http://$LAN/manifest.webmanifest \
@@ -200,6 +235,20 @@ check "control char name: LAN download" test "$(code -H "Host: $HOST" "http://$L
 check "control char name: share link"   test "$(code "http://$PUB/$CTL_TOKEN/download")" = 200
 check "newline name: share link"        test "$(code "http://$PUB/$NL_TOKEN/download")" = 200
 
+# drop-share writes the view counters. Whatever is in them, Drop's page works.
+docker exec ci-drop sh -c 'for f in /data/shares/*.json; do printf "{\"views\":\"lots\"}" > "/data/shares/counters/${f##*/}"; done'
+check "garbage counters do not break the page" test "$(code -H "Host: $HOST" "http://$LAN/api/state")" = 200
+
+# Names made over SMB: from a Mac (NFD), with a backslash, not UTF-8 at all.
+docker exec ci-drop python3 -c '
+import unicodedata
+open("/data/files/" + unicodedata.normalize("NFD", "Grüsse.txt"), "w").write("mac")
+open("/data/files/back\\slash.txt", "w").write("bs")
+open(b"/data/files/caf\xe9.txt", "w").write("latin1")'
+check "name from a Mac downloads"  test "$(curl -sf -H "Host: $HOST" "http://$LAN/files/Gru%CC%88sse.txt")" = mac
+check "name with a backslash too"  test "$(curl -sf -H "Host: $HOST" "http://$LAN/files/back%5Cslash.txt")" = bs
+check "a name not in UTF-8 does not break the page" test "$(code -H "Host: $HOST" "http://$LAN/api/state")" = 200
+
 # Records put into shares/ by other means (drop stopped, so it cannot tidy them).
 docker stop ci-drop >/dev/null
 docker run --rm -v "$DATA:/data" --entrypoint python "$IMAGE" -c '
@@ -225,14 +274,15 @@ start_pin() {   # start_pin <pin>
   docker run -d --name ci-drop-pin -p "$PINLAN:80" \
     --cap-drop ALL --cap-add CHOWN --cap-add DAC_OVERRIDE --cap-add FOWNER --cap-add NET_BIND_SERVICE \
     --security-opt no-new-privileges:true --memory 2g --pids-limit 200 \
-    -e MODE=lan -e TLS_CERT= -e SERVER_NAME=CI -e "PIN=$1" -v "$WORK/pin:/data" "$IMAGE" >/dev/null
+    -e MODE=lan -e TLS_CERT= -e SERVER_NAME=CI -e "PIN=$1" -e 'HOSTS=*.ci.test' -e SHARING=off \
+    -v "$WORK/pin:/data" "$IMAGE" >/dev/null
   wait_healthy ci-drop-pin
 }
 start_pin 2468
 check "PIN: the page asks for it"         bash -c "curl -s -H 'Host: $HOST' http://$PINLAN/ | grep -q 'name=\"pin\"'"
 check "PIN: nothing else without it"      test "$(code -H "Host: $HOST" "http://$PINLAN/api/state")" = 401
 check "PIN: no files without it"          test "$(code -H "Host: $HOST" "http://$PINLAN/files/x")" = 401
-check "PIN: from outside still 404"       test "$(code -H "Host: $HOST" -H 'X-Forwarded-For: 203.0.113.9' "http://$PINLAN/")" = 404
+check "PIN, sharing off: from outside still 404" test "$(code -H "Host: $HOST" -H 'X-Forwarded-For: 203.0.113.9' "http://$PINLAN/")" = 404
 check "PIN: a wrong one is refused"       test "$(code -H "Host: $HOST" -d pin=1111 "http://$PINLAN/login")" = 403
 curl -s -o /dev/null -D "$WORK/pin.headers" -H "Host: $HOST" -d pin=2468 "http://$PINLAN/login"
 check "PIN: the right one signs in"       grep -qiE '^set-cookie: drop_access=[0-9]+\.[0-9a-f]{64};.*httponly.*samesite=strict' "$WORK/pin.headers"
@@ -258,7 +308,7 @@ start_users() {   # start_users <PIN of Anna> [PIN for everyone]
   docker run -d --name ci-drop-users -p "$USRLAN:80" \
     --cap-drop ALL --cap-add CHOWN --cap-add DAC_OVERRIDE --cap-add FOWNER --cap-add NET_BIND_SERVICE \
     --security-opt no-new-privileges:true --memory 2g --pids-limit 200 \
-    -e MODE=lan -e TLS_CERT= -e SERVER_NAME=CI -e CHUNK_MB=1 \
+    -e MODE=lan -e TLS_CERT= -e SERVER_NAME=CI -e CHUNK_MB=1 -e "WEBUI=https://$HOST" \
     -e "USER_TEAL=Anna:$1" -e "USER_GOLD=Tom" -e "PIN=${2:-}" -v "$WORK/users:/data" "$IMAGE" >/dev/null
   wait_healthy ci-drop-users
 }
@@ -308,6 +358,10 @@ check "users: and only her"                test "$(code "${U[@]}" -b "$TOM" "htt
 start_users 1357 4321
 check "users: with PIN set, it is Tom's too" test "$(code "${U[@]}" -b "$TOM" "http://$USRLAN/api/state")$(code "${U[@]}" -d 'user=gold' "http://$USRLAN/login")" = 401403
 check "users: and it lets him in"          test "$(code "${U[@]}" -d 'user=gold&pin=4321' "http://$USRLAN/login")" = 303
+for _ in $(seq 10); do code "${U[@]}" -d 'user=teal&pin=0000' "http://$USRLAN/login" >/dev/null; done
+check "users: guessing Anna's PIN locks only hers" \
+  test "$(code "${U[@]}" -d 'user=teal&pin=1357' "http://$USRLAN/login")$(code "${U[@]}" -d 'user=gold&pin=4321' "http://$USRLAN/login")" = 429303
+check "users: Tom signing in does not unlock it" test "$(code "${U[@]}" -d 'user=teal&pin=1357' "http://$USRLAN/login")" = 429
 if timeout 60 docker run --rm -e MODE=lan -e 'USER_BLUE=../evil' -v "$WORK/users:/data" "$IMAGE" >"$WORK/badusers.log" 2>&1; then
   fail "starts with a user name that is a path"
 fi

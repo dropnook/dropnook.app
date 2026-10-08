@@ -40,6 +40,8 @@ services:
       USER_VIOLET: ${USER_VIOLET:-}
       USER_CORAL: ${USER_CORAL:-}
       TZ: ${TZ:-}                            # log timestamps only
+      WEBUI: ${WEBUI:-}                      # Drop answers to this name (and IPs, local names)
+      HOSTS: ${HOSTS:-}                      # more names, if any: drop.example.org, *.example.net
       # More settings: docs/DEVELOPMENT.md
     volumes:
       # One mount for files/, texts/ and shares/ — hard links need that. Not
