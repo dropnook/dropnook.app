@@ -1,5 +1,6 @@
-// Architecture diagram for the README and the site — who reaches what, how the
-// two containers are walled off, and how a share is a hard link — light/dark, en/de:
+// Architecture diagram for the README and the site — who reaches what over
+// which network, how the two containers are walled off, and how a share is a
+// hard link — light/dark, en/de:
 //   node diagram.mjs   → $WORK/diagram/architecture-<lang>-<scheme>.png
 import { createRequire } from 'module';
 import { writeFileSync, mkdirSync } from 'fs';
@@ -9,7 +10,7 @@ const WORK = process.env.WORK || '/srv/demo';
 const OUT = `${WORK}/diagram`;
 mkdirSync(OUT, { recursive: true });
 const ICONS = fileURLToPath(new URL('../../.github/icons', import.meta.url));
-const W = 1600, H = 984;
+const W = 1600, H = 900;
 
 const T = {
   en: {
@@ -17,27 +18,26 @@ const T = {
     devices: 'Computers and phones', devicesSub: 'at home or via VPN',
     dns: 'DNS — at your domain hoster', dnsLan: 'LAN address of drop', dnsPub: 'your public IP',
     dnsNote: 'A private address in public DNS is harmless. Router blocks it? Allow the name in its DNS rebind protection.',
-    br0: '<b>br0</b> · macvlan', br0Sub: 'every container its own LAN address',
+    br0: '<b>br0</b> · macvlan', br0Sub: 'drop and drop-share each with a LAN address of their own — like two devices on your network',
     c1: 'container 1', c2: 'container 2 · optional',
-    dropSub: 'MODE=lan · &lt;drop-IP&gt; · :443 TLS (:80 → 301)',
-    dropSpec: [['user', 'root — owns /data, new files 99:100'], ['caps', 'CHOWN · DAC_OVERRIDE · FOWNER · NET_BIND_SERVICE'],
-               ['limits', 'no-new-privileges · 2 GB · 200 pids'], ['guard', 'proxy headers or public IP → 404'],
-               ['sign-in', 'PIN or USER_&lt;colour&gt; · HMAC cookie'], ['mounts', '/data rw · /certs ro · /config ro']],
-    shareSub: 'MODE=public · &lt;share-IP&gt; · :80',
-    shareSpec: [['user', '99:100 — no root'], ['caps', 'none (cap_drop: ALL)'], ['rootfs', 'read-only · tmpfs /tmp 16 MB'],
-                ['limits', 'no-new-privileges · 256 MB · 64 pids'], ['mounts', '/data/shares ro · counters/ rw'],
-                ['check', 'sees files/ or texts/ → refuses to start']],
+    dropSub: '192.168.1.20 · :443 HTTPS',
+    dropSpec: [['net', 'your network only'], ['guard', 'proxy headers or public IP → 404'],
+               ['sees', 'files/ · texts/ · users/ · shares/'], ['certs', 'read-only · found by itself'],
+               ['sign-in', 'PIN or users (optional)']],
+    shareSub: '192.168.1.21 · :80 HTTP',
+    shareSpec: [['net', 'only through your reverse proxy'], ['serves', 'only /&lt;link&gt; — else 404'],
+                ['sees', 'shares/ only, read-only'], ['check', 'files/ or texts/ visible → no start']],
     shareOff: 'SHARING=off — and it is not needed at all',
-    wall: 'nothing in common but shares/',
-    certs: 'certificates · read-only · found by itself (auto)',
+    wall: 'walled off · shares/ in common',
     store: 'Unraid share <b>drop</b> → /data', storeSub: 'one mount — hard links only work within it',
-    files: 'shared area', texts: 'text fields', users: 'own areas (users)', thumbs: 'previews · WebP',
-    record: 'record — named by the hash, never by the link', blob: 'hard link of the shared file', counters: 'views — written by drop-share',
-    inode: 'same inode', inodeSub: 'no copy · no extra space · deleted in Drop → link gone',
+    onlyDrop: 'drop only', inShares: 'shares/ · drop-share reads only this',
+    files: 'shared area', texts: 'text fields', users: 'own areas (users)',
+    blob: 'the shared file · same data', record: 'record · name = hash of the link', counters: 'views · all drop-share writes',
+    link: '⛓ hard link', noCopy: 'no copy',
     who: 'Anyone with a link', whoSub: 'anywhere on the internet',
     proxy: 'Your reverse proxy', proxySub: 'HTTPS 443 · your certificate', blackbox: 'yours to run',
-    token: 'The link', tokenSpec: ['k7m3x-9pq2r · 31¹⁰ ≈ 50 bit', 'sha256 → record name', '15 min – 30 days, then gone', 'password: PBKDF2, 10 tries / 15 min'],
-    aLan: 'https://drop.yourdomain.com', aNet: 'drop-share.yourdomain.com/k7m3x-9pq2r', aProxy: 'HTTP :80',
+    token: 'The link', tokenSpec: ['k7m3x-9pq2r · 50 bit random', 'stored only as a hash', '15 min – 30 days, then gone', 'optional password'],
+    aNet: 'drop-share.yourdomain.com/k7m3x-9pq2r', aProxy: 'HTTP :80', aLan: 'https://drop.yourdomain.com',
     aRW: 'reads &amp; writes everything', aRO: 'reads shares/ only',
     refused: 'refused — nothing reaches drop through the proxy',
   },
@@ -46,27 +46,26 @@ const T = {
     devices: 'Computer und Handys', devicesSub: 'zu Hause oder per VPN',
     dns: 'DNS — beim Domain-Hoster', dnsLan: 'LAN-Adresse von drop', dnsPub: 'deine öffentliche IP',
     dnsNote: 'Eine private Adresse im öffentlichen DNS schadet nicht. Blockt der Router? Den Namen beim DNS-Rebind-Schutz erlauben.',
-    br0: '<b>br0</b> · macvlan', br0Sub: 'jeder Container mit eigener LAN-Adresse',
+    br0: '<b>br0</b> · macvlan', br0Sub: 'drop und drop-share je mit eigener LAN-Adresse — wie zwei Geräte im Netz',
     c1: 'Container 1', c2: 'Container 2 · optional',
-    dropSub: 'MODE=lan · &lt;drop-IP&gt; · :443 TLS (:80 → 301)',
-    dropSpec: [['user', 'root — besitzt /data, neue Dateien 99:100'], ['caps', 'CHOWN · DAC_OVERRIDE · FOWNER · NET_BIND_SERVICE'],
-               ['limits', 'no-new-privileges · 2 GB · 200 pids'], ['guard', 'Proxy-Header oder öffentliche IP → 404'],
-               ['login', 'PIN oder USER_&lt;Farbe&gt; · HMAC-Cookie'], ['mounts', '/data rw · /certs ro · /config ro']],
-    shareSub: 'MODE=public · &lt;share-IP&gt; · :80',
-    shareSpec: [['user', '99:100 — kein root'], ['caps', 'keine (cap_drop: ALL)'], ['rootfs', 'nur lesend · tmpfs /tmp 16 MB'],
-                ['limits', 'no-new-privileges · 256 MB · 64 pids'], ['mounts', '/data/shares ro · counters/ rw'],
-                ['check', 'sieht files/ oder texts/ → startet nicht']],
+    dropSub: '192.168.1.20 · :443 HTTPS',
+    dropSpec: [['netz', 'nur im Heimnetz'], ['schutz', 'Proxy-Header oder öffentliche IP → 404'],
+               ['sieht', 'files/ · texts/ · users/ · shares/'], ['certs', 'nur lesend · selbst gefunden'],
+               ['login', 'PIN oder Benutzer (optional)']],
+    shareSub: '192.168.1.21 · :80 HTTP',
+    shareSpec: [['netz', 'nur über deinen Reverse Proxy'], ['liefert', 'nur /&lt;Link&gt; — sonst 404'],
+                ['sieht', 'nur shares/, nur lesend'], ['check', 'files/ oder texts/ sichtbar → Abbruch']],
     shareOff: 'SHARING=off — dann braucht es ihn gar nicht',
-    wall: 'nichts gemeinsam ausser shares/',
-    certs: 'Zertifikate · nur lesend · selbst gefunden (auto)',
+    wall: 'getrennt · gemeinsam nur shares/',
     store: 'Unraid-Share <b>drop</b> → /data', storeSub: 'ein Mount — Hardlinks gehen nur innerhalb',
-    files: 'gemeinsamer Bereich', texts: 'Textfelder', users: 'eigene Bereiche (Benutzer)', thumbs: 'Vorschaubilder · WebP',
-    record: 'Datensatz — benannt nach dem Hash, nie nach dem Link', blob: 'Hardlink der geteilten Datei', counters: 'Aufrufe — schreibt drop-share',
-    inode: 'dieselbe Inode', inodeSub: 'keine Kopie · kein Zusatzplatz · in Drop gelöscht → Link weg',
+    onlyDrop: 'nur drop', inShares: 'shares/ · nur das liest drop-share',
+    files: 'gemeinsamer Bereich', texts: 'Textfelder', users: 'eigene Bereiche (Benutzer)',
+    blob: 'geteilte Datei · dieselben Daten', record: 'Datensatz · Name = Hash des Links', counters: 'Aufrufe · hier schreibt drop-share',
+    link: '⛓ Hardlink', noCopy: 'keine Kopie',
     who: 'Alle mit einem Link', whoSub: 'irgendwo im Internet',
     proxy: 'Dein Reverse Proxy', proxySub: 'HTTPS 443 · dein Zertifikat', blackbox: 'betreibst du',
-    token: 'Der Link', tokenSpec: ['k7m3x-9pq2r · 31¹⁰ ≈ 50 bit', 'sha256 → Name des Datensatzes', '15 Min. – 30 Tage, dann weg', 'Passwort: PBKDF2, 10 Versuche / 15 Min.'],
-    aLan: 'https://drop.deinedomain.com', aNet: 'drop-share.deinedomain.com/k7m3x-9pq2r', aProxy: 'HTTP :80',
+    token: 'Der Link', tokenSpec: ['k7m3x-9pq2r · 50 bit Zufall', 'gespeichert nur als Hash', '15 Min. – 30 Tage, dann weg', 'optional mit Passwort'],
+    aNet: 'drop-share.deinedomain.com/k7m3x-9pq2r', aProxy: 'HTTP :80', aLan: 'https://drop.deinedomain.com',
     aRW: 'liest &amp; schreibt alles', aRO: 'liest nur shares/',
     refused: 'abgewiesen — über den Proxy kommt nichts an drop',
   },
@@ -89,24 +88,27 @@ function page(t, c) {
   const pill = (x, y, w, txt, color, mono) => `<div class="pill${mono ? ' mono' : ''}" style="left:${x - w / 2}px;top:${y}px;width:${w}px;color:${color}">${txt}</div>`;
   const marker = (k) => `<marker id="a-${k}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="${k === 'muted' ? c.muted : c[k]}"/></marker>`;
   const spec = (rows) => `<dl class="spec">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>`;
-  const chip = (x, y, w, name, sub, color = '') => `<div class="chip" style="left:${x}px;top:${y}px;width:${w}px${color ? `;border-color:${color}` : ''}"><code>${name}</code><span>${sub}</span></div>`;
+  const chip = (x, y, w, name, sub, color = '') => `<div class="chip" style="left:${x}px;top:${y}px;width:${w}px${color ? `;border-color:${color}` : ''}"><code${color ? ` style="color:${color}"` : ''}>${name}</code><span>${sub}</span></div>`;
+  const group = (x, y, w, h, label, color, dashed) => `<div class="group" style="left:${x}px;top:${y}px;width:${w}px;height:${h}px;border:2px ${dashed ? 'dashed' : 'solid'} ${color}"><span class="tag" style="color:${color}">${label}</span></div>`;
   return `<!doctype html><meta charset="utf-8"><style>
   *{box-sizing:border-box} html,body{margin:0}
   body{width:${W}px;height:${H}px;background:${c.bg};color:${c.ink};position:relative;overflow:hidden;font-family:Inter,"Noto Sans",sans-serif}
   .zone{position:absolute;border-radius:22px;padding:14px 22px}
   .zone > .label{font-size:15px;font-weight:700;letter-spacing:.12em;text-transform:uppercase}
   .card{position:absolute;background:${c.card};border:1.5px solid ${c.cardLine};border-radius:16px;box-shadow:${c.shadow};padding:14px 16px}
-  .card h3{margin:0;font-size:24px;font-weight:750;letter-spacing:-.01em;display:flex;align-items:center;gap:10px}
-  .card h3 img{width:34px;height:34px;border-radius:9px}
   .card h4{margin:0;font-size:16px;font-weight:700}
-  .sandbox{position:absolute;border-radius:20px;border:2px dashed;padding:30px 14px 14px}
-  .sandbox > .tag{position:absolute;top:-12px;left:18px;font:600 13px/1 "DejaVu Sans Mono",monospace;letter-spacing:.06em;
-         text-transform:uppercase;background:${c.bg};padding:4px 8px;border-radius:6px}
+  .sandbox{position:absolute;border-radius:20px;border:2px dashed;padding:30px 18px 14px}
+  .sandbox h3{margin:0;font-size:24px;font-weight:750;letter-spacing:-.01em;display:flex;align-items:center;gap:10px}
+  .sandbox h3 img{width:34px;height:34px;border-radius:9px}
+  .tag{position:absolute;top:-12px;left:18px;font:600 13px/1 "DejaVu Sans Mono",monospace;letter-spacing:.06em;
+       text-transform:uppercase;background:${c.bg};padding:4px 8px;border-radius:6px}
+  .group{position:absolute;border-radius:16px}
+  .group .tag{background:${c.card};text-transform:none;letter-spacing:0;font-size:13.5px}
   .sub{font-size:14.5px;color:${c.muted};margin-top:4px}
   .mono{font-family:"DejaVu Sans Mono",monospace}
-  .spec{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;margin:14px 0 0;font-size:14px;line-height:1.3}
+  .spec{display:grid;grid-template-columns:auto 1fr;gap:7px 12px;margin:16px 0 0;font-size:14px;line-height:1.3}
   .spec dt{font:600 13px/1.4 "DejaVu Sans Mono",monospace;color:${c.muted};text-align:right}
-  .spec dd{margin:0;font-family:"DejaVu Sans Mono",monospace;font-size:13px;line-height:1.4;color:${c.code}}
+  .spec dd{margin:0;font-size:14.5px;line-height:1.3;color:${c.code}}
   .chip{position:absolute;border-radius:12px;padding:8px 12px;border:1.5px solid ${c.cardLine};background:${c.card}}
   .chip code{font:600 16px/1.2 "DejaVu Sans Mono",monospace}
   .chip span{display:block;font-size:13.5px;color:${c.muted};margin-top:3px;line-height:1.25}
@@ -117,83 +119,78 @@ function page(t, c) {
   .dns b{color:${c.ink}}
   .note{font-size:13px;color:${c.muted};margin-top:8px;line-height:1.35}
   .wall{position:absolute;width:22px;writing-mode:vertical-rl;transform:rotate(180deg);text-align:center;
-        font:600 12px/22px "DejaVu Sans Mono",monospace;letter-spacing:.04em;border-left:2px dotted ${c.line}}
+        font:600 11.5px/22px "DejaVu Sans Mono",monospace;letter-spacing:.04em;white-space:nowrap;border-left:2px dotted ${c.line}}
   svg.wires{position:absolute;inset:0;z-index:2;pointer-events:none}
   </style>
   <div class="zone" style="left:24px;top:24px;width:296px;height:${H - 48}px;background:${c.lanSoft};border:1.5px solid ${c.lan}55"><div class="label" style="color:${c.lan}">${t.lan}</div></div>
   <div class="zone" style="left:344px;top:24px;width:880px;height:${H - 48}px;background:${c.box};border:1.5px solid ${c.line}"><div class="label" style="color:${c.muted}">${t.host}</div></div>
   <div class="zone" style="left:1248px;top:24px;width:328px;height:${H - 48}px;background:${c.pubSoft};border:1.5px solid ${c.pub}55"><div class="label" style="color:${c.pub}">${t.net}</div></div>
 
-  <div class="card" style="left:46px;top:170px;width:252px;height:178px;text-align:center;padding:16px 10px">
+  <div class="card" style="left:46px;top:150px;width:252px;height:178px;text-align:center;padding:16px 10px">
     <div style="display:flex;justify-content:center;align-items:flex-end;gap:12px">${laptop(c.lan)}${phoneIcon(c.lan)}</div>
     <div style="font-weight:700;font-size:17px;margin-top:10px">${t.devices}</div><div class="sub">${t.devicesSub}</div>
     <div class="mono" style="font-size:12.5px;color:${c.lan};margin-top:8px">${t.aLan}</div></div>
-  <div class="card" style="left:46px;top:500px;width:252px;height:262px">
+  <div class="card" style="left:46px;top:430px;width:252px;height:266px">
     <h4>${t.dns}</h4>
     <div class="dns"><b>drop</b>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;A 192.168.1.20<br><span style="color:${c.lan}">↳ ${t.dnsLan}</span><br>
       <b>drop-share</b> A 203.0.113.7<br><span style="color:${c.pub}">↳ ${t.dnsPub}</span></div>
     <div class="note">${t.dnsNote}</div></div>
-  <div class="card" style="left:46px;top:784px;width:252px;height:88px">
+  <div class="card" style="left:46px;top:718px;width:252px;height:134px">
     <div style="font-size:16px">${t.br0}</div><div class="sub">${t.br0Sub}</div></div>
 
-  <div class="chip" style="left:376px;top:66px;width:404px;text-align:center"><span style="margin:0;font-size:14px">🔒 ${t.certs}</span></div>
-  <div class="sandbox" style="left:372px;top:150px;width:412px;height:300px;border-color:${c.lan}99;background:${c.lanSoft}">
+  <div class="sandbox" style="left:372px;top:140px;width:412px;height:256px;border-color:${c.lan}99;background:${c.lanSoft}">
     <span class="tag" style="color:${c.lan}">${t.c1}</span>
-    <h3 style="margin:0;font-size:24px;font-weight:750;display:flex;align-items:center;gap:10px"><img src="file://${ICONS}/drop.png" style="width:34px;height:34px;border-radius:9px">drop</h3>
-    <div class="sub mono" style="font-size:13px">${t.dropSub}</div>
+    <h3><img src="file://${ICONS}/drop.png">drop</h3>
+    <div class="sub mono" style="font-size:13.5px;color:${c.lan}">${t.dropSub}</div>
     ${spec(t.dropSpec)}</div>
-  <div class="sandbox" style="left:806px;top:150px;width:396px;height:300px;border-color:${c.pub}99;background:${c.pubSoft}">
+  <div class="sandbox" style="left:806px;top:140px;width:396px;height:256px;border-color:${c.pub}99;background:${c.pubSoft}">
     <span class="tag" style="color:${c.pub}">${t.c2}</span>
-    <h3 style="margin:0;font-size:24px;font-weight:750;display:flex;align-items:center;gap:10px"><img src="file://${ICONS}/drop-share.png" style="width:34px;height:34px;border-radius:9px">drop-share</h3>
-    <div class="sub mono" style="font-size:13px">${t.shareSub}</div>
+    <h3><img src="file://${ICONS}/drop-share.png">drop-share</h3>
+    <div class="sub mono" style="font-size:13.5px;color:${c.pub}">${t.shareSub}</div>
     ${spec(t.shareSpec)}
     <div class="note" style="margin-top:12px;font-style:italic">${t.shareOff}</div></div>
-  <div class="wall" style="left:784px;top:166px;height:270px;color:${c.muted}">${t.wall}</div>
+  <div class="wall" style="left:784px;top:146px;height:244px;color:${c.muted}">${t.wall}</div>
 
-  <div class="card" style="left:372px;top:530px;width:830px;height:410px">
+  <div class="card" style="left:372px;top:510px;width:830px;height:342px">
     <div style="font-size:19px">${t.store}</div><div class="sub" style="margin-top:2px">${t.storeSub}</div></div>
-  ${chip(394, 600, 176, 'files/', t.files)}
-  ${chip(582, 600, 140, 'texts/', t.texts)}
-  ${chip(734, 600, 226, 'users/&lt;name&gt;/', t.users)}
-  ${chip(972, 600, 166, '.thumbs/', t.thumbs)}
-  <div class="chip" style="left:394px;top:690px;width:790px;height:234px;border-color:${c.pub};background:transparent">
-    <code>shares/</code></div>
-  ${chip(674, 730, 250, '3f9c…e1.json', t.record)}
-  ${chip(936, 730, 228, 'counters/…', t.counters)}
-  <div class="chip" style="left:414px;top:830px;width:240px;border-style:dashed;border-color:${c.lan}">
-    <code style="color:${c.lan}">⛓ inode 4711</code><span>${t.inode} · ${t.inodeSub}</span></div>
-  ${chip(674, 830, 490, 'files/3f9c…e1', t.blob, c.pub)}
+  ${group(394, 598, 340, 234, t.onlyDrop, c.lan, true)}
+  ${chip(414, 624, 300, 'files/', t.files)}
+  ${chip(414, 690, 300, 'texts/', t.texts)}
+  ${chip(414, 756, 300, 'users/&lt;name&gt;/', t.users)}
+  ${group(830, 598, 352, 234, t.inShares, c.pub, false)}
+  ${chip(850, 624, 312, 'files/3f9c…e1', t.blob, c.pub)}
+  ${chip(850, 690, 312, '3f9c…e1.json', t.record)}
+  ${chip(850, 756, 312, 'counters/', t.counters)}
 
   <div class="card" style="left:1270px;top:80px;width:284px;height:100px;text-align:center;padding:10px">
     ${globe(c.pub)}<div style="font-weight:700;font-size:16px;margin-top:2px">${t.who}</div><div class="sub" style="margin-top:0">${t.whoSub}</div></div>
-  <div class="card" style="left:1270px;top:270px;width:284px;height:126px;text-align:center;border-style:dashed;border-color:${c.line};background:${c.bg};box-shadow:none;padding:10px">
+  <div class="card" style="left:1270px;top:250px;width:284px;height:126px;text-align:center;border-style:dashed;border-color:${c.line};background:${c.bg};box-shadow:none;padding:10px">
     ${shield(c.muted)}<div style="font-weight:700;font-size:16px;margin-top:2px">${t.proxy}</div><div class="sub" style="margin-top:1px">${t.proxySub}</div>
     <div class="sub" style="font-style:italic;font-size:13px;margin-top:1px">${t.blackbox}</div></div>
-  <div class="card" style="left:1270px;top:500px;width:284px;height:170px">
+  <div class="card" style="left:1270px;top:598px;width:284px;height:150px">
     <h4>${t.token}</h4>
     <div class="dns">${t.tokenSpec.join('<br>')}</div></div>
 
   <svg class="wires" width="${W}" height="${H}">
     <defs>${['lan', 'pub', 'muted', 'red'].map(marker).join('')}</defs>
-    <path d="M298 262 H364" stroke="${c.lan}" stroke-width="3" fill="none" marker-end="url(#a-lan)"/>
-    <path d="M172 492 V356" stroke="${c.muted}" stroke-width="2" stroke-dasharray="3 5" fill="none" marker-end="url(#a-muted)"/>
-    <path d="M578 104 V142" stroke="${c.muted}" stroke-width="2.5" stroke-dasharray="6 5" fill="none" marker-end="url(#a-muted)"/>
-    <path d="M1412 180 V262" stroke="${c.pub}" stroke-width="3" fill="none" marker-end="url(#a-pub)"/>
-    <path d="M1270 330 H1210" stroke="${c.pub}" stroke-width="3" fill="none" marker-end="url(#a-pub)"/>
-    <path d="M520 450 V522" stroke="${c.lan}" stroke-width="3" fill="none" marker-start="url(#a-lan)" marker-end="url(#a-lan)"/>
-    <path d="M1162 682 V458" stroke="${c.pub}" stroke-width="3" stroke-dasharray="7 6" fill="none" marker-end="url(#a-pub)"/>
-    <path d="M520 657 V822" stroke="${c.lan}" stroke-width="2.5" stroke-dasharray="5 5" fill="none" marker-end="url(#a-lan)"/>
-    <path d="M674 870 H662" stroke="${c.pub}" stroke-width="2.5" fill="none" marker-end="url(#a-pub)"/>
-    <path d="M1270 286 H1236 V126 H700 V142" stroke="${c.red}" stroke-width="2.5" stroke-dasharray="4 6" fill="none" marker-end="url(#a-red)"/>
-    <g transform="translate(1236 200)"><circle r="14" fill="${c.bg}" stroke="${c.red}" stroke-width="2.5"/><path d="M-5.5 -5.5L5.5 5.5M5.5 -5.5L-5.5 5.5" stroke="${c.red}" stroke-width="3" stroke-linecap="round"/></g>
+    <path d="M298 240 H364" stroke="${c.lan}" stroke-width="3" fill="none" marker-end="url(#a-lan)"/>
+    <path d="M172 422 V336" stroke="${c.muted}" stroke-width="2" stroke-dasharray="3 5" fill="none" marker-end="url(#a-muted)"/>
+    <path d="M1412 180 V242" stroke="${c.pub}" stroke-width="3" fill="none" marker-end="url(#a-pub)"/>
+    <path d="M1270 320 H1210" stroke="${c.pub}" stroke-width="3" fill="none" marker-end="url(#a-pub)"/>
+    <path d="M520 404 V502" stroke="${c.lan}" stroke-width="3" fill="none" marker-start="url(#a-lan)" marker-end="url(#a-lan)"/>
+    <path d="M1150 590 V404" stroke="${c.pub}" stroke-width="3" stroke-dasharray="7 6" fill="none" marker-end="url(#a-pub)"/>
+    <path d="M714 650 H842" stroke="${c.lan}" stroke-width="2.5" stroke-dasharray="5 5" fill="none" marker-end="url(#a-lan)"/>
+    <path d="M1270 270 H1236 V112 H640 V132" stroke="${c.red}" stroke-width="2.5" stroke-dasharray="4 6" fill="none" marker-end="url(#a-red)"/>
+    <g transform="translate(1236 196)"><circle r="14" fill="${c.bg}" stroke="${c.red}" stroke-width="2.5"/><path d="M-5.5 -5.5L5.5 5.5M5.5 -5.5L-5.5 5.5" stroke="${c.red}" stroke-width="3" stroke-linecap="round"/></g>
   </svg>
 
-  ${pill(1412, 206, 310, t.aNet, c.pub, true)}
-  ${pill(1240, 300, 84, t.aProxy, c.pub)}
-  ${pill(520, 742, 120, 'report.pdf', c.lan, true)}
-  <div class="lbl" style="left:534px;top:478px">${t.aRW}</div>
-  <div class="lbl" style="left:900px;top:478px;width:250px;text-align:right;color:${c.pub}">${t.aRO}</div>
-  <div class="lbl" style="left:800px;top:96px;width:418px;text-align:right;color:${c.red};font-size:13.5px">${t.refused}</div>
+  ${pill(1412, 200, 310, t.aNet, c.pub, true)}
+  ${pill(1240, 290, 84, t.aProxy, c.pub)}
+  ${pill(782, 622, 96, t.link, c.lan, true).replace('class="pill mono" style="', 'class="pill mono" style="font-size:12px;')}
+  <div class="lbl" style="left:734px;top:662px;width:96px;text-align:center;font-size:13px">${t.noCopy}</div>
+  <div class="lbl" style="left:534px;top:444px">${t.aRW}</div>
+  <div class="lbl" style="left:880px;top:444px;width:256px;text-align:right;color:${c.pub}">${t.aRO}</div>
+  <div class="lbl" style="left:800px;top:84px;width:418px;text-align:right;color:${c.red};font-size:13.5px">${t.refused}</div>
   `;
 }
 

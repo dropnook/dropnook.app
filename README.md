@@ -67,7 +67,7 @@ host with Docker Compose, too: see [Without Unraid](docs/DEVELOPMENT.md#without-
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/diagram/architecture-en-dark.webp">
-    <img src="docs/diagram/architecture-en-light.webp" alt="Architecture: devices in your network reach drop directly at drop.yourdomain.com, whose DNS entry points to drop's LAN address. drop and the optional drop-share run as two separate containers with their own LAN addresses: drop as root with only four capabilities, drop-share as user 99:100 without any capability on a read-only file system. drop reads and writes the whole data share; drop-share sees only shares/, read-only. A shared file is a hard link in shares/files to the same inode as the original — no copy. From the internet, requests go through your reverse proxy to drop-share on port 80; drop refuses anything that comes through a proxy." width="100%">
+    <img src="docs/diagram/architecture-en-light.webp" alt="Architecture: devices in your network reach drop directly at drop.yourdomain.com, whose DNS entry points to drop's LAN address. drop and the optional drop-share run as two separate containers, each with a LAN address of its own (br0, macvlan), walled off from each other with only shares/ in common. drop answers your network only and refuses anything with proxy headers or from a public IP; it reads and writes the whole data share. drop-share serves only share links, only through your reverse proxy, and reads only shares/. A shared file is a hard link in shares/ — no copy. From the internet, requests go through your reverse proxy to drop-share on port 80; nothing reaches drop that way." width="100%">
   </picture>
 </p>
 
