@@ -39,7 +39,7 @@ const T = {
     token: 'The link', tokenSpec: ['k7m3x-9pq2r · 50 bit random', 'stored only as a hash', '15 min – 30 days, then gone', 'optional password'],
     aNet: 'drop-share.yourdomain.com/k7m3x-9pq2r', aProxy: 'HTTP :80', aLan: 'https://drop.yourdomain.com',
     aRW: 'reads &amp; writes everything', aRO: 'reads shares/ only',
-    refused: 'refused — nothing reaches drop through the proxy',
+    fw: 'firewall', fwDoor: 'the only door: proxy → drop-share',
   },
   de: {
     lan: 'Dein Netzwerk', host: 'Unraid · Docker', net: 'Internet',
@@ -67,7 +67,7 @@ const T = {
     token: 'Der Link', tokenSpec: ['k7m3x-9pq2r · 50 bit Zufall', 'gespeichert nur als Hash', '15 Min. – 30 Tage, dann weg', 'optional mit Passwort'],
     aNet: 'drop-share.deinedomain.com/k7m3x-9pq2r', aProxy: 'HTTP :80', aLan: 'https://drop.deinedomain.com',
     aRW: 'liest &amp; schreibt alles', aRO: 'liest nur shares/',
-    refused: 'abgewiesen — über den Proxy kommt nichts an drop',
+    fw: 'Firewall', fwDoor: 'einzige Tür: Proxy → drop-share',
   },
 };
 const C = {
@@ -121,6 +121,10 @@ function page(t, c) {
   .wall{position:absolute;width:22px;writing-mode:vertical-rl;transform:rotate(180deg);text-align:center;
         font:600 11.5px/22px "DejaVu Sans Mono",monospace;letter-spacing:.04em;white-space:nowrap;border-left:2px dotted ${c.line}}
   svg.wires{position:absolute;inset:0;z-index:2;pointer-events:none}
+  .fw{position:absolute;left:1225px;width:22px;border-radius:5px;background-color:${c.red};
+      background-image:repeating-linear-gradient(0deg,rgba(0,0,0,.16) 0 2px,transparent 2px 14px);
+      writing-mode:vertical-rl;transform:rotate(180deg);text-align:center;color:${c.bg};
+      font:700 12px/22px "DejaVu Sans Mono",monospace;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap}
   </style>
   <div class="zone" style="left:24px;top:24px;width:296px;height:${H - 48}px;background:${c.lanSoft};border:1.5px solid ${c.lan}55"><div class="label" style="color:${c.lan}">${t.lan}</div></div>
   <div class="zone" style="left:344px;top:24px;width:880px;height:${H - 48}px;background:${c.box};border:1.5px solid ${c.line}"><div class="label" style="color:${c.muted}">${t.host}</div></div>
@@ -162,6 +166,8 @@ function page(t, c) {
   ${chip(850, 690, 312, '3f9c…e1.json', t.record)}
   ${chip(850, 756, 312, 'counters/', t.counters)}
 
+  <div class="fw" style="top:40px;height:236px">${t.fw}</div>
+  <div class="fw" style="top:360px;height:${H - 400}px;text-transform:none;letter-spacing:.02em">${t.fwDoor}</div>
   <div class="card" style="left:1270px;top:80px;width:284px;height:100px;text-align:center;padding:10px">
     ${globe(c.pub)}<div style="font-weight:700;font-size:16px;margin-top:2px">${t.who}</div><div class="sub" style="margin-top:0">${t.whoSub}</div></div>
   <div class="card" style="left:1270px;top:250px;width:284px;height:126px;text-align:center;border-style:dashed;border-color:${c.line};background:${c.bg};box-shadow:none;padding:10px">
@@ -172,7 +178,7 @@ function page(t, c) {
     <div class="dns">${t.tokenSpec.join('<br>')}</div></div>
 
   <svg class="wires" width="${W}" height="${H}">
-    <defs>${['lan', 'pub', 'muted', 'red'].map(marker).join('')}</defs>
+    <defs>${['lan', 'pub', 'muted'].map(marker).join('')}</defs>
     <path d="M298 240 H364" stroke="${c.lan}" stroke-width="3" fill="none" marker-end="url(#a-lan)"/>
     <path d="M172 422 V336" stroke="${c.muted}" stroke-width="2" stroke-dasharray="3 5" fill="none" marker-end="url(#a-muted)"/>
     <path d="M1412 180 V242" stroke="${c.pub}" stroke-width="3" fill="none" marker-end="url(#a-pub)"/>
@@ -180,17 +186,14 @@ function page(t, c) {
     <path d="M520 404 V502" stroke="${c.lan}" stroke-width="3" fill="none" marker-start="url(#a-lan)" marker-end="url(#a-lan)"/>
     <path d="M1150 590 V404" stroke="${c.pub}" stroke-width="3" stroke-dasharray="7 6" fill="none" marker-end="url(#a-pub)"/>
     <path d="M714 650 H842" stroke="${c.lan}" stroke-width="2.5" stroke-dasharray="5 5" fill="none" marker-end="url(#a-lan)"/>
-    <path d="M1270 270 H1236 V112 H640 V132" stroke="${c.red}" stroke-width="2.5" stroke-dasharray="4 6" fill="none" marker-end="url(#a-red)"/>
-    <g transform="translate(1236 196)"><circle r="14" fill="${c.bg}" stroke="${c.red}" stroke-width="2.5"/><path d="M-5.5 -5.5L5.5 5.5M5.5 -5.5L-5.5 5.5" stroke="${c.red}" stroke-width="3" stroke-linecap="round"/></g>
   </svg>
 
   ${pill(1412, 200, 310, t.aNet, c.pub, true)}
-  ${pill(1240, 290, 84, t.aProxy, c.pub)}
+  ${pill(1236, 286, 84, t.aProxy, c.pub)}
   ${pill(782, 622, 96, t.link, c.lan, true).replace('class="pill mono" style="', 'class="pill mono" style="font-size:12px;')}
   <div class="lbl" style="left:734px;top:662px;width:96px;text-align:center;font-size:13px">${t.noCopy}</div>
   <div class="lbl" style="left:534px;top:444px">${t.aRW}</div>
   <div class="lbl" style="left:880px;top:444px;width:256px;text-align:right;color:${c.pub}">${t.aRO}</div>
-  <div class="lbl" style="left:800px;top:84px;width:418px;text-align:right;color:${c.red};font-size:13.5px">${t.refused}</div>
   `;
 }
 
