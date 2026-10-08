@@ -145,7 +145,7 @@ Beim neuen Stack **Edit Stack**:
 | `CERTS_DIR` | `…/Nginx-Proxy-Manager-Official/letsencrypt` | Der Ordner mit deinen Zertifikaten |
 | `TLS_CERT`, `TLS_KEY` | `auto`, leer | So lassen — Drop findet das Zertifikat selbst (siehe [HTTPS](#https-im-heimnetz)) |
 | `SHARE_SUBDOMAIN` | `drop-share` | Erster Teil des Namens der Freigabe-Links |
-| `WEBUI` | `https://drop.deinedomain.com` | Dein Name für Drop — diese Adresse öffnet *WebUI* im Docker-Tab. Ohne Domain und ohne Teilen ins Internet: `http://[IP]/` |
+| `WEBUI` | `https://drop.deinedomain.com` | Dein Name für Drop — diese Adresse öffnet *WebUI* im Docker-Tab, und auf diesen Namen antwortet Drop. Ohne Domain und ohne Teilen ins Internet: `http://[IP]/` |
 | `TZ` | leer | Optional: Zeitzone des Logs, z. B. `Europe/Zurich` |
 | `PIN`, `USER_…` | leer | Optional — siehe [PIN](#pin-oder-passwort-optional) und [Benutzer](#benutzer-optional) |
 
@@ -411,11 +411,16 @@ Freigabe-Datensatz und ignoriert alle, die nicht so von drop geschrieben wurden.
 Linux-Capabilities, die es nutzt (Dateibesitz, Hardlinks, Ports 80/443), kann
 keine weiteren erlangen und hat ein Speicherlimit. Vorschaubilder entstehen nur
 aus PNG, JPEG, GIF, WebP, BMP und AVIF, innerhalb von Grössen- und Pixelgrenzen —
-kein anderer Decoder bekommt die Datei je zu sehen.
+kein anderer Decoder bekommt die Datei je zu sehen. Es antwortet nur auf seine
+eigenen Namen — IP-Adressen, lokale wie `tower.local`, die Namen seiner
+Zertifikate und `WEBUI` —, so bekommt eine Website, die ihren eigenen Namen auf
+die Adresse von drop zeigen lässt (DNS-Rebinding), nichts; und keine andere
+Seite darf es einbetten oder seine Dateien einbinden.
 
 Jedes Image wird vor dem Veröffentlichen getestet — auch gegen diese Angriffe:
 Pfad-Traversal, gefälschte Freigabe-Datensätze, parallel geratene Passwörter,
-Header-Injektion über Dateinamen, getarnte Bildformate.
+Header-Injektion über Dateinamen, getarnte Bildformate, DNS-Rebinding, zu
+grosse Uploads und Texte.
 
 * Eine geteilte Datei ist ein Hardlink, keine Kopie — kein zusätzlicher Platz.
   Wird die Datei in Drop gelöscht, ist auch ihr Link tot.
@@ -480,9 +485,17 @@ Bereich öffnen — gut für den Fernseher im Wohnzimmer, nicht für Privates.
 **Compose Up: „bind source path does not exist: /mnt/user/drop“** — der Share
 fehlt oder heisst anders (Schritt 1, oder `DATA_DIR` in der `.env`).
 
-**Compose Up: „required variable DROP_IP is missing a value“** — die `.env` ist
-leer oder nicht gespeichert: *Edit Stack* → Reiter **.env**, ausfüllen
+**Compose Up: „required variable DROP_IP is missing a value“** (oder `SHARE_IP`)
+— die `.env` ist leer oder nicht gespeichert: *Edit Stack* → Reiter **.env**, ausfüllen
 (Schritt 3).
+
+**Die Seite sagt „Unbekannter Name“** — Drop antwortet nur auf Namen, die
+eindeutig deine sind: IP-Adressen, lokale (`tower.local`, `….lan`,
+`….fritz.box`), die Namen seiner Zertifikate und `WEBUI` in der `.env`. Den
+Namen, unter dem du Drop öffnest, bei `WEBUI` eintragen (mehrere:
+`HOSTS=drop.example.org,*.example.net`), dann **Compose Up**. Noch mit einer
+`compose.yaml` mit SETTINGS-Block? Dann [auf die `.env` umstellen](#wozu-die-env)
+— erst die neue gibt `WEBUI` weiter.
 
 **Compose Up: „no configured subnet contains IP address …“** — `br0` trägt nicht
 das Subnetz deines LANs (Schritt 2). In *Settings* → *Docker*: Docker stoppen,

@@ -147,6 +147,8 @@
   "ui.delete_all_shares_other": "Les {n} partages sur internet sont arrêtés.",
   "ui.upload_failed": "« {name} » n’a pas pu être envoyé : {reason}",
   "ui.upload_refused": "le serveur a refusé l’envoi",
+  "ui.error_no_space": "pas assez d’espace libre sur le serveur",
+  "ui.field_too_long": "Ce champ est trop long pour être enregistré — 2 millions de caractères au maximum. Tant qu’il n’est pas plus court, il reste uniquement dans ce navigateur.",
   "ui.upload_interrupted": "connexion perdue ; l’envoi reprendra à la prochaine tentative",
   "ui.upload_finish_failed": "la finalisation a échoué",
   "ui.upload_resumed": "« {name} » reprend.",
@@ -273,5 +275,7 @@
   "public.copy_failed": "La copie a échoué ; sélectionne le texte",
   "public.download_text": "Télécharger en fichier texte",
   "public.download": "Télécharger",
+  "public.unknown_host_title": "Nom inconnu",
+  "public.unknown_host_body": "Drop ne répond pas au nom {name}. Si c’est votre nom pour Drop, indiquez-le dans WEBUI du fichier .env (sur Unraid : Edit Stack → .env), puis faites Compose Up.",
   "public.thousands_separator": " "
 }

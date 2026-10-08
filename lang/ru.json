@@ -153,6 +153,8 @@
   "ui.delete_all_shares_other": "Открытые ссылки ({n}) будут закрыты.",
   "ui.upload_failed": "Не удалось загрузить «{name}»: {reason}",
   "ui.upload_refused": "сервер отклонил загрузку",
+  "ui.error_no_space": "на сервере недостаточно свободного места",
+  "ui.field_too_long": "Это поле слишком длинное для сохранения — не больше 2 миллионов символов. Пока оно не станет короче, оно остаётся только в этом браузере.",
   "ui.upload_interrupted": "соединение прервано — при следующей попытке загрузка продолжится",
   "ui.upload_finish_failed": "не удалось завершить",
   "ui.upload_resumed": "«{name}»: загрузка продолжается.",
@@ -274,5 +276,7 @@
   "public.copy_failed": "Не удалось скопировать — выделите текст",
   "public.download_text": "Скачать как текстовый файл",
   "public.download": "Скачать",
+  "public.unknown_host_title": "Неизвестное имя",
+  "public.unknown_host_body": "Drop не отвечает на имя {name}. Если это ваше имя для Drop, укажите его в WEBUI в файле .env (в Unraid: Edit Stack → .env), затем выполните Compose Up.",
   "public.thousands_separator": " "
 }

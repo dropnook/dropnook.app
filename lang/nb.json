@@ -145,6 +145,8 @@
   "ui.delete_all_shares_other": "De {n} delingene på internett avsluttes.",
   "ui.upload_failed": "«{name}» kunne ikke lastes opp: {reason}",
   "ui.upload_refused": "serveren avviste opplastingen",
+  "ui.error_no_space": "ikke nok ledig plass på serveren",
+  "ui.field_too_long": "Dette feltet er for langt til å lagres — høyst 2 millioner tegn. Til det er kortere, blir det bare i denne nettleseren.",
   "ui.upload_interrupted": "forbindelsen ble brutt — den fortsetter ved neste forsøk",
   "ui.upload_finish_failed": "fullføringen mislyktes",
   "ui.upload_resumed": "«{name}» fortsetter.",
@@ -269,5 +271,7 @@
   "public.copy_failed": "Kopieringen mislyktes — merk teksten",
   "public.download_text": "Last ned som tekstfil",
   "public.download": "Last ned",
+  "public.unknown_host_title": "Ukjent navn",
+  "public.unknown_host_body": "Drop svarer ikke på navnet {name}. Er dette ditt navn for Drop, legg det inn i WEBUI i .env (på Unraid: Edit Stack → .env), og kjør så Compose Up.",
   "public.thousands_separator": " "
 }

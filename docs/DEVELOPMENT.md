@@ -10,9 +10,10 @@ Set as environment variables in `compose.yaml`. Your own values come from the
 so `compose.yaml` itself holds none and can be replaced as a whole; Compose
 Manager Plus passes its *.env* tab with `--env-file`, plain `docker compose`
 reads `.env` by itself. Besides the variables below that it passes on
-(`CERTS_DIR`, `TLS_CERT`, `TLS_KEY`, `SHARE_SUBDOMAIN`, `PIN`, `USER_*`, `TZ`),
-the `.env` holds what only Compose uses: `DROP_IP`, `SHARE_IP` (required),
-`DATA_DIR`, `APPDATA_DIR` and `WEBUI`. Anything else from the table goes under
+(`CERTS_DIR`, `TLS_CERT`, `TLS_KEY`, `SHARE_SUBDOMAIN`, `PIN`, `USER_*`, `TZ`,
+`WEBUI`, `HOSTS`), the `.env` holds what only Compose uses: `DROP_IP`,
+`SHARE_IP` (required), `DATA_DIR` and `APPDATA_DIR`; `WEBUI` is also the
+label for Unraid's *WebUI*. Anything else from the table goes under
 `environment` of `drop`.
 
 | Variable | Default | Meaning |
@@ -29,6 +30,8 @@ the `.env` holds what only Compose uses: `DROP_IP`, `SHARE_IP` (required),
 | `SHARE_MAX_DAYS` | `30` | Longest lifetime of a share link |
 | `SHARE_SUBDOMAIN` | `drop-share` | First part of the share links' name, derived from the name Drop is opened under |
 | `SHARE_BASE_URL` | empty | Fixed link address instead, e.g. `https://drop-share.yourdomain.com` |
+| `WEBUI` | empty | The address Drop is opened under; its name is one Drop answers to. Drop answers only to IP addresses, names without a domain or with a local one (`.local`, `.lan`, `.home`, `.home.arpa`, `.internal`, `.fritz.box`, `.ts.net` and a few more), the names of its certificates, and these — anything else gets 421 "Unknown name" (against DNS rebinding). `lan` only |
+| `HOSTS` | empty | More such names, comma-separated; `*.example.org` for every name under example.org. `lan` only |
 | `TLS_CERT` | empty | `auto`, a domain, or the path of the certificate chain — see the README, "HTTPS in your network" |
 | `TLS_KEY` | empty | Path of the private key, only with a path in `TLS_CERT` |
 | `CERTS_DIR` | `/certs` | Where `auto` and a domain look for certificates (`live/*/` and `*/` with `fullchain.pem` + `privkey.pem`) |
@@ -94,8 +97,21 @@ Unraid and can stay.
   `shares/counters/`, the cookie secret for password-protected links in
   `shares/.key`. `drop-share` uses a record only if its `id` is the hash it
   was looked up by and its fields have the shape `drop` writes.
-* **Password attempts** are counted before the (deliberately slow, PBKDF2)
-  check, so parallel guesses cannot exceed 10 per link and 15 minutes.
+* **Password attempts** are counted before the (deliberately slow, PBKDF2,
+  600 000 rounds; links from before 2.0.1 keep their 200 000) check, so
+  parallel guesses cannot exceed 10 per link and 15 minutes.
+* **Who may talk to `drop`.** Requests with a proxy header (`X-Forwarded-*`,
+  `Forwarded`, `Via`, …), from a public address, or for `drop-share.<domain>`
+  get 404 — also with `SHARING=off`. Names other than its own get 421 (see
+  `WEBUI` above). Every answer carries a CSP (`default-src 'self'`, no
+  framing), `nosniff` and `Cross-Origin-Resource-Policy: same-origin`;
+  downloads also `sandbox`. JSON is taken only as `application/json`, so a
+  form on another site cannot send it without the browser asking first.
+* **Limits.** JSON requests up to 16 MB, a text field up to 2 million
+  characters, an upload only if it fits the free space. An upload without
+  progress for 10 minutes no longer holds back a certificate renewal; after 7
+  days it is given up. A resumed upload has to match name, size and — where the
+  browser knows it — the file's last-modified time.
 * **The share sheet** (`POST /share-target`, from the manifest's
   `share_target`) is the one write a plain HTML form on another site could
   send. It is taken only with `Sec-Fetch-Site: none` (the share sheet) or
@@ -108,8 +124,9 @@ Unraid and can stay.
   everything else is 401, and the page reloads on it. The cookie holds the
   time of the sign-in, signed with HMAC over that time and a hash of the PIN,
   keyed by `/data/.access-key` — which `drop-share` never sees. HttpOnly,
-  SameSite=Strict, Secure with HTTPS, 90 days. Wrong PINs: 10 per address and
-  50 in all per 15 minutes, counted before the check.
+  SameSite=Strict, Secure with HTTPS, 90 days. Wrong PINs, counted before the
+  check, per 15 minutes: 10 per address and PIN, 30 per PIN, 50 in all — a
+  sign-in with one's own PIN does not reset the count for another one.
 * **Users** (`USER_<COLOUR>`): the sign-in page lists them by name and
   colour; a user without PIN signs in with a click. The cookie is
   `<time>.<colour>.<signature>`, the signature (HMAC, same key as with `PIN`)

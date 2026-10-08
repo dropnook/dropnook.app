@@ -43,7 +43,7 @@ let sharesList       = null;        // the <ul> in the open shares dialog
 let filesLoaded      = false;       // after the first full state: new files get highlighted
 const fresh          = new Map();   // name → when it arrived, for a short highlight
 
-// Users (compose.yaml): the server marks <html> with data-user and the user's
+// Users (set in the .env): the server marks <html> with data-user and the user's
 // colour. Each user has an area of their own next to the shared one; the page
 // shows one of the two, and every request says which.
 const usersOn        = 'user' in document.documentElement.dataset;
@@ -135,7 +135,7 @@ function withArea(url, which = area) {
   return url + (url.includes('?') ? '&' : '?') + 'area=' + which;
 }
 
-// With a PIN (compose.yaml): once the sign-in has run out or the PIN was
+// With a PIN (set in the .env): once the sign-in has run out or the PIN was
 // changed, every request answers 401 — reload, and the PIN page comes up.
 const plainFetch = window.fetch.bind(window);
 window.fetch = async (url, options = {}) => {
@@ -558,6 +558,7 @@ async function addField(text) {
       body: JSON.stringify({ text: text || '' }),
     });
     if (r.status === 409) { toast(t('ui.field_limit', { n: fieldMax }), true); return null; }
+    if (r.status === 413) { toast(t('ui.field_too_long'), true); return null; }
     if (!r.ok) throw new Error(r.status);
     const d = await r.json();
     if (asked !== area) return null;      // another area is shown now
@@ -730,6 +731,13 @@ async function save(f) {
       loadState();
       return;
     }
+    if (response.status === 413) {
+      // Too long for the server: it stays here (draft) — said once, not on every key.
+      if (!f.tooLong) toast(t('ui.field_too_long'), true);
+      f.tooLong = true;
+      return;
+    }
+    f.tooLong = false;
     if (response.status === 409) {
       const data = await response.json();
       const active = document.activeElement === f.textarea;
@@ -1179,10 +1187,12 @@ function uploadRow(u) {
 const THUMB_TYPES = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'avif'];
 const extOf    = (name) => (name.includes('.') ? name.split('.').pop().toLowerCase() : '');
 const isImage  = (d) => THUMB_TYPES.includes(extOf(d.name)) || extOf(d.name) === 'svg';
-const fileUrl  = (name) => withArea('/files/' + encodeURIComponent(name));
+// Loaded by <img> and <a download>, which send no x-drop-as: say it in the address.
+const asOpened = (url) => (openedAs ? url + (url.includes('?') ? '&' : '?') + 'as=' + openedAs : url);
+const fileUrl  = (name) => asOpened(withArea('/files/' + encodeURIComponent(name)));
 const thumbUrl = (d) => (extOf(d.name) === 'svg'      // drawn by the browser, never by the server
   ? fileUrl(d.name)
-  : withArea(`/api/thumb/${encodeURIComponent(d.name)}?v=${d.size}-${d.mtime}`));
+  : asOpened(withArea(`/api/thumb/${encodeURIComponent(d.name)}?v=${d.size}-${d.mtime}`)));
 const thumbs   = new Map();   // url → <img>, reused across redraws so nothing flickers
 
 function thumbFor(d) {
@@ -1624,9 +1634,17 @@ async function uploadFile(file, into) {
   const start = await fetch(withArea('/api/upload/init', into), {
     method: 'POST',
     headers: { 'content-type': 'application/json; charset=utf-8' },
-    body: JSON.stringify({ name: file.name, size: file.size }),
+    // With the time it was last changed: a changed file of the same name and
+    // size starts over instead of being resumed into the old one. Some phones
+    // know no such time and say "now" — that is no time to compare.
+    body: JSON.stringify({
+      name: file.name, size: file.size,
+      modified: Math.abs(Date.now() - file.lastModified) > 10000 ? file.lastModified : null,
+    }),
   }).catch(() => null);
-  if (!start || !start.ok) throw new Error(t('ui.upload_refused'));
+  if (!start || !start.ok) {
+    throw new Error(t(start && start.status === 507 ? 'ui.error_no_space' : 'ui.upload_refused'));
+  }
   const init = await start.json();
   chunkSize = init.chunk_size;
 
@@ -1922,6 +1940,11 @@ function connectEvents() {
   source.onerror = () => {
     setConnected(false);
     fetch('/api/state').catch(() => {});   // signed out? then the reload above
+    // On an HTTP error the browser gives up for good (CLOSED) — try again later.
+    const gaveUp = source;
+    if (gaveUp.readyState === 2) {
+      setTimeout(() => { if (source === gaveUp && navigator.onLine) connectEvents(); }, 5000);
+    }
   };
 
   // With users, each event says which area it is about. The other one only
@@ -1982,7 +2005,7 @@ async function loadState() {
   const asked = area;
   try {
     const r = await fetch(withArea('/api/state'));
-    // No own area any more: the users were taken out of compose.yaml.
+    // No own area any more: the users were taken out of the .env.
     if (r.status === 404 && asked === 'own') { location.reload(); return; }
     if (!r.ok) throw new Error(r.status);
     const d = await r.json();
@@ -2019,7 +2042,8 @@ async function loadState() {
     if (firstLoad) { firstLoad = false; orphanedDrafts(); }
 
     updateShares();     // also draws the file list
-    setConnected(true);
+    // Green only while live updates come in, not just because this request worked.
+    setConnected(!!source && source.readyState === 1);
   } catch (e) {
     setConnected(false);
   }
