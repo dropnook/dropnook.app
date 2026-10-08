@@ -551,7 +551,7 @@ ungespeicherter Text wird nachgeschickt, sobald die Verbindung zurück ist.
 ## Dropnook unterstützen
 
 Dropnook ist kostenlos und bleibt es. Wenn es dir nützt, kannst du dich mit
-einer Spende bedanken: **[paypal.me/vipermark2](https://www.paypal.com/paypalme/vipermark2)**. Am besten ab 5 €
+einer Spende bedanken: **[paypal.me/dropnook](https://paypal.me/dropnook)**. Am besten ab 5 €
 (oder 5 CHF) — PayPal behält von jeder Zahlung einen festen Betrag plus ein
 paar Prozent ein, von einem einzelnen Euro kommt kaum etwas an.
 

@@ -528,7 +528,7 @@ typing; unsaved text is sent once the connection is back.
 ## Support Dropnook
 
 Dropnook is free and stays free. If it is useful to you, you can say thanks
-with a donation: **[paypal.me/vipermark2](https://www.paypal.com/paypalme/vipermark2)**. Ideally 5 € (or $5, 5 CHF)
+with a donation: **[paypal.me/dropnook](https://paypal.me/dropnook)**. Ideally 5 € (or $5, 5 CHF)
 or more — PayPal keeps a fixed fee plus a few percent of every payment, so of a
 single euro hardly anything arrives.
 
