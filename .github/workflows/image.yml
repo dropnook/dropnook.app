@@ -77,11 +77,14 @@ jobs:
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           if [ -n "$VERSION" ]; then echo "version=${VERSION#v}" >> "$GITHUB_OUTPUT"; fi
 
-      # The test script as it is now — an older release may not have it yet.
+      # The test script as it is now — an older release may not have it yet —
+      # and the compose.yaml people copy today, which it checks too.
       - uses: actions/checkout@v5
         with:
           path: ci
-          sparse-checkout: .github
+          sparse-checkout: |
+            .github
+            compose-projects-drop
 
       - name: Check the version
         if: env.RELEASE_TAG != ''
