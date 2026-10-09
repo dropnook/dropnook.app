@@ -94,6 +94,13 @@ listed under [What Drop expects from your reverse proxy](#what-drop-expects-from
 
 ## Installation
 
+> **Only in your network, without sharing to the internet?** Then one container
+> is enough: in Unraid's *Apps* tab (Community Applications), search for
+> **Dropnook** and install it. It runs `drop` alone with `SHARING=off` — no
+> second address, no reverse proxy, no domain; Drop then opens at
+> `http://Tower:8088` (your server's name or address). Create the share for its
+> files first (step 1). The steps below set up the full stack, with sharing.
+
 ### 1. Create a new share "drop" on Unraid
 
 A share of its own for Drop's files and texts. In the Unraid web interface,
