@@ -97,6 +97,14 @@ steht.
 
 ## Installation
 
+> **Nur im Heimnetz, ohne Teilen ins Internet?** Dann reicht ein einzelner
+> Container: in Unraid im Reiter *Apps* (Community Applications) nach
+> **Dropnook** suchen und installieren. Er startet `drop` allein mit
+> `SHARING=off` — ohne zweite Adresse, ohne Reverse Proxy, ohne Domain; Drop
+> öffnet sich dann unter `http://Tower:8088` (Name oder Adresse deines
+> Servers). Den Share für die Dateien vorher anlegen (Schritt 1). Die Schritte
+> unten richten den ganzen Stack ein, mit Teilen.
+
 ### 1. Auf Unraid einen neuen Share „drop“ anlegen
 
 Ein eigener Share für die Dateien und Texte von Drop. In der Unraid-Weboberfläche
