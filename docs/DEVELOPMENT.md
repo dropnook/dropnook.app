@@ -57,18 +57,18 @@ runs on any Linux host with Docker. Put it in a folder of its own, next to it a
 three things:
 
 * **Network.** `br0` is Unraid's network for containers with their own LAN
-  address. Elsewhere, create one like it once (macvlan on your network card,
+  address. Elsewhere, create one like it once (ipvlan on your network card,
   with your LAN's subnet and gateway) and keep the name, or rename it in the
   file:
 
   ```sh
-  docker network create -d macvlan --subnet 192.168.1.0/24 --gateway 192.168.1.1 \
-    -o parent=eth0 br0
+  docker network create -d ipvlan --subnet 192.168.1.0/24 --gateway 192.168.1.1 \
+    -o parent=eth0 -o ipvlan_mode=l2 br0
   ```
 
-  The host itself cannot reach macvlan addresses — a reverse proxy on the same
-  host needs its own address in that network, or reaches `drop-share` from
-  another machine.
+  The host itself cannot reach these container addresses — a reverse proxy on
+  the same host needs its own address in that network, or reaches `drop-share`
+  from another machine.
 * **Server name.** Remove the `/boot/config/ident.cfg` line and set
   `SERVER_NAME: <name>` (or `APP_NAME`) under `environment` of `drop`.
 * **Data folder.** `DATA_DIR` must exist before the first start (Drop does not
