@@ -377,6 +377,17 @@ Türkisch. Um Texte zu ändern oder eine Sprache für dich hinzuzufügen, legst 
 eine Datei in `lang/` im appdata-Ordner ab — siehe
 [`lang/README.md`](lang/README.md).
 
+**Videoanrufe** — der Kamera-Knopf oben zeigt die Geräte, auf denen Drop gerade
+offen ist. *Video* oder *Nur Ton*: Das andere Gerät klingelt und nimmt mit oder
+ohne Kamera an. Während des Gesprächs: stumm schalten, Kamera aus, zwischen
+vorderer und hinterer Kamera wechseln, und *Foto* — ein Bild des grossen Videos,
+gespeichert in den gemeinsamen Dateien. Bild und Ton gehen direkt von Gerät zu
+Gerät (WebRTC); Drop reicht nur die paar Nachrichten weiter, die den Anruf
+aufbauen, und nichts verlässt dein Netz. Anrufe brauchen
+[HTTPS](#https-im-heimnetz) — Kamera und Mikrofon geben Browser sonst nicht
+frei — und gehen immer zu zweit; mit [Benutzern](#benutzer-optional) gehören sie
+in den Bereich „Gemeinsam“.
+
 **Auf einem anderen Gerät** — der QR-Knopf oben (auf Computer und Tablet) zeigt
 die Adresse von Drop als QR-Code: Handy-Kamera darauf richten, und die Seite
 öffnet sich dort.
@@ -434,6 +445,9 @@ grosse Uploads und Texte.
   Minuten ist ein Link für diese Zeit gesperrt.
 * Downloads sind immer Anhänge — eine geteilte HTML-Datei läuft nie im Browser.
   Abgelaufene Links verschwinden von selbst.
+* Anrufe gibt es nur in `drop`: kein STUN- oder TURN-Server, keine Aufzeichnung,
+  nichts über den Reverse Proxy. Eine Seite kann im Anruf nur für sich selbst
+  sprechen — sie weist sich mit einem Geheimnis aus, das nur sie kennt.
 
 ### PIN oder Passwort (optional)
 
@@ -552,6 +566,8 @@ ungespeicherter Text wird nachgeschickt, sobald die Verbindung zurück ist.
   Uploads, die eine Woche lang niemand fortgesetzt hat. Den freien Platz oben
   rechts im Auge behalten; ein Upload, der nicht passt, wird abgelehnt.
 * Keine Uploads von aussen. Teilen geht nur in eine Richtung: hinaus.
+* Keine Anrufe von ausserhalb deines Netzes (per VPN hinein geht es), keine
+  Gruppenanrufe, keine Aufzeichnung.
 
 ## Dropnook unterstützen
 

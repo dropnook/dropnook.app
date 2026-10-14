@@ -145,6 +145,43 @@ check "share sheet: file in the list"     cmp -s "$DATA/files/shared.txt" "$WORK
 check "share sheet: link in a text field" grep -rqs 'https://example.com/shared' "$DATA/texts/"
 check "share sheet: no leftovers"         bash -c "! ls -A '$DATA/files' | grep -q '^\.shared-'"
 
+# Calls: two pages with live updates, one rings the other. Only the set-up
+# messages pass through drop; it checks who may send what.
+call() {   # call <path> <json> → status, the reply in $WORK/reply
+  curl -s -o "$WORK/reply" -w '%{http_code}' -H "Host: $HOST" -H 'Content-Type: application/json' \
+    -d "$2" "http://$LAN/api/call/$1"
+}
+heard() { for _ in $(seq 1 25); do grep -qs "$2" "$WORK/$1.sse" && return 0; sleep 0.2; done; return 1; }
+secret() { head -c 18 /dev/urandom | base64 | tr "+/" "-_"; }
+PA=$(secret) PB=$(secret)
+check "calls: not without live updates" test "$(call presence "{\"peer\":\"$PA\",\"available\":true}")" = 404
+curl -sN -H "Host: $HOST" "http://$LAN/api/events?peer=$PA" > "$WORK/a.sse" & SSE_A=$!
+curl -sN -H "Host: $HOST" "http://$LAN/api/events?peer=$PB" > "$WORK/b.sse" & SSE_B=$!
+heard a connected; heard b connected
+check "calls: page A available"  test "$(call presence "{\"peer\":\"$PA\",\"name\":\"Laptop\",\"device\":\"Linux\",\"available\":true}")" = 200
+check "calls: page B available"  test "$(call presence "{\"peer\":\"$PB\",\"name\":\"Phone\",\"available\":true}")" = 200
+check "calls: B sees A by name"  heard b '"name": "Laptop"'
+check "calls: never the secret"  bash -c "! grep -qF -- '$PA' '$WORK/b.sse'"
+ID_B=$(grep -o '"id": "[0-9a-f]*", "name": "Phone"' "$WORK/a.sse" | tail -1 | cut -d'"' -f4)
+check "calls: a made-up page cannot ring" test "$(call invite "{\"peer\":\"pageXXXXXXXXXXXXXXXXXXXXXXXX\",\"to\":\"$ID_B\"}")" = 404
+check "calls: A rings B"         test "$(call invite "{\"peer\":\"$PA\",\"to\":\"$ID_B\",\"video\":true}")" = 200
+CALL=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["call"])' "$WORK/reply")
+check "calls: B is rung"         heard b '"type": "invite"'
+check "calls: B is busy now"     test "$(call invite "{\"peer\":\"$PA\",\"to\":\"$ID_B\"}")" = 409
+check "calls: nothing before the answer" test "$(call signal "{\"peer\":\"$PA\",\"call\":\"$CALL\",\"type\":\"offer\",\"data\":{}}")" = 409
+check "calls: the caller cannot answer"  test "$(call signal "{\"peer\":\"$PA\",\"call\":\"$CALL\",\"type\":\"accept\"}")" = 409
+check "calls: no other messages"  test "$(call signal "{\"peer\":\"$PB\",\"call\":\"$CALL\",\"type\":\"evil\"}")" = 400
+check "calls: B answers"          test "$(call signal "{\"peer\":\"$PB\",\"call\":\"$CALL\",\"type\":\"accept\"}")" = 200
+check "calls: A hears the answer" heard a '"type": "accept"'
+check "calls: offer passed on"    test "$(call signal "{\"peer\":\"$PA\",\"call\":\"$CALL\",\"type\":\"offer\",\"data\":{\"sdp\":\"v=0 smoke\"}}")" = 200
+check "calls: B gets the offer"   heard b 'v=0 smoke'
+check "calls: too large refused"  test "$(python3 -c 'import json,sys; print(json.dumps({"peer":sys.argv[1],"call":sys.argv[2],"type":"ice","data":"x"*70000}))' "$PA" "$CALL" \
+  | curl -s -o /dev/null -w '%{http_code}' -H "Host: $HOST" -H 'Content-Type: application/json' -d @- "http://$LAN/api/call/signal")" = 413
+check "calls: A hangs up"         test "$(call signal "{\"peer\":\"$PA\",\"call\":\"$CALL\",\"type\":\"hangup\"}")" = 200
+check "calls: B hears it"         heard b '"type": "hangup"'
+check "calls: the call is gone"   test "$(call signal "{\"peer\":\"$PB\",\"call\":\"$CALL\",\"type\":\"state\",\"data\":{}}")" = 404
+kill "$SSE_A" "$SSE_B" 2>/dev/null || true
+
 share() {   # share <json> → token
   curl -sf -H "Host: $HOST" -H 'Content-Type: application/json' -d "$1" "http://$LAN/api/shares" \
     | python3 -c 'import json,sys; print(json.load(sys.stdin)["token"])'
@@ -204,6 +241,7 @@ wait_healthy ci-drop-share
 
 check "root shows nothing"       test "$(code "http://$PUB/")" = 404
 check "Drop itself unreachable"  test "$(code "http://$PUB/api/state")" = 404
+check "no calls in here"         test "$(code -H 'Content-Type: application/json' -d '{}' "http://$PUB/api/call/presence")" = 404
 check "robots.txt"               test "$(code "http://$PUB/robots.txt")" = 200
 check "text share shows"         bash -c "curl -sf http://$PUB/$TEXT_TOKEN | grep -q 'smoke text 42'"
 check "token ignores case"       test "$(code "http://$PUB/${TEXT_TOKEN^^}")" = 200
