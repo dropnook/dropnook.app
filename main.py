@@ -2012,19 +2012,22 @@ async def state(request: Request) -> JSONResponse:
 @app.get("/api/events")
 async def events(request: Request) -> StreamingResponse:
     queue: asyncio.Queue = asyncio.Queue(maxsize=200)
-    hub.clients[queue] = current_user(request)
-    # A page that can call says so with its secret; see Calls below. Whatever
-    # is wrong with that, the page still gets its live updates.
-    peer = None
-    if "peer" in request.query_params:
-        try:
-            peer = peer_of(request, request.query_params["peer"], create=True)
-            peer_connected(peer, queue)
-        except HTTPException:
-            peer = None
+    user = current_user(request)
 
     async def stream():
+        # Registered only once the stream runs: a client gone before that
+        # leaves nothing behind.
+        hub.clients[queue] = user
+        # A page that can call says so with its secret; see Calls below.
+        # Whatever is wrong with that, the page still gets its live updates.
+        peer = None
         try:
+            if "peer" in request.query_params:
+                try:
+                    peer = peer_of(request, request.query_params["peer"], create=True)
+                    peer_connected(peer, queue)
+                except HTTPException:
+                    peer = None
             yield b": connected\n\n"
             while True:
                 if await request.is_disconnected():
@@ -2062,7 +2065,9 @@ async def events(request: Request) -> StreamingResponse:
 # speak for another page.
 
 CALL_RING = 45                      # seconds until an unanswered call counts as missed
-CALL_GRACE = 20                     # a page without live updates: this long until it is gone
+CALL_GRACE = 20                     # a page without live updates: this long until it is gone …
+CALL_GRACE_LIVE = 10 * 60           # … unless it is in a call: that runs between the browsers
+CALL_PEERS_EACH = 20                # pages per address that can be called
 CALL_SIGNAL_MAX = 64 * 1024         # characters of one message; a session description is a few KB
 CALL_PEERS_MAX = 200
 CALL_NAME_MAX = 40
@@ -2071,16 +2076,15 @@ PEER_SECRET = re.compile(r"^[A-Za-z0-9_-]{22,64}$")
 
 
 class Peer:
-    __slots__ = ("id", "user", "name", "device", "available", "queue", "seen", "call", "invites")
+    __slots__ = ("id", "user", "address", "name", "device", "available", "queue", "seen", "call")
 
-    def __init__(self, pid: str, user: Optional[User]):
-        self.id, self.user = pid, user
+    def __init__(self, pid: str, user: Optional[User], address: str):
+        self.id, self.user, self.address = pid, user, address
         self.name = self.device = ""
         self.available = False
         self.queue: Optional[asyncio.Queue] = None
         self.seen = time.time()
         self.call: Optional[str] = None
-        self.invites: list = []
 
 
 class Call:
@@ -2098,6 +2102,7 @@ class Call:
 
 peers: Dict[str, Peer] = {}
 calls: Dict[str, Call] = {}
+invites: Dict[str, list] = {}       # address -> times of its last calls
 
 
 def peer_id(secret: str) -> str:
@@ -2118,9 +2123,11 @@ def peer_of(request: Request, secret, create: bool = False) -> Peer:
     if peer is None:
         if not create:
             raise api_error(404, "call_gone", "Not connected")
-        if len(peers) >= CALL_PEERS_MAX:
+        address = request.client.host if request.client else "?"
+        if len(peers) >= CALL_PEERS_MAX or \
+                sum(p.address == address for p in peers.values()) >= CALL_PEERS_EACH:
             raise HTTPException(503, "Too many pages")
-        peer = peers[pid] = Peer(pid, user)
+        peer = peers[pid] = Peer(pid, user, address)
     elif not same_user(peer.user, user):
         raise HTTPException(403, "Not your page")
     return peer
@@ -2182,8 +2189,9 @@ def peer_connected(peer: Peer, queue: asyncio.Queue) -> None:
 
 def peer_disconnected(peer: Peer, queue: asyncio.Queue) -> None:
     """Live updates break off now and then (a phone locks its screen, Wi-Fi
-    changes). The call itself runs between the browsers, so it is given
-    CALL_GRACE to come back before it ends."""
+    changes). The page is given CALL_GRACE to come back — in a call that has
+    been answered CALL_GRACE_LIVE, as the call itself runs between the
+    browsers."""
     if peer.queue is queue:
         peer.queue, peer.seen = None, time.time()
         announce_peers()
@@ -2196,8 +2204,11 @@ async def watch_calls(interval: int = 5) -> None:
         for call in list(calls.values()):
             if not call.active and now - call.started > CALL_RING:
                 end_call(call, "missed")
+        for address in [a for a, times in invites.items() if all(now - t > 60 for t in times)]:
+            invites.pop(address, None)
         for peer in list(peers.values()):
-            if peer.queue is None and now - peer.seen > CALL_GRACE:
+            live = peer.call in calls and calls[peer.call].active
+            if peer.queue is None and now - peer.seen > (CALL_GRACE_LIVE if live else CALL_GRACE):
                 drop_peer(peer)
 
 
@@ -2210,11 +2221,17 @@ async def call_presence(request: Request) -> JSONResponse:
     if not isinstance(body, dict):
         raise HTTPException(400, "Expected an object")
     peer = peer_of(request, body.get("peer"))
+    before = (peer.name, peer.device, peer.available)
     peer.name = short_text(body.get("name"))
     peer.device = short_text(body.get("device"))
     peer.available = body.get("available") is True
-    announce_peers()
-    return JSONResponse({"id": peer.id})
+    # The page says which call it is in. A call it no longer has — its
+    # hang-up got lost on the way — ends here, or both would stay busy.
+    if peer.call and peer.call in calls and "call" in body and body["call"] is None:
+        end_call(calls[peer.call], "hangup", peer)
+    if (peer.name, peer.device, peer.available) != before:
+        announce_peers()
+    return JSONResponse({"id": peer.id, "call": peer.call})
 
 
 @app.post("/api/call/invite")
@@ -2227,12 +2244,12 @@ async def call_invite(request: Request) -> JSONResponse:
     if callee is None or callee is caller or not reachable(callee) or not reachable(caller):
         raise api_error(404, "call_gone", "Not available")
     now = time.time()
-    caller.invites = [t for t in caller.invites if now - t < 60]
-    if len(caller.invites) >= 10:
+    recent = invites[caller.address] = [t for t in invites.get(caller.address, []) if now - t < 60]
+    if len(recent) >= 10:
         raise api_error(429, "call_too_many", "Too many calls")
     if caller.call or callee.call:
         raise api_error(409, "call_busy", "Busy")
-    caller.invites.append(now)
+    recent.append(now)
     call = Call(caller, callee, body.get("video") is True)
     calls[call.id] = call
     caller.call = callee.call = call.id

@@ -1931,6 +1931,7 @@ async function showHelp() {
    With users, calls belong to the shared area. */
 const CALL_NAME_KEY  = 'drop.device';           // this device's name, as the others see it
 const CALL_DROPOUT   = 12000;                   // ms a broken connection may take to come back
+const CALL_SETUP     = 25000;                   // ms from the answer until picture and sound flow
 const callable       = window.isSecureContext && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)
                        && 'RTCPeerConnection' in window;
 // Who this page is in calls: a secret of its own, the others only see a hash of it.
@@ -1975,7 +1976,11 @@ async function callPost(path, body) {
     body: JSON.stringify({ peer: callSecret, ...body }),
   });
   if (!r.ok) {
-    const error = new Error(await errorText(r));
+    // Coded errors have a text in the language file. Anything else (a call
+    // answered or ended meanwhile, a page gone) means: no longer reachable.
+    let code = '';
+    try { code = ((await r.json()).detail || {}).code || ''; } catch (e) { /* no JSON */ }
+    const error = new Error(t(strings['ui.error_' + code] !== undefined ? 'ui.error_' + code : 'ui.error_call_gone'));
     error.status = r.status;
     throw error;
   }
@@ -1983,10 +1988,16 @@ async function callPost(path, body) {
 }
 
 // Can be called right now: over HTTPS, in the shared area, live updates on.
+// It also says which call this page is in (none: null) — the server ends one
+// whose hang-up got lost, and tells this page if its call ended meanwhile.
 function sendPresence() {
   if (!callable || !source || source.readyState !== 1) return;
+  const c = call;
   callPost('presence', {
     name: deviceName(), device: deviceLabel(), available: callShown(),
+    call: c ? c.id || '' : null,
+  }).then((d) => {
+    if (c && call === c && c.id && d.call !== c.id) endLocally(t('ui.call_ended'));
   }).catch(() => {});
 }
 
@@ -2065,7 +2076,7 @@ function hideDialog() {
 function unlockSound() {
   try {
     if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    if (audioContext.state === 'suspended') audioContext.resume();
+    if (audioContext.state !== 'running') audioContext.resume().catch(() => {});
   } catch (e) { audioContext = null; }
 }
 
@@ -2143,6 +2154,13 @@ async function cameraChanged(c) {
 }
 
 // ---- Starting, answering, ending
+// Answered, but the connection never comes about: give up rather than wait forever.
+function connecting(c) {
+  c.state = 'connecting';
+  clearTimeout(c.setup);
+  c.setup = setTimeout(() => { if (call === c && c.state === 'connecting') failed(); }, CALL_SETUP);
+}
+
 function newCall(fields) {
   call = {
     id: null, peer: null, role: 'caller', video: true, state: 'ringing', stream: null,
@@ -2178,7 +2196,9 @@ async function startCall(p, video) {
 }
 
 function incoming(d) {
-  if (call) return;               // the server says busy before it gets here
+  // Already busy here (both called each other at once, or still at the camera
+  // question): say no at once rather than let the other side ring for nothing.
+  if (call) { callPost('signal', { call: d.call, type: 'decline' }).catch(() => {}); return; }
   unlockSound();
   newCall({ id: d.call, peer: d.from, role: 'callee', video: d.video, state: 'incoming' });
   call.theirs.video = d.video;
@@ -2190,7 +2210,7 @@ async function accept(video) {
   const c = call;
   if (!c || c.state !== 'incoming') return;
   stopRinging();
-  c.state = 'connecting';
+  connecting(c);
   drawCallScreen();
   try {
     c.stream = await getMedia(video);
@@ -2224,6 +2244,7 @@ function endLocally(message, warn) {
   c.ended = true;
   stopRinging();
   clearTimeout(c.dropout);
+  clearTimeout(c.setup);
   clearInterval(c.clock);
   if (c.pc) { try { c.pc.close(); } catch (e) {} }
   if (c.stream) c.stream.getTracks().forEach((x) => x.stop());
@@ -2234,6 +2255,7 @@ function endLocally(message, warn) {
   if (message) toast(message, warn);
   updateCallButton();
   drawPeers();
+  sendPresence();
 }
 
 // What the server passes on from the other side.
@@ -2245,7 +2267,7 @@ function onCallEvent(d) {
   switch (d.type) {
     case 'accept':
       stopRinging();
-      c.state = 'connecting';
+      connecting(c);
       createPeerConnection();
       makeOffer();
       drawCallScreen();
@@ -2388,6 +2410,12 @@ function toggleMic() {
 // Off means off: the camera is let go of (its light goes out), not just hidden.
 async function toggleCamera() {
   const c = call;
+  if (c.cameraBusy) return;           // one change at a time, or a second camera stays on
+  c.cameraBusy = true;
+  try { await cameraToggle(c); } finally { c.cameraBusy = false; }
+}
+
+async function cameraToggle(c) {
   if (c.cameraOn) {
     c.stream.getVideoTracks().forEach((x) => { x.stop(); c.stream.removeTrack(x); });
     if (c.senders.video) await c.senders.video.replaceTrack(null).catch(() => {});
@@ -2399,7 +2427,7 @@ async function toggleCamera() {
   drawCallScreen();
 }
 
-async function useCamera(constraints) {
+async function useCamera(constraints, quiet) {
   const c = call;
   // Let go of the current one first — phones open only one camera at a time.
   c.stream.getVideoTracks().forEach((x) => { x.stop(); c.stream.removeTrack(x); });
@@ -2407,7 +2435,7 @@ async function useCamera(constraints) {
   try {
     fresh = await navigator.mediaDevices.getUserMedia({ video: { ...constraints, width: { ideal: 1280 }, height: { ideal: 720 } } });
   } catch (e) {
-    toast(t('ui.call_no_media'), true);
+    if (!quiet) toast(t('ui.call_no_media'), true);
     cameraChanged(c);
     return false;
   }
@@ -2424,12 +2452,17 @@ async function useCamera(constraints) {
 // Front and back on phones; on a computer with several cameras, the next one.
 async function switchCamera() {
   const c = call;
-  if (!c.cameraOn) return;
+  if (!c.cameraOn || c.cameraBusy) return;
+  c.cameraBusy = true;
+  try { await cameraSwitch(c); } finally { c.cameraBusy = false; }
+}
+
+async function cameraSwitch(c) {
   const current = c.stream.getVideoTracks()[0];
   const settings = current && current.getSettings ? current.getSettings() : {};
   if (settings.facingMode) {
     const next = c.facing === 'user' ? 'environment' : 'user';
-    if (await useCamera({ facingMode: { exact: next } })) { c.facing = next; drawCallScreen(); return; }
+    if (await useCamera({ facingMode: { exact: next } }, true)) { c.facing = next; drawCallScreen(); return; }
   }
   const cameras = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'videoinput');
   const at = cameras.findIndex((d) => d.deviceId === settings.deviceId);
@@ -2765,6 +2798,7 @@ function wireButtons() {
         body: JSON.stringify({ peer: callSecret, call: call.id, type: call.state === 'incoming' ? 'decline' : call.state === 'ringing' ? 'cancel' : 'hangup' }),
       }).catch(() => {});
     }
+    endLocally('');      // a page restored from the back/forward cache shows no dead call
   });
   $('#btn-qr').onclick = showQr;
   $('#btn-qr').title = t('ui.qr_open');
@@ -2857,6 +2891,7 @@ function wireButtons() {
 
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
+      if (call && call.started) keepAwake();     // the browser let go of it while hidden
       loadState();
       if (!source || source.readyState === 2) connectEvents();
     }

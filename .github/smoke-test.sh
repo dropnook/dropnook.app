@@ -180,6 +180,11 @@ check "calls: too large refused"  test "$(python3 -c 'import json,sys; print(jso
 check "calls: A hangs up"         test "$(call signal "{\"peer\":\"$PA\",\"call\":\"$CALL\",\"type\":\"hangup\"}")" = 200
 check "calls: B hears it"         heard b '"type": "hangup"'
 check "calls: the call is gone"   test "$(call signal "{\"peer\":\"$PB\",\"call\":\"$CALL\",\"type\":\"state\",\"data\":{}}")" = 404
+call invite "{\"peer\":\"$PA\",\"to\":\"$ID_B\"}" > /dev/null
+check "calls: a lost hang-up does not leave both busy" \
+  test "$(call presence "{\"peer\":\"$PA\",\"name\":\"Laptop\",\"available\":true,\"call\":null}")" = 200
+check "calls: B hears that too"   bash -c "test \$(grep -c '\"type\": \"hangup\"' '$WORK/b.sse') = 2"
+check "calls: free again"         test "$(call invite "{\"peer\":\"$PA\",\"to\":\"$ID_B\"}")" = 200
 kill "$SSE_A" "$SSE_B" 2>/dev/null || true
 
 share() {   # share <json> → token
