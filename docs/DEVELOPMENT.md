@@ -188,7 +188,7 @@ Unraid and can stay.
 docker build -t drop:local .
 ```
 
-Then set the `x-image` line at the top of `compose.yaml` to `drop:local`. To try changes without
+Then set both `image:` lines in `compose.yaml` to `drop:local`. To try changes without
 building, mount your copy of the repository over `/app`: the web page files are
 read on every reload, `main.py` needs a restart of the container.
 
