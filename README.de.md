@@ -268,6 +268,23 @@ Ganz ohne HTTPS im Heimnetz: `TLS_CERT=` (leer), und `CERTS_DIR=` ein
 bestehender Ordner ohne Zertifikate, z. B. `/mnt/user/appdata/drop` — sonst legt
 Docker den vorgegebenen leer an.
 
+**Zertifikate aus Cert Warden?** Dann holt Drop sie selbst — ein Ordner mit
+Zertifikaten ist nicht nötig. In der `.env`:
+
+| | |
+|---|---|
+| `CERTWARDEN_ENDPOINT_URL` | Adresse von Cert Warden, z. B. `https://certwarden.example.org` |
+| `CERT_INT_NAME`, `CERT_INT_CERT_API`, `CERT_INT_KEY_API` | Zertifikat von drop: Name in Cert Warden, API-Key des Zertifikats, API-Key des privaten Schlüssels |
+| `CERT_PUB_NAME`, `CERT_PUB_CERT_API`, `CERT_PUB_KEY_API` | das von drop-share, genauso — leer, wenn das von drop ein Wildcard ist (`*.deinedomain.ch`): dann gilt eines für beide und wird nur einmal geholt |
+| `CERT_CHECK_DAY` | so viele Tage vor Ablauf ein neues holen (vorgegeben 30) |
+
+`CERTS_DIR` und `TLS_CERT` werden dann nicht verwendet (`CERTS_DIR` auf einem
+bestehenden Ordner lassen). Nur drop spricht mit Cert Warden; drop-share bekommt
+sein Zertifikat von drop und spricht dann zusätzlich HTTPS auf Port 443 — den
+Reverse Proxy auf `https://<SHARE_IP>:443` zeigen lassen, wenn es bis zu
+drop-share verschlüsselt sein soll; Port 80 geht weiterhin. Im Log von drop
+steht, was geholt wurde, nie die Keys.
+
 **Wenn `auto` kein Zertifikat findet** — im Bereich *Compose* beim Stack `drop`
 die **Logs** des Containers `drop` öffnen. Direkt nach dem Start steht dort, was
 Drop gefunden hat. Die Lösung kommt in die `.env` (*Edit Stack* → Reiter

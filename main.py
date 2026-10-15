@@ -301,13 +301,185 @@ def find_certificates(only: str = "") -> list:
     return chosen
 
 
+# ---------------------------------------------------------------- Cert Warden
+#
+# Instead of a folder of certificates, Drop can fetch its own from Cert Warden
+# (certwarden.com): CERTWARDEN_ENDPOINT_URL plus, per certificate, its name and
+# the API keys of certificate and private key. "int" is drop's certificate in
+# your network, "pub" the one drop-share serves HTTPS with. Without pub
+# settings — or with the same name — one certificate does for both, if it
+# covers drop-share's name (a wildcard does), and it is fetched once. Only
+# drop talks to Cert Warden; drop-share finds its pair in shares/.tls/,
+# read-only like everything else it sees. A certificate is fetched again once
+# it has fewer than CERT_CHECK_DAY days left.
+
+CERTWARDEN_URL = os.environ.get("CERTWARDEN_ENDPOINT_URL", "").strip().rstrip("/")
+
+
+def certwarden_setting(kind: str) -> tuple:
+    """(name, certificate API key, key API key) of CERT_INT_… or CERT_PUB_…"""
+    get = lambda part: os.environ.get(f"CERT_{kind}_{part}", "").strip()
+    return get("NAME"), get("CERT_API"), get("KEY_API")
+
+
+CW_INT = certwarden_setting("INT")
+CW_PUB = certwarden_setting("PUB")
+CERTWARDEN = bool(CERTWARDEN_URL and all(CW_INT)) and not PUBLIC
+try:
+    CERT_CHECK_DAYS = max(1, int(os.environ.get("CERT_CHECK_DAY", "") or 30))
+except ValueError:
+    CERT_CHECK_DAYS = 30
+CW_INT_DIR = FILES_DIR.parent / ".certwarden"   # drop's own pair, beside the files, never in a share
+PUB_TLS_DIR = SHARES_DIR / ".tls"               # drop-share's pair
+CW_CHECK_EVERY = 6 * 3600
+
+
+def pem_blocks(text: str, kind: str) -> list:
+    return re.findall(r"-----BEGIN [A-Z ]*" + kind + r"-----[A-Za-z0-9+/=\s]+?-----END [A-Z ]*"
+                      + kind + r"-----", text)
+
+
+def cert_facts(path: Path) -> Optional[tuple]:
+    """(expires, [names]) of the first certificate in a file, or None."""
+    try:
+        info = ssl._ssl._test_decode_cert(str(path))
+        return (ssl.cert_time_to_seconds(info["notAfter"]),
+                [n.lower() for kind, n in info.get("subjectAltName", ()) if kind == "DNS"])
+    except (OSError, ValueError, KeyError, AttributeError, ssl.SSLError):
+        return None
+
+
+def pair_in(folder: Path) -> Optional[tuple]:
+    cert, key = folder / "fullchain.pem", folder / "privkey.pem"
+    return (str(cert), str(key)) if cert.is_file() and key.is_file() else None
+
+
+def certwarden_fetch(setting: tuple) -> tuple:
+    """Downloads key, certificate and chain of one certificate in one request
+    (Cert Warden's privatecertchains, API key "<cert key>.<key key>") and
+    checks that they belong together. Returns (chain PEM, key PEM)."""
+    import urllib.request
+    name, cert_api, key_api = setting
+    if not re.fullmatch(r"[A-Za-z0-9._~-]+", name):
+        raise ValueError(f'"{name}" is not a Cert Warden name')
+    base = CERTWARDEN_URL if "/certwarden/api/" in CERTWARDEN_URL \
+        else CERTWARDEN_URL + "/certwarden/api/v1/download"
+    request = urllib.request.Request(f"{base}/privatecertchains/{name}",
+                                     headers={"X-API-Key": f"{cert_api}.{key_api}"})
+    try:
+        with urllib.request.urlopen(request, timeout=30) as reply:
+            text = reply.read(1024 * 1024).decode("ascii", "replace")
+    except urllib.error.HTTPError as error:
+        raise ValueError(f"Cert Warden answered {error.code} for {name} (name or API keys?)")
+    except (OSError, ValueError) as error:
+        raise ValueError(f"Cert Warden not reachable: {getattr(error, 'reason', error)}")
+    keys, certs = pem_blocks(text, "PRIVATE KEY"), pem_blocks(text, "CERTIFICATE")
+    if len(keys) != 1 or not certs:
+        raise ValueError(f"no certificate with its key in Cert Warden's answer for {name}")
+    chain, key = "\n".join(certs) + "\n", keys[0] + "\n"
+    with tempfile.TemporaryDirectory(dir=str(FILES_DIR.parent)) as tmp:
+        (Path(tmp) / "c").write_text(chain)
+        (Path(tmp) / "k").write_text(key)
+        try:
+            ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER).load_cert_chain(Path(tmp) / "c", Path(tmp) / "k")
+        except ssl.SSLError:
+            raise ValueError(f"key and certificate of {name} do not belong together")
+        facts = cert_facts(Path(tmp) / "c")
+    if not facts or facts[0] < time.time():
+        raise ValueError(f"the certificate {name} has expired")
+    return chain, key
+
+
+def store_pair(folder: Path, chain: str, key: str) -> bool:
+    """Writes a pair unless it is already there. Key first, certificate last —
+    whoever watches the certificate finds the matching key in place. Both
+    belong to PUID:PGID with mode 600: drop-share runs as that user."""
+    pair = pair_in(folder)
+    if pair and Path(pair[0]).read_text() == chain and Path(pair[1]).read_text() == key:
+        return False
+    folder.mkdir(parents=True, exist_ok=True)
+    os.chmod(folder, 0o750)
+    own(folder)
+    for name, content in (("privkey.pem", key), ("fullchain.pem", chain)):
+        tmp = folder / f".{name}.new"
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w") as f:
+            f.write(content)
+        own(tmp)
+        os.replace(tmp, folder / name)
+    return True
+
+
+def due(folder: Path) -> bool:
+    pair = pair_in(folder)
+    facts = cert_facts(Path(pair[0])) if pair else None
+    return not facts or facts[0] - time.time() < CERT_CHECK_DAYS * 86400
+
+
+def certwarden_sync() -> bool:
+    """Fetches what is due. True if drop's own certificate changed."""
+    changed, fetched = False, None
+    try:
+        if due(CW_INT_DIR):
+            fetched = certwarden_fetch(CW_INT)
+            changed = store_pair(CW_INT_DIR, *fetched)
+            facts = cert_facts(CW_INT_DIR / "fullchain.pem")
+            print(f"Cert Warden: {CW_INT[0]} {'fetched' if changed else 'unchanged'}, valid until "
+                  f"{time.strftime('%Y-%m-%d', time.gmtime(facts[0]))}", flush=True)
+    except (OSError, ValueError) as error:
+        print(f"Cert Warden: {error} — keeping what is there.", flush=True)
+    if not SHARING_ENABLED:
+        return changed
+    try:
+        separate = all(CW_PUB) and CW_PUB[0] != CW_INT[0]
+        if separate:
+            if due(PUB_TLS_DIR):
+                stored = store_pair(PUB_TLS_DIR, *certwarden_fetch(CW_PUB))
+                print(f"Cert Warden: {CW_PUB[0]} for {SHARE_SUBDOMAIN} "
+                      f"{'fetched' if stored else 'unchanged'}", flush=True)
+        elif pair_in(CW_INT_DIR):
+            # One certificate for both — if it covers drop-share's name.
+            names = (cert_facts(CW_INT_DIR / "fullchain.pem") or (0, []))[1]
+            if CW_PUB[0] == CW_INT[0] or any(n.startswith("*.") or n.startswith(SHARE_SUBDOMAIN + ".")
+                                             for n in names):
+                pair = pair_in(CW_INT_DIR)
+                if store_pair(PUB_TLS_DIR, Path(pair[0]).read_text(), Path(pair[1]).read_text()):
+                    print(f"Cert Warden: {CW_INT[0]} also for {SHARE_SUBDOMAIN}", flush=True)
+            elif not all(CW_PUB):
+                print(f"Cert Warden: {CW_INT[0]} does not cover {SHARE_SUBDOMAIN}.… — drop-share "
+                      "stays on HTTP; set CERT_PUB_… for a certificate of its own.", flush=True)
+    except (OSError, ValueError) as error:
+        print(f"Cert Warden ({SHARE_SUBDOMAIN}): {error} — keeping what is there.", flush=True)
+    return changed
+
+
+async def restart_when_idle(reason: str) -> None:
+    """Exit once no upload or call runs; `restart: unless-stopped` brings it back."""
+    while running_uploads() or calls:
+        await asyncio.sleep(30)
+    print(f"{reason} — restarting so it takes effect.", flush=True)
+    os._exit(0)
+
+
+async def watch_certwarden(serving_tls: bool) -> None:
+    """Every few hours: anything due? A new certificate of drop's own is taken
+    up by watch_certificate while TLS runs; without TLS yet, by a restart."""
+    while True:
+        await asyncio.sleep(CW_CHECK_EVERY)
+        if await run_in_threadpool(certwarden_sync) and not serving_tls:
+            await restart_when_idle("Certificate from Cert Warden")
+
+
 _tls_choice: Optional[list] = None              # [(domain, cert, key, expires)], first = default
 
 
 def tls_certificates() -> list:
     global _tls_choice
     if _tls_choice is None:
-        if TLS_AUTO or TLS_DOMAIN:
+        if CERTWARDEN:
+            pair = pair_in(CW_INT_DIR)
+            _tls_choice = [("", pair[0], pair[1], 0)] if pair else []
+        elif TLS_AUTO or TLS_DOMAIN:
             _tls_choice = find_certificates(TLS_DOMAIN)
         elif TLS_CERT and TLS_KEY and Path(TLS_CERT).is_file() and Path(TLS_KEY).is_file():
             _tls_choice = [("", TLS_CERT, TLS_KEY, 0)]
@@ -1398,6 +1570,8 @@ async def lifespan(app: FastAPI):
         app.state.share_watch = asyncio.create_task(watch_shares())
     app.state.thumb_watch = asyncio.create_task(watch_thumbs())
     app.state.call_watch = asyncio.create_task(watch_calls())
+    if CERTWARDEN:
+        app.state.certwarden = asyncio.create_task(watch_certwarden(bool(cert)))
 
     yield
 
@@ -3335,10 +3509,44 @@ if __name__ == "__main__":
         port = int(os.environ.get("PORT", "8080"))
         print(f"{app_name()} — public part on port {port}, shares only, from {SHARES_DIR}",
               flush=True)
-        # No TLS: the reverse proxy in front does that, and this container never
-        # even sees the private key.
-        uvicorn.run(public, host="0.0.0.0", port=port, workers=1,
-                    timeout_keep_alive=75, proxy_headers=False, server_header=False)
+        # Plain HTTP for the reverse proxy in front. With certificates from Cert
+        # Warden, drop leaves a pair in shares/.tls/: then also HTTPS on 443.
+        pair = pair_in(PUB_TLS_DIR)
+        try:
+            if pair:
+                ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER).load_cert_chain(*pair)
+        except (OSError, ssl.SSLError) as error:
+            print(f"Certificate in {PUB_TLS_DIR} not usable: {error} — HTTP only.", flush=True)
+            pair = None
+
+        async def serve_public() -> None:
+            common = dict(host="0.0.0.0", workers=1, timeout_keep_alive=75,
+                          proxy_headers=False, server_header=False)
+            servers = [uvicorn.Server(uvicorn.Config(public, port=port, **common))]
+            if pair:
+                tls_port = int(os.environ.get("TLS_PORT", "443"))
+                servers.append(uvicorn.Server(uvicorn.Config(
+                    public, port=tls_port, ssl_certfile=pair[0], ssl_keyfile=pair[1], **common)))
+                print(f"HTTPS on port {tls_port} with {pair[0]}", flush=True)
+
+            async def watch() -> None:
+                """A new pair from drop (or a first one): restart to serve it."""
+                stamp = lambda: [Path(p).stat().st_mtime for p in pair] if pair else None
+                first = stamp()
+                while True:
+                    await asyncio.sleep(300)
+                    try:
+                        now = stamp() if pair else (True if pair_in(PUB_TLS_DIR) else None)
+                    except OSError:
+                        continue
+                    if now != first:
+                        print("Certificate for drop-share changed — restarting.", flush=True)
+                        os._exit(0)
+
+            asyncio.get_running_loop().create_task(watch())
+            await asyncio.gather(*(server.serve() for server in servers))
+
+        asyncio.run(serve_public())
         raise SystemExit(0)
 
     if USER_PROBLEMS:
@@ -3346,6 +3554,10 @@ if __name__ == "__main__":
         banner("USERS (USER_…) CANNOT BE USED:", *[f"  {p}" for p in USER_PROBLEMS],
                "Start aborted — fix them and start again.")
         raise SystemExit(1)
+    if CERTWARDEN:
+        print(f"Certificates from Cert Warden ({CERTWARDEN_URL}), fetched again "
+              f"{CERT_CHECK_DAYS} days before they expire", flush=True)
+        certwarden_sync()
     cert, key = tls_ready()
     port = int(os.environ.get("PORT", "443" if cert else "80"))
     print(f"Starting on port {port} {'with' if cert else 'without'} TLS", flush=True)

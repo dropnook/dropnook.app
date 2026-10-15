@@ -262,6 +262,22 @@ files there are links into `archive/`. Without HTTPS in your network at all:
 `TLS_CERT=` (empty), and `CERTS_DIR=` any existing folder without certificates,
 e.g. `/mnt/user/appdata/drop` — otherwise Docker creates the preset one, empty.
 
+**Certificates from Cert Warden?** Then Drop fetches them itself — no folder
+of certificates needed. In the `.env`:
+
+| | |
+|---|---|
+| `CERTWARDEN_ENDPOINT_URL` | Cert Warden's address, e.g. `https://certwarden.example.org` |
+| `CERT_INT_NAME`, `CERT_INT_CERT_API`, `CERT_INT_KEY_API` | drop's certificate: its name in Cert Warden, the certificate's API key, the private key's API key |
+| `CERT_PUB_NAME`, `CERT_PUB_CERT_API`, `CERT_PUB_KEY_API` | drop-share's, the same way — empty when drop's is a wildcard (`*.yourdomain.com`): then one certificate does for both, fetched once |
+| `CERT_CHECK_DAY` | fetch a new one this many days before the current one expires (preset 30) |
+
+`CERTS_DIR` and `TLS_CERT` are not used then (leave `CERTS_DIR` on an existing
+folder). Only drop talks to Cert Warden; drop-share gets its certificate from
+drop and then serves HTTPS on its port 443 as well — point your reverse proxy
+at `https://<SHARE_IP>:443` if you want it encrypted up to drop-share; port 80
+keeps working. The log of drop says what was fetched, never the keys.
+
 **If `auto` does not get a certificate** — on the stack `drop` in the
 *Compose* section, open **Logs** of the container `drop`. Right after the start
 it says what it found, and the fix goes into the `.env` (*Edit Stack* → tab

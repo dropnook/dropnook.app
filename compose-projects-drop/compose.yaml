@@ -42,6 +42,15 @@ services:
       TZ: ${TZ:-}                            # log timestamps only
       WEBUI: ${WEBUI:-}                      # Drop answers to this name (and IPs, local names)
       HOSTS: ${HOSTS:-}                      # more names, if any: drop.example.org, *.example.net
+      # Certificates from Cert Warden instead of CERTS_DIR (drop-share gets its own through drop)
+      CERTWARDEN_ENDPOINT_URL: ${CERTWARDEN_ENDPOINT_URL:-}
+      CERT_INT_NAME: ${CERT_INT_NAME:-}
+      CERT_INT_CERT_API: ${CERT_INT_CERT_API:-}
+      CERT_INT_KEY_API: ${CERT_INT_KEY_API:-}
+      CERT_PUB_NAME: ${CERT_PUB_NAME:-}
+      CERT_PUB_CERT_API: ${CERT_PUB_CERT_API:-}
+      CERT_PUB_KEY_API: ${CERT_PUB_KEY_API:-}
+      CERT_CHECK_DAY: ${CERT_CHECK_DAY:-30}
       # More settings: docs/DEVELOPMENT.md
     volumes:
       # One mount for files/, texts/ and shares/ — hard links need that. Not
