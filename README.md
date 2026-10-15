@@ -97,10 +97,11 @@ listed under [What Drop expects from your reverse proxy](#what-drop-expects-from
 > **Only in your network, without sharing to the internet?** Then one container
 > is enough: in Unraid's *Apps* tab (Community Applications), search for
 > **Dropnook** and install it. It runs `drop` alone with `SHARING=off` — no
-> second address, no reverse proxy, no domain. Drop opens at an address of its
-> own (network type *Custom: br0*, port 80). With *Bridge*, Unraid itself has
-> port 80 — change the port in the template, e.g. to 8088, and open
-> `http://Tower:8088`. Create the share for its files first (step 1). The steps below set up the full stack, with sharing.
+> second address, no reverse proxy, no domain. Drop gets an address of its own
+> in your network (network type *Custom: br0*; put a free address into *Fixed
+> IP address*) and opens at `http://<that address>/`. Rather *Bridge*? Then
+> Unraid itself has port 80 — change the port in the template, e.g. to 8088,
+> and open `http://Tower:8088`. Create the share for its files first (step 1). The steps below set up the full stack, with sharing.
 
 ### 1. Create a new share "drop" on Unraid
 
