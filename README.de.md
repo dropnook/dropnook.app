@@ -101,8 +101,9 @@ steht.
 > Container: in Unraid im Reiter *Apps* (Community Applications) nach
 > **Dropnook** suchen und installieren. Er startet `drop` allein mit
 > `SHARING=off` — ohne zweite Adresse, ohne Reverse Proxy, ohne Domain; Drop
-> öffnet sich dann unter `http://Tower:8088` (Name oder Adresse deines
-> Servers). Den Share für die Dateien vorher anlegen (Schritt 1). Die Schritte
+> öffnet sich unter seiner eigenen Adresse (Netzwerktyp *Custom: br0*, Port 80).
+> Mit *Bridge* hat Unraid selbst Port 80 — dann den Port im Template ändern,
+> z. B. auf 8088, und `http://Tower:8088` öffnen. Den Share für die Dateien vorher anlegen (Schritt 1). Die Schritte
 > unten richten den ganzen Stack ein, mit Teilen.
 
 ### 1. Auf Unraid einen neuen Share „drop“ anlegen
