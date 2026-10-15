@@ -19,7 +19,7 @@ SITE = "https://dropnook.dropnook.app/"
 REPO = "https://github.com/dropnook/dropnook.app"
 WHY = 9      # rows w1..w9 in "Why Dropnook?"
 FEATURES = 9  # cards f1..f9
-FAQ = 6       # q1..q6
+FAQ = 7       # q1..q7
 SHOTS = ["1-overview", "2-share", "3-shares", "4-public", "5-phone", "6-languages", "7-theme",
          "8-colours", "9-users"]
 
