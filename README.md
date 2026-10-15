@@ -148,6 +148,7 @@ On the new stack, **Edit Stack**:
 
 | Value | Preset | What to do |
 |---|---|---|
+| `DROPNOOK_VERSION` | `2` | Leave it — follows every 2.x release; a number such as `2.2.1` pins that version |
 | `DROP_IP`, `SHARE_IP` | empty | **Fill in** the two free addresses |
 | `DATA_DIR` | `/mnt/user/drop` | Only if your share has another name or path |
 | `APPDATA_DIR` | `/mnt/user/appdata/drop` | Translations of your own; may stay empty |
@@ -158,9 +159,8 @@ On the new stack, **Edit Stack**:
 | `TZ` | empty | Optional: time zone of the log, e.g. `Europe/Berlin` |
 | `PIN`, `USER_…` | empty | Optional — see [PIN](#pin-or-password-optional) and [Users](#users-optional) |
 
-Comments go on lines of their own, never behind a value. The image
-(`ghcr.io/dropnook/dropnook:2`, follows every 2.x release) is set in
-`compose.yaml`.
+Comments go on lines of their own, never behind a value. The image is
+`ghcr.io/dropnook/dropnook`, in the version `DROPNOOK_VERSION`.
 
 **Save**. While in *Edit Stack*, tab **Settings** → **Icon URL** gives the stack
 its icon:
@@ -311,7 +311,7 @@ In the Unraid web interface, tab *Docker* → section *Compose* → **Check for
 Updates**, then **Update** on the stack `drop`.
 Your files, texts and shares stay where they are.
 
-`:2` follows every 2.x release — fixes and new languages; should a release
+`DROPNOOK_VERSION=2` follows every 2.x release — fixes and new languages; should a release
 ever need something from you, its release notes say so first. An update
 touches neither `compose.yaml` nor the `.env`. If a release brings a new
 `compose.yaml`, paste it in as a whole (*Edit Stack* → tab **Compose**) — your
