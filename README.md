@@ -102,7 +102,9 @@ listed under [What Drop expects from your reverse proxy](#what-drop-expects-from
 > in your network (network type *Custom: br0*; put a free address into *Fixed
 > IP address*) and opens at `http://<that address>/`. Rather *Bridge*? Then
 > Unraid itself has port 80 — change the port in the template, e.g. to 8088,
-> and open `http://Tower:8088`. Create the share for its files first (step 1). The steps below set up the full stack, with sharing.
+> and open `http://Tower:8088`. For HTTPS (e.g. for video calls), enter a
+> certificate from Cert Warden under *Show more settings*. Create the share for
+> its files first (step 1). The steps below set up the full stack, with sharing.
 
 ### 1. Create a new share "drop" on Unraid
 

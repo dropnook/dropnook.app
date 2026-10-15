@@ -105,8 +105,10 @@ steht.
 > bekommt eine eigene Adresse in deinem Netz (Netzwerktyp *Custom: br0*; eine
 > freie Adresse bei *Fixed IP address* eintragen) und öffnet sich unter
 > `http://<diese Adresse>/`. Lieber *Bridge*? Dann hat Unraid selbst Port 80 —
-> den Port im Template ändern, z. B. auf 8088, und `http://Tower:8088` öffnen. Den Share für die Dateien vorher anlegen (Schritt 1). Die Schritte
-> unten richten den ganzen Stack ein, mit Teilen.
+> den Port im Template ändern, z. B. auf 8088, und `http://Tower:8088` öffnen.
+> Für HTTPS (z. B. für Videoanrufe) unter *Show more settings* ein Zertifikat
+> aus Cert Warden eintragen. Den Share für die Dateien vorher anlegen
+> (Schritt 1). Die Schritte unten richten den ganzen Stack ein, mit Teilen.
 
 ### 1. Auf Unraid einen neuen Share „drop“ anlegen
 
