@@ -446,7 +446,7 @@ cw_drop() {   # cw_drop <key API key>
   docker rm -f ci-cw-drop >/dev/null 2>&1 || true
   docker run -d --name ci-cw-drop --network ci-cw -p 127.0.0.1:18090:443 \
     --cap-drop ALL --cap-add CHOWN --cap-add DAC_OVERRIDE --cap-add FOWNER --cap-add NET_BIND_SERVICE \
-    -e MODE=lan -e CERTWARDEN_ENDPOINT_URL=http://ci-cw:8080 -e CERT_INT_NAME=wild \
+    -e MODE=lan -e CERTWARDEN_ENDPOINT_URL=http://ci-cw:8080/certwarden/app/ -e CERT_INT_NAME=wild \
     -e CERT_INT_CERT_API=certkey -e "CERT_INT_KEY_API=$1" -v "$CW/data:/data" "$IMAGE" >/dev/null
 }
 cw_drop keykey

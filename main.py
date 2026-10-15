@@ -334,6 +334,24 @@ PUB_TLS_DIR = SHARES_DIR / ".tls"               # drop-share's pair
 CW_CHECK_EVERY = 6 * 3600
 
 
+def certwarden_api() -> str:
+    """The download API, whatever address was given: Cert Warden itself
+    (https://host:4050), its app page (…/certwarden/app/) or the API."""
+    base = CERTWARDEN_URL
+    at = re.search(r"/certwarden(/|$)", base)
+    if at:
+        base = base[:at.start()]
+    return base.rstrip("/") + "/certwarden/api/v1/download"
+
+
+def certwarden_missing() -> list:
+    """Cert Warden half set up: which settings are missing (said in the log)."""
+    if not CERTWARDEN_URL and not any(CW_INT):
+        return []
+    names = ["CERTWARDEN_ENDPOINT_URL", "CERT_INT_NAME", "CERT_INT_CERT_API", "CERT_INT_KEY_API"]
+    return [n for n, v in zip(names, (CERTWARDEN_URL, *CW_INT)) if not v]
+
+
 def pem_blocks(text: str, kind: str) -> list:
     return re.findall(r"-----BEGIN [A-Z ]*" + kind + r"-----[A-Za-z0-9+/=\s]+?-----END [A-Z ]*"
                       + kind + r"-----", text)
@@ -362,8 +380,7 @@ def certwarden_fetch(setting: tuple) -> tuple:
     name, cert_api, key_api = setting
     if not re.fullmatch(r"[A-Za-z0-9._~-]+", name):
         raise ValueError(f'"{name}" is not a Cert Warden name')
-    base = CERTWARDEN_URL if "/certwarden/api/" in CERTWARDEN_URL \
-        else CERTWARDEN_URL + "/certwarden/api/v1/download"
+    base = certwarden_api()
     request = urllib.request.Request(f"{base}/privatecertchains/{name}",
                                      headers={"X-API-Key": f"{cert_api}.{key_api}"})
     try:
@@ -3555,9 +3572,13 @@ if __name__ == "__main__":
                "Start aborted — fix them and start again.")
         raise SystemExit(1)
     if CERTWARDEN:
-        print(f"Certificates from Cert Warden ({CERTWARDEN_URL}), fetched again "
+        print(f"Certificates from Cert Warden ({certwarden_api()}), fetched again "
               f"{CERT_CHECK_DAYS} days before they expire", flush=True)
         certwarden_sync()
+    elif certwarden_missing():
+        print(f"Cert Warden not used — missing: {', '.join(certwarden_missing())} "
+              "(with an older compose.yaml none of them reach Drop: take the current one).",
+              flush=True)
     cert, key = tls_ready()
     port = int(os.environ.get("PORT", "443" if cert else "80"))
     print(f"Starting on port {port} {'with' if cert else 'without'} TLS", flush=True)
