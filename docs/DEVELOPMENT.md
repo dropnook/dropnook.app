@@ -10,8 +10,8 @@ Set as environment variables in `compose.yaml`. Your own values come from the
 so `compose.yaml` itself holds none and can be replaced as a whole; Compose
 Manager Plus passes its *.env* tab with `--env-file`, plain `docker compose`
 reads `.env` by itself. Besides the variables below that it passes on
-(`CERTS_DIR`, `TLS_CERT`, `TLS_KEY`, `SHARE_SUBDOMAIN`, `PIN`, `USER_*`, `TZ`,
-`WEBUI`, `HOSTS`), the `.env` holds what only Compose uses: `DROP_IP`,
+(`CERTS_DIR`, `TLS_CERT`, `TLS_KEY`, `CERTWARDEN_ENDPOINT_URL`, `CERT_*`,
+`SHARE_SUBDOMAIN`, `PIN`, `USER_*`, `TZ`, `WEBUI`, `HOSTS`), the `.env` holds what only Compose uses: `DROP_IP`,
 `SHARE_IP` (required), `DATA_DIR` and `APPDATA_DIR`; `WEBUI` is also the
 label for Unraid's *WebUI*. Anything else from the table goes under
 `environment` of `drop`.
@@ -36,6 +36,11 @@ label for Unraid's *WebUI*. Anything else from the table goes under
 | `TLS_KEY` | empty | Path of the private key, only with a path in `TLS_CERT` |
 | `CERTS_DIR` | `/certs` | Where `auto` and a domain look for certificates (`live/*/` and `*/` with `fullchain.pem` + `privkey.pem`) |
 | `TLS_AUTO_NAME` | `drop` | Host name the certificate search looks for: `<name>.<domain>` or `*.<domain>`. One certificate per domain; with several, the one matching the requested name is served (SNI), the longest-lived answers requests by IP |
+| `CERTWARDEN_ENDPOINT_URL` | empty | Cert Warden's address, e.g. `https://certwarden.example.org` (or its full `…/certwarden/api/v1/download`). With it and `CERT_INT_*`, Drop fetches its certificates there instead of `CERTS_DIR`/`TLS_CERT`. `lan` only |
+| `CERT_INT_NAME`, `CERT_INT_CERT_API`, `CERT_INT_KEY_API` | empty | drop's certificate in Cert Warden: its name, the certificate's API key, the private key's API key. Fetched in one request (`privatecertchains`), checked (key fits, not expired) and kept in `/data/.certwarden/` |
+| `CERT_PUB_NAME`, `CERT_PUB_CERT_API`, `CERT_PUB_KEY_API` | empty | drop-share's certificate, the same way; drop fetches it and leaves it in `shares/.tls/` (600, `PUID:PGID`), where drop-share serves HTTPS on `TLS_PORT` with it besides HTTP on `PORT`. Empty or the same name: drop's own, if it covers `SHARE_SUBDOMAIN.<domain>` (a wildcard does) — fetched once |
+| `CERT_CHECK_DAY` | `30` | Fetch again once a certificate has fewer days left. Checked at start and every 6 hours; a new one restarts drop / drop-share for a moment (drop once no upload or call runs) |
+| `TLS_PORT` | `443` | `public` only: HTTPS port when `shares/.tls/` holds a certificate |
 | `HTTPS_HOST` | empty | Target name for the HTTP → HTTPS redirect when a client sends no Host header |
 | `HTTP_REDIRECT_PORT` | `80` | Port of that redirect |
 | `PORT` | `80` / `443` / `8080` | Listening port: `lan` without / with TLS, `public` (compose sets 80) |

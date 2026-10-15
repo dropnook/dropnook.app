@@ -18,9 +18,10 @@ cleanup() {
     echo "--- log drop";       docker logs ci-drop 2>&1 | tail -40 || true
     echo "--- log drop-share"; docker logs ci-drop-share 2>&1 | tail -40 || true
   fi
-  docker rm -f ci-drop ci-drop-share ci-drop-pin ci-drop-users >/dev/null 2>&1 || true
+  docker rm -f ci-drop ci-drop-share ci-drop-pin ci-drop-users ci-cw ci-cw-drop ci-cw-share >/dev/null 2>&1 || true
+  docker network rm ci-cw >/dev/null 2>&1 || true
   # The containers own the files (99:100); remove them from inside.
-  docker run --rm -v "$WORK:/w" --entrypoint rm "$IMAGE" -rf /w/data /w/pin /w/users >/dev/null 2>&1 || true
+  docker run --rm -v "$WORK:/w" --entrypoint rm "$IMAGE" -rf /w/data /w/pin /w/users /w/cw >/dev/null 2>&1 || true
   rm -rf "$WORK" 2>/dev/null || true
 }
 trap cleanup EXIT
@@ -409,6 +410,68 @@ if timeout 60 docker run --rm -e MODE=lan -e 'USER_BLUE=../evil' -v "$WORK/users
   fail "starts with a user name that is a path"
 fi
 check "users: a bad name stops the start"  grep -q "Start aborted" "$WORK/badusers.log"
+
+# ---------------------------------------------------- certificates from Cert Warden
+# A stand-in for Cert Warden's download API serves one wildcard certificate.
+# drop fetches it once, serves HTTPS with it and hands it to drop-share, which
+# then serves HTTPS on 443 too; a wrong key is refused without a certificate.
+CW=$WORK/cw; mkdir -p "$CW/pki" "$CW/data"
+( cd "$CW/pki"
+  openssl req -x509 -newkey rsa:2048 -nodes -keyout ca.key -out ca.pem -days 30 -subj /CN=ci-ca 2>/dev/null
+  openssl req -newkey rsa:2048 -nodes -keyout leaf.key -out leaf.csr -subj /CN=ci.test 2>/dev/null
+  printf 'subjectAltName=DNS:*.ci.test,DNS:ci.test\n' > ext
+  openssl x509 -req -in leaf.csr -CA ca.pem -CAkey ca.key -CAcreateserial -out leaf.crt -days 90 -extfile ext 2>/dev/null
+  cat leaf.key leaf.crt ca.pem > wild.pem )
+cat > "$CW/mock.py" <<'PY'
+import http.server
+hits = 0
+class H(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        global hits
+        if self.path == "/hits":
+            self.send_response(200); self.end_headers(); self.wfile.write(str(hits).encode()); return
+        if self.path != "/certwarden/api/v1/download/privatecertchains/wild":
+            self.send_error(404); return
+        if self.headers.get("X-API-Key") != "certkey.keykey":
+            self.send_error(401); return
+        hits += 1
+        self.send_response(200); self.end_headers(); self.wfile.write(open("/pki/wild.pem", "rb").read())
+    def log_message(self, *a): pass
+http.server.HTTPServer(("0.0.0.0", 8080), H).serve_forever()
+PY
+docker network create ci-cw >/dev/null
+docker run -d --name ci-cw --network ci-cw -v "$CW/mock.py:/mock.py:ro" -v "$CW/pki:/pki:ro" \
+  --entrypoint python "$IMAGE" /mock.py >/dev/null
+cw_drop() {   # cw_drop <key API key>
+  docker rm -f ci-cw-drop >/dev/null 2>&1 || true
+  docker run -d --name ci-cw-drop --network ci-cw -p 127.0.0.1:18090:443 \
+    --cap-drop ALL --cap-add CHOWN --cap-add DAC_OVERRIDE --cap-add FOWNER --cap-add NET_BIND_SERVICE \
+    -e MODE=lan -e CERTWARDEN_ENDPOINT_URL=http://ci-cw:8080 -e CERT_INT_NAME=wild \
+    -e CERT_INT_CERT_API=certkey -e "CERT_INT_KEY_API=$1" -v "$CW/data:/data" "$IMAGE" >/dev/null
+}
+cw_drop keykey
+wait_healthy ci-cw-drop
+check "cert warden: drop serves HTTPS with it" \
+  curl -sf -o /dev/null --resolve drop.ci.test:18090:127.0.0.1 --cacert "$CW/pki/ca.pem" https://drop.ci.test:18090/api/help
+check "cert warden: the keys never in the log" bash -c "! docker logs ci-cw-drop 2>&1 | grep -q keykey"
+check "cert warden: the pair for drop-share"   docker exec ci-cw-drop test -s /data/shares/.tls/fullchain.pem -a -s /data/shares/.tls/privkey.pem
+check "cert warden: key only for 99:100"       test "$(docker exec ci-cw-drop stat -c '%a %u:%g' /data/shares/.tls/privkey.pem)" = "600 99:100"
+docker run -d --name ci-cw-share --network ci-cw -p 127.0.0.1:18091:443 -p 127.0.0.1:18092:80 \
+  --user 99:100 --read-only --cap-drop ALL --tmpfs /tmp:size=16m \
+  --sysctl net.ipv4.ip_unprivileged_port_start=80 -e MODE=public -e PORT=80 \
+  -v "$CW/data/shares:/data/shares:ro" "$IMAGE" >/dev/null
+wait_healthy ci-cw-share
+check "cert warden: drop-share serves HTTPS" \
+  curl -sf -o /dev/null --resolve drop-share.ci.test:18091:127.0.0.1 --cacert "$CW/pki/ca.pem" https://drop-share.ci.test:18091/robots.txt
+check "cert warden: and HTTP for the proxy" test "$(code http://127.0.0.1:18092/robots.txt)" = 200
+docker restart ci-cw-drop >/dev/null; wait_healthy ci-cw-drop
+check "cert warden: fetched once — a wildcard for both, not again after a restart" \
+  test "$(docker exec ci-cw python -c 'import urllib.request; print(urllib.request.urlopen("http://127.0.0.1:8080/hits").read().decode())')" = 1
+docker run --rm -v "$WORK:/w" --entrypoint rm "$IMAGE" -rf /w/cw/data/.certwarden /w/cw/data/shares >/dev/null
+cw_drop wrong
+wait_healthy ci-cw-drop
+check "cert warden: a wrong key — no certificate, said in the log" \
+  bash -c "docker logs ci-cw-drop 2>&1 | grep -q 'answered 401' && ! docker exec ci-cw-drop test -e /data/.certwarden/fullchain.pem"
 
 # ------------------------------------------------- the public part refuses more
 if docker run --rm -e MODE=public -v "$DATA:/data:ro" "$IMAGE" >"$WORK/refused.log" 2>&1; then
