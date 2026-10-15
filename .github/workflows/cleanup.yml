@@ -1,0 +1,47 @@
+# Removes image versions no tag needs any more from ghcr.io/<owner>/dropnook:
+# what the weekly rebuilds, :edge and test builds of branches leave behind.
+# Multi-arch aware — the platform images and attestations of a tagged image
+# stay; afterwards every tagged image is checked to be complete.
+#
+#   every Monday, after the security rebuild
+#   Actions → Clean up images → Run workflow   (optionally a dry run, or tags to remove)
+#
+# Needs the package to give this repository the Admin role
+# (Packages → dropnook → Package settings → Manage Actions access).
+name: Clean up images
+
+on:
+  schedule:
+    - cron: "47 5 * * 1"
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: "Only list what would be deleted"
+        type: boolean
+        default: true
+      delete-tags:
+        description: "Tags to remove as well, comma-separated (e.g. a test build's branch name)"
+        required: false
+        default: ""
+
+permissions:
+  packages: write
+
+concurrency:
+  group: cleanup
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: dataaxiom/ghcr-cleanup-action@v1
+        with:
+          package: dropnook
+          delete-untagged: true
+          delete-tags: ${{ inputs.delete-tags }}
+          exclude-tags: latest,edge,2,2.*,1,1.*
+          delete-ghost-images: true
+          delete-partial-images: true
+          validate: true
+          dry-run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run }}
