@@ -147,6 +147,20 @@ Unraid and can stay.
   HEAD and that the browser marks as coming from elsewhere (`Sec-Fetch-Site`
   other than `same-origin` or `none`) is refused — also from a neighbouring
   subdomain, which the SameSite cookie would let through.
+* **Calls** (2.1): WebRTC between two browsers, `iceServers: []` — no STUN or
+  TURN, so only addresses in the network (or a VPN into it) are tried. `drop`
+  passes on the set-up messages only: a page that can call (HTTPS, and with
+  users the shared area) opens its live updates with `?peer=<secret>` it made
+  up itself; others see a hash of it. `POST /api/call/presence` (name, device,
+  available), `/api/call/invite`, `/api/call/signal` (`accept`, `decline`,
+  `cancel`, `hangup`, `offer`, `answer`, `ice`, `state`, `photo`, at most
+  64 KB each). A secret only works for the user who opened the page. One call
+  per page; unanswered after 45 s it counts as missed; a page whose live
+  updates broke off has 20 s to come back before its call ends. Every call
+  has one audio and one video channel, camera on/off and front/back are
+  `replaceTrack` — no new negotiation. A photo is a JPEG of the large video,
+  uploaded into the shared files like any other. A certificate renewal waits
+  until no call is running. `drop-share` has none of this.
 * **Colour layouts**: `data-palette` on `<html>` (`gold`, `blue`, `violet`,
   `coral`; none = teal) switches the colour tokens in `static/style.css`, each
   in light and dark. With users the server sets the user's colour before the

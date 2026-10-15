@@ -365,6 +365,16 @@ Portuguese, Russian, Spanish and Turkish. To change wording or add a language
 for yourself, put a file into `lang/` in the appdata folder — see
 [`lang/README.md`](lang/README.md).
 
+**Video calls** — the camera button in the header lists the devices that have
+Drop open right now. *Video* or *Voice*: the other one rings and answers with or
+without its camera. During the call: mute, camera off, switch between front and
+back camera, and *Photo* — a picture of the large video, saved to the shared
+files. Picture and sound go straight from device to device (WebRTC); Drop only
+passes on the few messages that set the call up, and nothing leaves your
+network. Calls need [HTTPS](#https-in-your-network) — browsers give camera and
+microphone to nothing else — and are always between two; with
+[users](#users-optional) they belong to the shared area.
+
 **On another device** — the QR button in the header (on computers and tablets)
 shows Drop's address as a QR code: point the phone's camera at it, and the page
 opens there.
@@ -419,6 +429,9 @@ uploads and texts too large to handle.
   is locked for that time.
 * Downloads are always attachments — a shared HTML file never runs in the
   browser. Expired links disappear by themselves.
+* Calls exist only in `drop`: no STUN or TURN server, no recording, nothing
+  through the reverse proxy. A page can only speak for itself in a call — it
+  identifies itself with a secret only it knows.
 
 ### PIN or password (optional)
 
@@ -530,6 +543,8 @@ typing; unsaved text is sent once the connection is back.
   continued for a week. Keep an eye on the free space shown at the top right;
   an upload that does not fit is refused.
 * No uploads from outside. Sharing works in one direction only: out.
+* No calls from outside your network (a VPN into it works), no group calls, no
+  recording.
 
 ## Support Dropnook
 

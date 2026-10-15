@@ -1290,7 +1290,7 @@ async def watch_certificate(paths: list, interval: int = 300) -> None:
     start-up. So: notice the change and exit — `restart: unless-stopped` brings
     the container straight back. Only while no upload is running — one that
     has not moved for UPLOAD_QUIET does not count, or a single abandoned upload
-    would keep the old certificate until it expires."""
+    would keep the old certificate until it expires. Nor during a call."""
     def stamps() -> list:
         out = []
         for path in paths:
@@ -1303,7 +1303,7 @@ async def watch_certificate(paths: list, interval: int = 300) -> None:
     while True:
         await asyncio.sleep(interval)
         now = stamps()
-        if now != last and None not in now and not running_uploads():
+        if now != last and None not in now and not running_uploads() and not calls:
             print("Certificate renewed — restarting so it takes effect.", flush=True)
             os._exit(0)
 
@@ -1397,6 +1397,7 @@ async def lifespan(app: FastAPI):
                 break
         app.state.share_watch = asyncio.create_task(watch_shares())
     app.state.thumb_watch = asyncio.create_task(watch_thumbs())
+    app.state.call_watch = asyncio.create_task(watch_calls())
 
     yield
 
@@ -2011,10 +2012,22 @@ async def state(request: Request) -> JSONResponse:
 @app.get("/api/events")
 async def events(request: Request) -> StreamingResponse:
     queue: asyncio.Queue = asyncio.Queue(maxsize=200)
-    hub.clients[queue] = current_user(request)
+    user = current_user(request)
 
     async def stream():
+        # Registered only once the stream runs: a client gone before that
+        # leaves nothing behind.
+        hub.clients[queue] = user
+        # A page that can call says so with its secret; see Calls below.
+        # Whatever is wrong with that, the page still gets its live updates.
+        peer = None
         try:
+            if "peer" in request.query_params:
+                try:
+                    peer = peer_of(request, request.query_params["peer"], create=True)
+                    peer_connected(peer, queue)
+                except HTTPException:
+                    peer = None
             yield b": connected\n\n"
             while True:
                 if await request.is_disconnected():
@@ -2028,12 +2041,256 @@ async def events(request: Request) -> StreamingResponse:
                 yield f"event: {event}\ndata: {payload}\n\n".encode("utf-8")
         finally:
             hub.clients.pop(queue, None)
+            if peer:
+                peer_disconnected(peer, queue)
 
     return StreamingResponse(stream(), media_type="text/event-stream", headers={
         "cache-control": "no-cache",
         "connection": "keep-alive",
         "x-accel-buffering": "no",
     })
+
+
+# ---- Calls ------------------------------------------------------------------
+#
+# Video and voice calls between two devices in the home network. Picture and
+# sound go straight from one browser to the other (WebRTC, nothing in between
+# in a LAN); Drop only passes on the few messages that set a call up: who is
+# there, the ringing, the answer, and the browsers' connection details. Calls
+# belong to the shared area — with users, a page showing its own area is not
+# reachable. drop-share knows nothing of any of this.
+#
+# Every page that can call makes up a secret for itself and opens its live
+# updates with it (?peer=). Others only ever see a hash of it, so nobody can
+# speak for another page.
+
+CALL_RING = 45                      # seconds until an unanswered call counts as missed
+CALL_GRACE = 20                     # a page without live updates: this long until it is gone …
+CALL_GRACE_LIVE = 10 * 60           # … unless it is in a call: that runs between the browsers
+CALL_PEERS_EACH = 20                # pages per address that can be called
+CALL_SIGNAL_MAX = 64 * 1024         # characters of one message; a session description is a few KB
+CALL_PEERS_MAX = 200
+CALL_NAME_MAX = 40
+CALL_SIGNALS = {"accept", "decline", "cancel", "hangup", "offer", "answer", "ice", "state", "photo"}
+PEER_SECRET = re.compile(r"^[A-Za-z0-9_-]{22,64}$")
+
+
+class Peer:
+    __slots__ = ("id", "user", "address", "name", "device", "available", "queue", "seen", "call")
+
+    def __init__(self, pid: str, user: Optional[User], address: str):
+        self.id, self.user, self.address = pid, user, address
+        self.name = self.device = ""
+        self.available = False
+        self.queue: Optional[asyncio.Queue] = None
+        self.seen = time.time()
+        self.call: Optional[str] = None
+
+
+class Call:
+    __slots__ = ("id", "caller", "callee", "video", "active", "started")
+
+    def __init__(self, caller: Peer, callee: Peer, video: bool):
+        self.id = secrets.token_urlsafe(12)
+        self.caller, self.callee, self.video = caller, callee, video
+        self.active = False
+        self.started = time.time()
+
+    def other(self, peer: Peer) -> Peer:
+        return self.callee if peer is self.caller else self.caller
+
+
+peers: Dict[str, Peer] = {}
+calls: Dict[str, Call] = {}
+invites: Dict[str, list] = {}       # address -> times of its last calls
+
+
+def peer_id(secret: str) -> str:
+    return hashlib.sha256(("peer:" + secret).encode("ascii")).hexdigest()[:20]
+
+
+def same_user(a: Optional[User], b: Optional[User]) -> bool:
+    return (a.palette if a else None) == (b.palette if b else None)
+
+
+def peer_of(request: Request, secret, create: bool = False) -> Peer:
+    """The page a request speaks for — only with its secret, and only for the
+    user who opened it."""
+    if not isinstance(secret, str) or not PEER_SECRET.match(secret):
+        raise HTTPException(400, "Invalid peer")
+    pid, user = peer_id(secret), current_user(request)
+    peer = peers.get(pid)
+    if peer is None:
+        if not create:
+            raise api_error(404, "call_gone", "Not connected")
+        address = request.client.host if request.client else "?"
+        if len(peers) >= CALL_PEERS_MAX or \
+                sum(p.address == address for p in peers.values()) >= CALL_PEERS_EACH:
+            raise HTTPException(503, "Too many pages")
+        peer = peers[pid] = Peer(pid, user, address)
+    elif not same_user(peer.user, user):
+        raise HTTPException(403, "Not your page")
+    return peer
+
+
+def short_text(value, limit: int = CALL_NAME_MAX) -> str:
+    text = " ".join(unicodedata.normalize("NFC", str(value or "")).split())
+    return "".join(ch for ch in text if unicodedata.category(ch)[0] != "C")[:limit]
+
+
+def reachable(peer: Peer) -> bool:
+    return peer.available and peer.queue is not None
+
+
+def peer_card(peer: Peer) -> dict:
+    return {"id": peer.id, "name": peer.name, "device": peer.device,
+            "user": peer.user.name if peer.user else None,
+            "palette": peer.user.palette if peer.user else None,
+            "busy": peer.call is not None}
+
+
+def announce_peers() -> None:
+    """Every page that can call learns who else can — itself left out."""
+    present = [p for p in peers.values() if reachable(p)]
+    for peer in peers.values():
+        if peer.queue is not None:
+            hub.send(peer.queue, "peers",
+                     {"peers": [peer_card(p) for p in present if p is not peer]})
+
+
+def tell(peer: Peer, data: dict) -> None:
+    if peer.queue is not None:
+        hub.send(peer.queue, "call", data)
+
+
+def end_call(call: Call, reason: str, by: Optional[Peer] = None) -> None:
+    if calls.pop(call.id, None) is None:
+        return
+    for peer in (call.caller, call.callee):
+        if peer.call == call.id:
+            peer.call = None
+        if peer is not by:
+            tell(peer, {"type": reason, "call": call.id})
+    announce_peers()
+
+
+def drop_peer(peer: Peer) -> None:
+    if peer.call and peer.call in calls:
+        end_call(calls[peer.call], "hangup", peer)
+    peers.pop(peer.id, None)
+    announce_peers()
+
+
+def peer_connected(peer: Peer, queue: asyncio.Queue) -> None:
+    peer.queue, peer.seen = queue, time.time()
+    hub.send(queue, "peers", {"peers": [peer_card(p) for p in peers.values()
+                                        if reachable(p) and p is not peer]})
+
+
+def peer_disconnected(peer: Peer, queue: asyncio.Queue) -> None:
+    """Live updates break off now and then (a phone locks its screen, Wi-Fi
+    changes). The page is given CALL_GRACE to come back — in a call that has
+    been answered CALL_GRACE_LIVE, as the call itself runs between the
+    browsers."""
+    if peer.queue is queue:
+        peer.queue, peer.seen = None, time.time()
+        announce_peers()
+
+
+async def watch_calls(interval: int = 5) -> None:
+    while True:
+        await asyncio.sleep(interval)
+        now = time.time()
+        for call in list(calls.values()):
+            if not call.active and now - call.started > CALL_RING:
+                end_call(call, "missed")
+        for address in [a for a, times in invites.items() if all(now - t > 60 for t in times)]:
+            invites.pop(address, None)
+        for peer in list(peers.values()):
+            live = peer.call in calls and calls[peer.call].active
+            if peer.queue is None and now - peer.seen > (CALL_GRACE_LIVE if live else CALL_GRACE):
+                drop_peer(peer)
+
+
+@app.post("/api/call/presence")
+async def call_presence(request: Request) -> JSONResponse:
+    """A page says what it is called and whether it can be called right now:
+    over HTTPS (browsers give camera and microphone to nothing else), showing
+    the shared area, the page open."""
+    body = await json_body(request)
+    if not isinstance(body, dict):
+        raise HTTPException(400, "Expected an object")
+    peer = peer_of(request, body.get("peer"))
+    before = (peer.name, peer.device, peer.available)
+    peer.name = short_text(body.get("name"))
+    peer.device = short_text(body.get("device"))
+    peer.available = body.get("available") is True
+    # The page says which call it is in. A call it no longer has — its
+    # hang-up got lost on the way — ends here, or both would stay busy.
+    if peer.call and peer.call in calls and "call" in body and body["call"] is None:
+        end_call(calls[peer.call], "hangup", peer)
+    if (peer.name, peer.device, peer.available) != before:
+        announce_peers()
+    return JSONResponse({"id": peer.id, "call": peer.call})
+
+
+@app.post("/api/call/invite")
+async def call_invite(request: Request) -> JSONResponse:
+    body = await json_body(request)
+    if not isinstance(body, dict):
+        raise HTTPException(400, "Expected an object")
+    caller = peer_of(request, body.get("peer"))
+    callee = peers.get(str(body.get("to", "")))
+    if callee is None or callee is caller or not reachable(callee) or not reachable(caller):
+        raise api_error(404, "call_gone", "Not available")
+    now = time.time()
+    recent = invites[caller.address] = [t for t in invites.get(caller.address, []) if now - t < 60]
+    if len(recent) >= 10:
+        raise api_error(429, "call_too_many", "Too many calls")
+    if caller.call or callee.call:
+        raise api_error(409, "call_busy", "Busy")
+    recent.append(now)
+    call = Call(caller, callee, body.get("video") is True)
+    calls[call.id] = call
+    caller.call = callee.call = call.id
+    tell(callee, {"type": "invite", "call": call.id, "video": call.video,
+                  "from": peer_card(caller)})
+    announce_peers()
+    return JSONResponse({"call": call.id, "ring": CALL_RING})
+
+
+@app.post("/api/call/signal")
+async def call_signal(request: Request) -> JSONResponse:
+    """Passes a message on to the other side of the call. What is in it — the
+    browsers' session descriptions and addresses — is theirs; Drop only checks
+    who may send what, and how much."""
+    body = await json_body(request)
+    if not isinstance(body, dict):
+        raise HTTPException(400, "Expected an object")
+    peer = peer_of(request, body.get("peer"))
+    call = calls.get(str(body.get("call", "")))
+    kind = body.get("type")
+    if call is None or peer not in (call.caller, call.callee):
+        raise api_error(404, "call_gone", "No such call")
+    if kind not in CALL_SIGNALS:
+        raise HTTPException(400, "Unknown message")
+    data = body.get("data")
+    if len(json.dumps(data)) > CALL_SIGNAL_MAX:
+        raise HTTPException(413, "Message too large")
+    if kind in ("decline", "cancel", "hangup"):
+        if kind == "decline" and peer is not call.callee:
+            raise HTTPException(400, "Only the one called can decline")
+        end_call(call, kind, peer)
+        return JSONResponse({"ok": True})
+    if kind == "accept":
+        if peer is not call.callee or call.active:
+            raise HTTPException(409, "Not ringing")
+        call.active = True
+        announce_peers()
+    elif not call.active:
+        raise HTTPException(409, "Not answered yet")
+    tell(call.other(peer), {"type": kind, "call": call.id, "data": data})
+    return JSONResponse({"ok": True})
 
 
 # ---- Text fields ------------------------------------------------------------
