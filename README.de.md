@@ -1,7 +1,8 @@
 <h1>
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/title-dark.svg">
-    <img src="docs/title-light.svg" alt="Dropnook" height="44">
+    <source media="(prefers-color-scheme: light)" srcset="docs/title-light.svg">
+    <img src="docs/title.svg" alt="Dropnook" height="44">
   </picture>
 </h1>
 
@@ -69,7 +70,7 @@ auf jedem anderen Linux-Rechner mit Docker Compose: siehe
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/diagram/architecture-de-dark.webp">
-    <img src="docs/diagram/architecture-de-light.webp" alt="Architektur: Geräte im Heimnetz erreichen drop direkt unter drop.deinedomain.com, dessen DNS-Eintrag auf die LAN-Adresse von drop zeigt. drop und das optionale drop-share laufen als zwei getrennte Container mit je eigener LAN-Adresse (br0, macvlan); gemeinsam haben sie nur shares/. drop antwortet nur im Heimnetz und weist alles mit Proxy-Headern oder von öffentlichen IPs ab; es liest und schreibt den ganzen Daten-Share. drop-share liefert nur Freigabe-Links, nur über deinen Reverse Proxy, und liest nur shares/. Eine geteilte Datei ist ein Hardlink in shares/ — keine Kopie. Eine Firewall trennt das Internet von allem anderen; ihre einzige Tür führt über deinen Reverse Proxy zu drop-share auf Port 80 — zu drop gibt es keine." width="100%">
+    <img src="docs/diagram/architecture-de-light.webp" alt="Architektur: Geräte im Heimnetz erreichen drop direkt unter drop.deinedomain.com, dessen DNS-Eintrag auf die LAN-Adresse von drop zeigt. drop und das optionale drop-share laufen als zwei getrennte Container mit je eigener IP-Adresse im Heimnetz; gemeinsam haben sie nur shares/. drop antwortet nur im Heimnetz und weist alles mit Proxy-Headern oder von öffentlichen IPs ab; es liest und schreibt den ganzen Daten-Share. drop-share liefert nur Freigabe-Links, nur über deinen Reverse Proxy, und liest nur shares/. Eine geteilte Datei ist ein Hardlink in shares/ — keine Kopie. Eine Firewall trennt das Internet von allem anderen; ihre einzige Tür führt über deinen Reverse Proxy zu drop-share auf Port 80 — zu drop gibt es keine." width="100%">
   </picture>
 </p>
 
@@ -277,6 +278,23 @@ Ganz ohne HTTPS im Heimnetz: `TLS_CERT=` (leer), und `CERTS_DIR=` ein
 bestehender Ordner ohne Zertifikate, z. B. `/mnt/user/appdata/drop` — sonst legt
 Docker den vorgegebenen leer an.
 
+**Zertifikate aus Cert Warden?** Dann holt Drop sie selbst — ein Ordner mit
+Zertifikaten ist nicht nötig. In der `.env`:
+
+| | |
+|---|---|
+| `CERTWARDEN_ENDPOINT_URL` | Adresse von Cert Warden, z. B. `https://certwarden.example.org` |
+| `CERT_INT_NAME`, `CERT_INT_CERT_API`, `CERT_INT_KEY_API` | Zertifikat von drop: Name in Cert Warden, API-Key des Zertifikats, API-Key des privaten Schlüssels |
+| `CERT_PUB_NAME`, `CERT_PUB_CERT_API`, `CERT_PUB_KEY_API` | das von drop-share, genauso — leer, wenn das von drop ein Wildcard ist (`*.deinedomain.ch`): dann gilt eines für beide und wird nur einmal geholt |
+| `CERT_CHECK_DAY` | so viele Tage vor Ablauf ein neues holen (vorgegeben 30) |
+
+`CERTS_DIR` und `TLS_CERT` werden dann nicht verwendet (`CERTS_DIR` auf einem
+bestehenden Ordner lassen). Nur drop spricht mit Cert Warden; drop-share bekommt
+sein Zertifikat von drop und spricht dann zusätzlich HTTPS auf Port 443 — den
+Reverse Proxy auf `https://<SHARE_IP>:443` zeigen lassen, wenn es bis zu
+drop-share verschlüsselt sein soll; Port 80 geht weiterhin. Im Log von drop
+steht, was geholt wurde, nie die Keys.
+
 **Wenn `auto` kein Zertifikat findet** — im Bereich *Compose* beim Stack `drop`
 die **Logs** des Containers `drop` öffnen. Direkt nach dem Start steht dort, was
 Drop gefunden hat. Die Lösung kommt in die `.env` (*Edit Stack* → Reiter
@@ -387,6 +405,17 @@ Türkisch. Um Texte zu ändern oder eine Sprache für dich hinzuzufügen, legst 
 eine Datei in `lang/` im appdata-Ordner ab — siehe
 [`lang/README.md`](lang/README.md).
 
+**Videoanrufe** — der Kamera-Knopf oben zeigt die Geräte, auf denen Drop gerade
+offen ist. *Video* oder *Nur Ton*: Das andere Gerät klingelt und nimmt mit oder
+ohne Kamera an. Während des Gesprächs: stumm schalten, Kamera aus, zwischen
+vorderer und hinterer Kamera wechseln, und *Foto* — ein Bild des grossen Videos,
+gespeichert in den gemeinsamen Dateien. Bild und Ton gehen direkt von Gerät zu
+Gerät (WebRTC); Drop reicht nur die paar Nachrichten weiter, die den Anruf
+aufbauen, und nichts verlässt dein Netz. Anrufe brauchen
+[HTTPS](#https-im-heimnetz) — Kamera und Mikrofon geben Browser sonst nicht
+frei — und gehen immer zu zweit; mit [Benutzern](#benutzer-optional) gehören sie
+in den Bereich „Gemeinsam“.
+
 **Auf einem anderen Gerät** — der QR-Knopf oben (auf Computer und Tablet) zeigt
 die Adresse von Drop als QR-Code: Handy-Kamera darauf richten, und die Seite
 öffnet sich dort.
@@ -444,6 +473,9 @@ grosse Uploads und Texte.
   Minuten ist ein Link für diese Zeit gesperrt.
 * Downloads sind immer Anhänge — eine geteilte HTML-Datei läuft nie im Browser.
   Abgelaufene Links verschwinden von selbst.
+* Anrufe gibt es nur in `drop`: kein STUN- oder TURN-Server, keine Aufzeichnung,
+  nichts über den Reverse Proxy. Eine Seite kann im Anruf nur für sich selbst
+  sprechen — sie weist sich mit einem Geheimnis aus, das nur sie kennt.
 
 ### PIN oder Passwort (optional)
 
@@ -562,6 +594,8 @@ ungespeicherter Text wird nachgeschickt, sobald die Verbindung zurück ist.
   Uploads, die eine Woche lang niemand fortgesetzt hat. Den freien Platz oben
   rechts im Auge behalten; ein Upload, der nicht passt, wird abgelehnt.
 * Keine Uploads von aussen. Teilen geht nur in eine Richtung: hinaus.
+* Keine Anrufe von ausserhalb deines Netzes (per VPN hinein geht es), keine
+  Gruppenanrufe, keine Aufzeichnung.
 
 ## Dropnook unterstützen
 

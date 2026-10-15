@@ -18,7 +18,7 @@ const T = {
     devices: 'Computers and phones', devicesSub: 'at home or via VPN',
     dns: 'DNS — at your domain hoster', dnsLan: 'LAN address of drop', dnsPub: 'your public IP',
     dnsNote: 'A private address in public DNS is harmless. Router blocks it? Allow the name in its DNS rebind protection.',
-    br0: '<b>br0</b> · macvlan', br0Sub: 'drop and drop-share each with a LAN address of their own — like two devices on your network',
+    addr: 'Two separate IP addresses', addrSub: 'like two devices on your network',
     c1: 'container 1', c2: 'container 2 · optional',
     dropSub: '192.168.1.20 · :443 HTTPS',
     dropSpec: [['net', 'your network only'], ['guard', 'proxy headers or public IP → 404'],
@@ -26,7 +26,7 @@ const T = {
                ['sign-in', 'PIN or users (optional)']],
     shareSub: '192.168.1.21 · :80 HTTP',
     shareSpec: [['net', 'only through your reverse proxy'], ['serves', 'only /&lt;link&gt; — else 404'],
-                ['sees', 'shares/ only, read-only'], ['check', 'files/ or texts/ visible → no start']],
+                ['sees', 'shares/ only, read-only']],
     shareOff: 'SHARING=off — and it is not needed at all',
     wall: 'walled off · shares/ in common',
     store: 'Unraid share <b>drop</b> → /data', storeSub: 'one mount — hard links only work within it',
@@ -46,7 +46,7 @@ const T = {
     devices: 'Computer und Handys', devicesSub: 'zu Hause oder per VPN',
     dns: 'DNS — beim Domain-Hoster', dnsLan: 'LAN-Adresse von drop', dnsPub: 'deine öffentliche IP',
     dnsNote: 'Eine private Adresse im öffentlichen DNS schadet nicht. Blockt der Router? Den Namen beim DNS-Rebind-Schutz erlauben.',
-    br0: '<b>br0</b> · macvlan', br0Sub: 'drop und drop-share je mit eigener LAN-Adresse — wie zwei Geräte im Netz',
+    addr: 'Zwei getrennte IP-Adressen', addrSub: 'wie zwei Geräte im Heimnetz',
     c1: 'Container 1', c2: 'Container 2 · optional',
     dropSub: '192.168.1.20 · :443 HTTPS',
     dropSpec: [['netz', 'nur im Heimnetz'], ['schutz', 'Proxy-Header oder öffentliche IP → 404'],
@@ -54,7 +54,7 @@ const T = {
                ['login', 'PIN oder Benutzer (optional)']],
     shareSub: '192.168.1.21 · :80 HTTP',
     shareSpec: [['netz', 'nur über deinen Reverse Proxy'], ['liefert', 'nur /&lt;Link&gt; — sonst 404'],
-                ['sieht', 'nur shares/, nur lesend'], ['check', 'files/ oder texts/ sichtbar → Abbruch']],
+                ['sieht', 'nur shares/, nur lesend']],
     shareOff: 'SHARING=off — dann braucht es ihn gar nicht',
     wall: 'getrennt · gemeinsam nur shares/',
     store: 'Unraid-Share <b>drop</b> → /data', storeSub: 'ein Mount — Hardlinks gehen nur innerhalb',
@@ -140,7 +140,10 @@ function page(t, c) {
       <b>drop-share</b> A 203.0.113.7<br><span style="color:${c.pub}">↳ ${t.dnsPub}</span></div>
     <div class="note">${t.dnsNote}</div></div>
   <div class="card" style="left:46px;top:718px;width:252px;height:134px">
-    <div style="font-size:16px">${t.br0}</div><div class="sub">${t.br0Sub}</div></div>
+    <h4>${t.addr}</h4>
+    <div class="dns"><b>drop</b>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:${c.lan}">192.168.1.20</span><br>
+      <b>drop-share</b> <span style="color:${c.pub}">192.168.1.21</span></div>
+    <div class="note">${t.addrSub}</div></div>
 
   <div class="sandbox" style="left:372px;top:140px;width:412px;height:256px;border-color:${c.lan}99;background:${c.lanSoft}">
     <span class="tag" style="color:${c.lan}">${t.c1}</span>

@@ -1,7 +1,8 @@
 <h1>
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/title-dark.svg">
-    <img src="docs/title-light.svg" alt="Dropnook" height="44">
+    <source media="(prefers-color-scheme: light)" srcset="docs/title-light.svg">
+    <img src="docs/title.svg" alt="Dropnook" height="44">
   </picture>
 </h1>
 
@@ -67,7 +68,7 @@ host with Docker Compose, too: see [Without Unraid](docs/DEVELOPMENT.md#without-
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/diagram/architecture-en-dark.webp">
-    <img src="docs/diagram/architecture-en-light.webp" alt="Architecture: devices in your network reach drop directly at drop.yourdomain.com, whose DNS entry points to drop's LAN address. drop and the optional drop-share run as two separate containers, each with a LAN address of its own (br0, macvlan), walled off from each other with only shares/ in common. drop answers your network only and refuses anything with proxy headers or from a public IP; it reads and writes the whole data share. drop-share serves only share links, only through your reverse proxy, and reads only shares/. A shared file is a hard link in shares/ — no copy. A firewall separates the internet from everything else; its only door leads through your reverse proxy to drop-share on port 80 — there is none to drop." width="100%">
+    <img src="docs/diagram/architecture-en-light.webp" alt="Architecture: devices in your network reach drop directly at drop.yourdomain.com, whose DNS entry points to drop's LAN address. drop and the optional drop-share run as two separate containers, each with an IP address of its own in your network, walled off from each other with only shares/ in common. drop answers your network only and refuses anything with proxy headers or from a public IP; it reads and writes the whole data share. drop-share serves only share links, only through your reverse proxy, and reads only shares/. A shared file is a hard link in shares/ — no copy. A firewall separates the internet from everything else; its only door leads through your reverse proxy to drop-share on port 80 — there is none to drop." width="100%">
   </picture>
 </p>
 
@@ -270,6 +271,22 @@ files there are links into `archive/`. Without HTTPS in your network at all:
 `TLS_CERT=` (empty), and `CERTS_DIR=` any existing folder without certificates,
 e.g. `/mnt/user/appdata/drop` — otherwise Docker creates the preset one, empty.
 
+**Certificates from Cert Warden?** Then Drop fetches them itself — no folder
+of certificates needed. In the `.env`:
+
+| | |
+|---|---|
+| `CERTWARDEN_ENDPOINT_URL` | Cert Warden's address, e.g. `https://certwarden.example.org` |
+| `CERT_INT_NAME`, `CERT_INT_CERT_API`, `CERT_INT_KEY_API` | drop's certificate: its name in Cert Warden, the certificate's API key, the private key's API key |
+| `CERT_PUB_NAME`, `CERT_PUB_CERT_API`, `CERT_PUB_KEY_API` | drop-share's, the same way — empty when drop's is a wildcard (`*.yourdomain.com`): then one certificate does for both, fetched once |
+| `CERT_CHECK_DAY` | fetch a new one this many days before the current one expires (preset 30) |
+
+`CERTS_DIR` and `TLS_CERT` are not used then (leave `CERTS_DIR` on an existing
+folder). Only drop talks to Cert Warden; drop-share gets its certificate from
+drop and then serves HTTPS on its port 443 as well — point your reverse proxy
+at `https://<SHARE_IP>:443` if you want it encrypted up to drop-share; port 80
+keeps working. The log of drop says what was fetched, never the keys.
+
 **If `auto` does not get a certificate** — on the stack `drop` in the
 *Compose* section, open **Logs** of the container `drop`. Right after the start
 it says what it found, and the fix goes into the `.env` (*Edit Stack* → tab
@@ -373,6 +390,16 @@ Portuguese, Russian, Spanish and Turkish. To change wording or add a language
 for yourself, put a file into `lang/` in the appdata folder — see
 [`lang/README.md`](lang/README.md).
 
+**Video calls** — the camera button in the header lists the devices that have
+Drop open right now. *Video* or *Voice*: the other one rings and answers with or
+without its camera. During the call: mute, camera off, switch between front and
+back camera, and *Photo* — a picture of the large video, saved to the shared
+files. Picture and sound go straight from device to device (WebRTC); Drop only
+passes on the few messages that set the call up, and nothing leaves your
+network. Calls need [HTTPS](#https-in-your-network) — browsers give camera and
+microphone to nothing else — and are always between two; with
+[users](#users-optional) they belong to the shared area.
+
 **On another device** — the QR button in the header (on computers and tablets)
 shows Drop's address as a QR code: point the phone's camera at it, and the page
 opens there.
@@ -427,6 +454,9 @@ uploads and texts too large to handle.
   is locked for that time.
 * Downloads are always attachments — a shared HTML file never runs in the
   browser. Expired links disappear by themselves.
+* Calls exist only in `drop`: no STUN or TURN server, no recording, nothing
+  through the reverse proxy. A page can only speak for itself in a call — it
+  identifies itself with a secret only it knows.
 
 ### PIN or password (optional)
 
@@ -538,6 +568,8 @@ typing; unsaved text is sent once the connection is back.
   continued for a week. Keep an eye on the free space shown at the top right;
   an upload that does not fit is refused.
 * No uploads from outside. Sharing works in one direction only: out.
+* No calls from outside your network (a VPN into it works), no group calls, no
+  recording.
 
 ## Support Dropnook
 

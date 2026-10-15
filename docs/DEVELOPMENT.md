@@ -10,8 +10,8 @@ Set as environment variables in `compose.yaml`. Your own values come from the
 so `compose.yaml` itself holds none and can be replaced as a whole; Compose
 Manager Plus passes its *.env* tab with `--env-file`, plain `docker compose`
 reads `.env` by itself. Besides the variables below that it passes on
-(`CERTS_DIR`, `TLS_CERT`, `TLS_KEY`, `SHARE_SUBDOMAIN`, `PIN`, `USER_*`, `TZ`,
-`WEBUI`, `HOSTS`), the `.env` holds what only Compose uses: `DROP_IP`,
+(`CERTS_DIR`, `TLS_CERT`, `TLS_KEY`, `CERTWARDEN_ENDPOINT_URL`, `CERT_*`,
+`SHARE_SUBDOMAIN`, `PIN`, `USER_*`, `TZ`, `WEBUI`, `HOSTS`), the `.env` holds what only Compose uses: `DROP_IP`,
 `SHARE_IP` (required), `DATA_DIR` and `APPDATA_DIR`; `WEBUI` is also the
 label for Unraid's *WebUI*. Anything else from the table goes under
 `environment` of `drop`.
@@ -36,6 +36,11 @@ label for Unraid's *WebUI*. Anything else from the table goes under
 | `TLS_KEY` | empty | Path of the private key, only with a path in `TLS_CERT` |
 | `CERTS_DIR` | `/certs` | Where `auto` and a domain look for certificates (`live/*/` and `*/` with `fullchain.pem` + `privkey.pem`) |
 | `TLS_AUTO_NAME` | `drop` | Host name the certificate search looks for: `<name>.<domain>` or `*.<domain>`. One certificate per domain; with several, the one matching the requested name is served (SNI), the longest-lived answers requests by IP |
+| `CERTWARDEN_ENDPOINT_URL` | empty | Cert Warden's address, e.g. `https://certwarden.example.org` (or its full `…/certwarden/api/v1/download`). With it and `CERT_INT_*`, Drop fetches its certificates there instead of `CERTS_DIR`/`TLS_CERT`. `lan` only |
+| `CERT_INT_NAME`, `CERT_INT_CERT_API`, `CERT_INT_KEY_API` | empty | drop's certificate in Cert Warden: its name, the certificate's API key, the private key's API key. Fetched in one request (`privatecertchains`), checked (key fits, not expired) and kept in `/data/.certwarden/` |
+| `CERT_PUB_NAME`, `CERT_PUB_CERT_API`, `CERT_PUB_KEY_API` | empty | drop-share's certificate, the same way; drop fetches it and leaves it in `shares/.tls/` (600, `PUID:PGID`), where drop-share serves HTTPS on `TLS_PORT` with it besides HTTP on `PORT`. Empty or the same name: drop's own, if it covers `SHARE_SUBDOMAIN.<domain>` (a wildcard does) — fetched once |
+| `CERT_CHECK_DAY` | `30` | Fetch again once a certificate has fewer days left. Checked at start and every 6 hours; a new one restarts drop / drop-share for a moment (drop once no upload or call runs) |
+| `TLS_PORT` | `443` | `public` only: HTTPS port when `shares/.tls/` holds a certificate |
 | `HTTPS_HOST` | empty | Target name for the HTTP → HTTPS redirect when a client sends no Host header |
 | `HTTP_REDIRECT_PORT` | `80` | Port of that redirect |
 | `PORT` | `80` / `443` / `8080` | Listening port: `lan` without / with TLS, `public` (compose sets 80) |
@@ -57,18 +62,18 @@ runs on any Linux host with Docker. Put it in a folder of its own, next to it a
 three things:
 
 * **Network.** `br0` is Unraid's network for containers with their own LAN
-  address. Elsewhere, create one like it once (macvlan on your network card,
+  address. Elsewhere, create one like it once (ipvlan on your network card,
   with your LAN's subnet and gateway) and keep the name, or rename it in the
   file:
 
   ```sh
-  docker network create -d macvlan --subnet 192.168.1.0/24 --gateway 192.168.1.1 \
-    -o parent=eth0 br0
+  docker network create -d ipvlan --subnet 192.168.1.0/24 --gateway 192.168.1.1 \
+    -o parent=eth0 -o ipvlan_mode=l2 br0
   ```
 
-  The host itself cannot reach macvlan addresses — a reverse proxy on the same
-  host needs its own address in that network, or reaches `drop-share` from
-  another machine.
+  The host itself cannot reach these container addresses — a reverse proxy on
+  the same host needs its own address in that network, or reaches `drop-share`
+  from another machine.
 * **Server name.** Remove the `/boot/config/ident.cfg` line and set
   `SERVER_NAME: <name>` (or `APP_NAME`) under `environment` of `drop`.
 * **Data folder.** `DATA_DIR` must exist before the first start (Drop does not
@@ -147,6 +152,20 @@ Unraid and can stay.
   HEAD and that the browser marks as coming from elsewhere (`Sec-Fetch-Site`
   other than `same-origin` or `none`) is refused — also from a neighbouring
   subdomain, which the SameSite cookie would let through.
+* **Calls** (2.1): WebRTC between two browsers, `iceServers: []` — no STUN or
+  TURN, so only addresses in the network (or a VPN into it) are tried. `drop`
+  passes on the set-up messages only: a page that can call (HTTPS, and with
+  users the shared area) opens its live updates with `?peer=<secret>` it made
+  up itself; others see a hash of it. `POST /api/call/presence` (name, device,
+  available), `/api/call/invite`, `/api/call/signal` (`accept`, `decline`,
+  `cancel`, `hangup`, `offer`, `answer`, `ice`, `state`, `photo`, at most
+  64 KB each). A secret only works for the user who opened the page. One call
+  per page; unanswered after 45 s it counts as missed; a page whose live
+  updates broke off has 20 s to come back before its call ends. Every call
+  has one audio and one video channel, camera on/off and front/back are
+  `replaceTrack` — no new negotiation. A photo is a JPEG of the large video,
+  uploaded into the shared files like any other. A certificate renewal waits
+  until no call is running. `drop-share` has none of this.
 * **Colour layouts**: `data-palette` on `<html>` (`gold`, `blue`, `violet`,
   `coral`; none = teal) switches the colour tokens in `static/style.css`, each
   in light and dark. With users the server sets the user's colour before the
@@ -169,7 +188,7 @@ Unraid and can stay.
 docker build -t drop:local .
 ```
 
-Then set the `x-image` line at the top of `compose.yaml` to `drop:local`. To try changes without
+Then set both `image:` lines in `compose.yaml` to `drop:local`. To try changes without
 building, mount your copy of the repository over `/app`: the web page files are
 read on every reload, `main.py` needs a restart of the container.
 

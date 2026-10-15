@@ -301,13 +301,202 @@ def find_certificates(only: str = "") -> list:
     return chosen
 
 
+# ---------------------------------------------------------------- Cert Warden
+#
+# Instead of a folder of certificates, Drop can fetch its own from Cert Warden
+# (certwarden.com): CERTWARDEN_ENDPOINT_URL plus, per certificate, its name and
+# the API keys of certificate and private key. "int" is drop's certificate in
+# your network, "pub" the one drop-share serves HTTPS with. Without pub
+# settings — or with the same name — one certificate does for both, if it
+# covers drop-share's name (a wildcard does), and it is fetched once. Only
+# drop talks to Cert Warden; drop-share finds its pair in shares/.tls/,
+# read-only like everything else it sees. A certificate is fetched again once
+# it has fewer than CERT_CHECK_DAY days left.
+
+CERTWARDEN_URL = os.environ.get("CERTWARDEN_ENDPOINT_URL", "").strip().rstrip("/")
+
+
+def certwarden_setting(kind: str) -> tuple:
+    """(name, certificate API key, key API key) of CERT_INT_… or CERT_PUB_…"""
+    get = lambda part: os.environ.get(f"CERT_{kind}_{part}", "").strip()
+    return get("NAME"), get("CERT_API"), get("KEY_API")
+
+
+CW_INT = certwarden_setting("INT")
+CW_PUB = certwarden_setting("PUB")
+CERTWARDEN = bool(CERTWARDEN_URL and all(CW_INT)) and not PUBLIC
+try:
+    CERT_CHECK_DAYS = max(1, int(os.environ.get("CERT_CHECK_DAY", "") or 30))
+except ValueError:
+    CERT_CHECK_DAYS = 30
+CW_INT_DIR = FILES_DIR.parent / ".certwarden"   # drop's own pair, beside the files, never in a share
+PUB_TLS_DIR = SHARES_DIR / ".tls"               # drop-share's pair
+CW_CHECK_EVERY = 6 * 3600
+
+
+def certwarden_api() -> str:
+    """The download API, whatever address was given: Cert Warden itself
+    (https://host:4050), its app page (…/certwarden/app/) or the API."""
+    base = CERTWARDEN_URL
+    at = re.search(r"/certwarden(/|$)", base)
+    if at:
+        base = base[:at.start()]
+    return base.rstrip("/") + "/certwarden/api/v1/download"
+
+
+def certwarden_missing() -> list:
+    """Cert Warden half set up: which settings are missing (said in the log)."""
+    if not CERTWARDEN_URL and not any(CW_INT):
+        return []
+    names = ["CERTWARDEN_ENDPOINT_URL", "CERT_INT_NAME", "CERT_INT_CERT_API", "CERT_INT_KEY_API"]
+    return [n for n, v in zip(names, (CERTWARDEN_URL, *CW_INT)) if not v]
+
+
+def pem_blocks(text: str, kind: str) -> list:
+    return re.findall(r"-----BEGIN [A-Z ]*" + kind + r"-----[A-Za-z0-9+/=\s]+?-----END [A-Z ]*"
+                      + kind + r"-----", text)
+
+
+def cert_facts(path: Path) -> Optional[tuple]:
+    """(expires, [names]) of the first certificate in a file, or None."""
+    try:
+        info = ssl._ssl._test_decode_cert(str(path))
+        return (ssl.cert_time_to_seconds(info["notAfter"]),
+                [n.lower() for kind, n in info.get("subjectAltName", ()) if kind == "DNS"])
+    except (OSError, ValueError, KeyError, AttributeError, ssl.SSLError):
+        return None
+
+
+def pair_in(folder: Path) -> Optional[tuple]:
+    cert, key = folder / "fullchain.pem", folder / "privkey.pem"
+    return (str(cert), str(key)) if cert.is_file() and key.is_file() else None
+
+
+def certwarden_fetch(setting: tuple) -> tuple:
+    """Downloads key, certificate and chain of one certificate in one request
+    (Cert Warden's privatecertchains, API key "<cert key>.<key key>") and
+    checks that they belong together. Returns (chain PEM, key PEM)."""
+    import urllib.request
+    name, cert_api, key_api = setting
+    if not re.fullmatch(r"[A-Za-z0-9._~-]+", name):
+        raise ValueError(f'"{name}" is not a Cert Warden name')
+    base = certwarden_api()
+    request = urllib.request.Request(f"{base}/privatecertchains/{name}",
+                                     headers={"X-API-Key": f"{cert_api}.{key_api}"})
+    try:
+        with urllib.request.urlopen(request, timeout=30) as reply:
+            text = reply.read(1024 * 1024).decode("ascii", "replace")
+    except urllib.error.HTTPError as error:
+        raise ValueError(f"Cert Warden answered {error.code} for {name} (name or API keys?)")
+    except (OSError, ValueError) as error:
+        raise ValueError(f"Cert Warden not reachable: {getattr(error, 'reason', error)}")
+    keys, certs = pem_blocks(text, "PRIVATE KEY"), pem_blocks(text, "CERTIFICATE")
+    if len(keys) != 1 or not certs:
+        raise ValueError(f"no certificate with its key in Cert Warden's answer for {name}")
+    chain, key = "\n".join(certs) + "\n", keys[0] + "\n"
+    with tempfile.TemporaryDirectory(dir=str(FILES_DIR.parent)) as tmp:
+        (Path(tmp) / "c").write_text(chain)
+        (Path(tmp) / "k").write_text(key)
+        try:
+            ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER).load_cert_chain(Path(tmp) / "c", Path(tmp) / "k")
+        except ssl.SSLError:
+            raise ValueError(f"key and certificate of {name} do not belong together")
+        facts = cert_facts(Path(tmp) / "c")
+    if not facts or facts[0] < time.time():
+        raise ValueError(f"the certificate {name} has expired")
+    return chain, key
+
+
+def store_pair(folder: Path, chain: str, key: str) -> bool:
+    """Writes a pair unless it is already there. Key first, certificate last —
+    whoever watches the certificate finds the matching key in place. Both
+    belong to PUID:PGID with mode 600: drop-share runs as that user."""
+    pair = pair_in(folder)
+    if pair and Path(pair[0]).read_text() == chain and Path(pair[1]).read_text() == key:
+        return False
+    folder.mkdir(parents=True, exist_ok=True)
+    os.chmod(folder, 0o750)
+    own(folder)
+    for name, content in (("privkey.pem", key), ("fullchain.pem", chain)):
+        tmp = folder / f".{name}.new"
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w") as f:
+            f.write(content)
+        own(tmp)
+        os.replace(tmp, folder / name)
+    return True
+
+
+def due(folder: Path) -> bool:
+    pair = pair_in(folder)
+    facts = cert_facts(Path(pair[0])) if pair else None
+    return not facts or facts[0] - time.time() < CERT_CHECK_DAYS * 86400
+
+
+def certwarden_sync() -> bool:
+    """Fetches what is due. True if drop's own certificate changed."""
+    changed, fetched = False, None
+    try:
+        if due(CW_INT_DIR):
+            fetched = certwarden_fetch(CW_INT)
+            changed = store_pair(CW_INT_DIR, *fetched)
+            facts = cert_facts(CW_INT_DIR / "fullchain.pem")
+            print(f"Cert Warden: {CW_INT[0]} {'fetched' if changed else 'unchanged'}, valid until "
+                  f"{time.strftime('%Y-%m-%d', time.gmtime(facts[0]))}", flush=True)
+    except (OSError, ValueError) as error:
+        print(f"Cert Warden: {error} — keeping what is there.", flush=True)
+    if not SHARING_ENABLED:
+        return changed
+    try:
+        separate = all(CW_PUB) and CW_PUB[0] != CW_INT[0]
+        if separate:
+            if due(PUB_TLS_DIR):
+                stored = store_pair(PUB_TLS_DIR, *certwarden_fetch(CW_PUB))
+                print(f"Cert Warden: {CW_PUB[0]} for {SHARE_SUBDOMAIN} "
+                      f"{'fetched' if stored else 'unchanged'}", flush=True)
+        elif pair_in(CW_INT_DIR):
+            # One certificate for both — if it covers drop-share's name.
+            names = (cert_facts(CW_INT_DIR / "fullchain.pem") or (0, []))[1]
+            if CW_PUB[0] == CW_INT[0] or any(n.startswith("*.") or n.startswith(SHARE_SUBDOMAIN + ".")
+                                             for n in names):
+                pair = pair_in(CW_INT_DIR)
+                if store_pair(PUB_TLS_DIR, Path(pair[0]).read_text(), Path(pair[1]).read_text()):
+                    print(f"Cert Warden: {CW_INT[0]} also for {SHARE_SUBDOMAIN}", flush=True)
+            elif not all(CW_PUB):
+                print(f"Cert Warden: {CW_INT[0]} does not cover {SHARE_SUBDOMAIN}.… — drop-share "
+                      "stays on HTTP; set CERT_PUB_… for a certificate of its own.", flush=True)
+    except (OSError, ValueError) as error:
+        print(f"Cert Warden ({SHARE_SUBDOMAIN}): {error} — keeping what is there.", flush=True)
+    return changed
+
+
+async def restart_when_idle(reason: str) -> None:
+    """Exit once no upload or call runs; `restart: unless-stopped` brings it back."""
+    while running_uploads() or calls:
+        await asyncio.sleep(30)
+    print(f"{reason} — restarting so it takes effect.", flush=True)
+    os._exit(0)
+
+
+async def watch_certwarden(serving_tls: bool) -> None:
+    """Every few hours: anything due? A new certificate of drop's own is taken
+    up by watch_certificate while TLS runs; without TLS yet, by a restart."""
+    while True:
+        await asyncio.sleep(CW_CHECK_EVERY)
+        if await run_in_threadpool(certwarden_sync) and not serving_tls:
+            await restart_when_idle("Certificate from Cert Warden")
+
+
 _tls_choice: Optional[list] = None              # [(domain, cert, key, expires)], first = default
 
 
 def tls_certificates() -> list:
     global _tls_choice
     if _tls_choice is None:
-        if TLS_AUTO or TLS_DOMAIN:
+        if CERTWARDEN:
+            pair = pair_in(CW_INT_DIR)
+            _tls_choice = [("", pair[0], pair[1], 0)] if pair else []
+        elif TLS_AUTO or TLS_DOMAIN:
             _tls_choice = find_certificates(TLS_DOMAIN)
         elif TLS_CERT and TLS_KEY and Path(TLS_CERT).is_file() and Path(TLS_KEY).is_file():
             _tls_choice = [("", TLS_CERT, TLS_KEY, 0)]
@@ -1290,7 +1479,7 @@ async def watch_certificate(paths: list, interval: int = 300) -> None:
     start-up. So: notice the change and exit — `restart: unless-stopped` brings
     the container straight back. Only while no upload is running — one that
     has not moved for UPLOAD_QUIET does not count, or a single abandoned upload
-    would keep the old certificate until it expires."""
+    would keep the old certificate until it expires. Nor during a call."""
     def stamps() -> list:
         out = []
         for path in paths:
@@ -1303,7 +1492,7 @@ async def watch_certificate(paths: list, interval: int = 300) -> None:
     while True:
         await asyncio.sleep(interval)
         now = stamps()
-        if now != last and None not in now and not running_uploads():
+        if now != last and None not in now and not running_uploads() and not calls:
             print("Certificate renewed — restarting so it takes effect.", flush=True)
             os._exit(0)
 
@@ -1397,6 +1586,9 @@ async def lifespan(app: FastAPI):
                 break
         app.state.share_watch = asyncio.create_task(watch_shares())
     app.state.thumb_watch = asyncio.create_task(watch_thumbs())
+    app.state.call_watch = asyncio.create_task(watch_calls())
+    if CERTWARDEN:
+        app.state.certwarden = asyncio.create_task(watch_certwarden(bool(cert)))
 
     yield
 
@@ -2011,10 +2203,22 @@ async def state(request: Request) -> JSONResponse:
 @app.get("/api/events")
 async def events(request: Request) -> StreamingResponse:
     queue: asyncio.Queue = asyncio.Queue(maxsize=200)
-    hub.clients[queue] = current_user(request)
+    user = current_user(request)
 
     async def stream():
+        # Registered only once the stream runs: a client gone before that
+        # leaves nothing behind.
+        hub.clients[queue] = user
+        # A page that can call says so with its secret; see Calls below.
+        # Whatever is wrong with that, the page still gets its live updates.
+        peer = None
         try:
+            if "peer" in request.query_params:
+                try:
+                    peer = peer_of(request, request.query_params["peer"], create=True)
+                    peer_connected(peer, queue)
+                except HTTPException:
+                    peer = None
             yield b": connected\n\n"
             while True:
                 if await request.is_disconnected():
@@ -2028,12 +2232,256 @@ async def events(request: Request) -> StreamingResponse:
                 yield f"event: {event}\ndata: {payload}\n\n".encode("utf-8")
         finally:
             hub.clients.pop(queue, None)
+            if peer:
+                peer_disconnected(peer, queue)
 
     return StreamingResponse(stream(), media_type="text/event-stream", headers={
         "cache-control": "no-cache",
         "connection": "keep-alive",
         "x-accel-buffering": "no",
     })
+
+
+# ---- Calls ------------------------------------------------------------------
+#
+# Video and voice calls between two devices in the home network. Picture and
+# sound go straight from one browser to the other (WebRTC, nothing in between
+# in a LAN); Drop only passes on the few messages that set a call up: who is
+# there, the ringing, the answer, and the browsers' connection details. Calls
+# belong to the shared area — with users, a page showing its own area is not
+# reachable. drop-share knows nothing of any of this.
+#
+# Every page that can call makes up a secret for itself and opens its live
+# updates with it (?peer=). Others only ever see a hash of it, so nobody can
+# speak for another page.
+
+CALL_RING = 45                      # seconds until an unanswered call counts as missed
+CALL_GRACE = 20                     # a page without live updates: this long until it is gone …
+CALL_GRACE_LIVE = 10 * 60           # … unless it is in a call: that runs between the browsers
+CALL_PEERS_EACH = 20                # pages per address that can be called
+CALL_SIGNAL_MAX = 64 * 1024         # characters of one message; a session description is a few KB
+CALL_PEERS_MAX = 200
+CALL_NAME_MAX = 40
+CALL_SIGNALS = {"accept", "decline", "cancel", "hangup", "offer", "answer", "ice", "state", "photo"}
+PEER_SECRET = re.compile(r"^[A-Za-z0-9_-]{22,64}$")
+
+
+class Peer:
+    __slots__ = ("id", "user", "address", "name", "device", "available", "queue", "seen", "call")
+
+    def __init__(self, pid: str, user: Optional[User], address: str):
+        self.id, self.user, self.address = pid, user, address
+        self.name = self.device = ""
+        self.available = False
+        self.queue: Optional[asyncio.Queue] = None
+        self.seen = time.time()
+        self.call: Optional[str] = None
+
+
+class Call:
+    __slots__ = ("id", "caller", "callee", "video", "active", "started")
+
+    def __init__(self, caller: Peer, callee: Peer, video: bool):
+        self.id = secrets.token_urlsafe(12)
+        self.caller, self.callee, self.video = caller, callee, video
+        self.active = False
+        self.started = time.time()
+
+    def other(self, peer: Peer) -> Peer:
+        return self.callee if peer is self.caller else self.caller
+
+
+peers: Dict[str, Peer] = {}
+calls: Dict[str, Call] = {}
+invites: Dict[str, list] = {}       # address -> times of its last calls
+
+
+def peer_id(secret: str) -> str:
+    return hashlib.sha256(("peer:" + secret).encode("ascii")).hexdigest()[:20]
+
+
+def same_user(a: Optional[User], b: Optional[User]) -> bool:
+    return (a.palette if a else None) == (b.palette if b else None)
+
+
+def peer_of(request: Request, secret, create: bool = False) -> Peer:
+    """The page a request speaks for — only with its secret, and only for the
+    user who opened it."""
+    if not isinstance(secret, str) or not PEER_SECRET.match(secret):
+        raise HTTPException(400, "Invalid peer")
+    pid, user = peer_id(secret), current_user(request)
+    peer = peers.get(pid)
+    if peer is None:
+        if not create:
+            raise api_error(404, "call_gone", "Not connected")
+        address = request.client.host if request.client else "?"
+        if len(peers) >= CALL_PEERS_MAX or \
+                sum(p.address == address for p in peers.values()) >= CALL_PEERS_EACH:
+            raise HTTPException(503, "Too many pages")
+        peer = peers[pid] = Peer(pid, user, address)
+    elif not same_user(peer.user, user):
+        raise HTTPException(403, "Not your page")
+    return peer
+
+
+def short_text(value, limit: int = CALL_NAME_MAX) -> str:
+    text = " ".join(unicodedata.normalize("NFC", str(value or "")).split())
+    return "".join(ch for ch in text if unicodedata.category(ch)[0] != "C")[:limit]
+
+
+def reachable(peer: Peer) -> bool:
+    return peer.available and peer.queue is not None
+
+
+def peer_card(peer: Peer) -> dict:
+    return {"id": peer.id, "name": peer.name, "device": peer.device,
+            "user": peer.user.name if peer.user else None,
+            "palette": peer.user.palette if peer.user else None,
+            "busy": peer.call is not None}
+
+
+def announce_peers() -> None:
+    """Every page that can call learns who else can — itself left out."""
+    present = [p for p in peers.values() if reachable(p)]
+    for peer in peers.values():
+        if peer.queue is not None:
+            hub.send(peer.queue, "peers",
+                     {"peers": [peer_card(p) for p in present if p is not peer]})
+
+
+def tell(peer: Peer, data: dict) -> None:
+    if peer.queue is not None:
+        hub.send(peer.queue, "call", data)
+
+
+def end_call(call: Call, reason: str, by: Optional[Peer] = None) -> None:
+    if calls.pop(call.id, None) is None:
+        return
+    for peer in (call.caller, call.callee):
+        if peer.call == call.id:
+            peer.call = None
+        if peer is not by:
+            tell(peer, {"type": reason, "call": call.id})
+    announce_peers()
+
+
+def drop_peer(peer: Peer) -> None:
+    if peer.call and peer.call in calls:
+        end_call(calls[peer.call], "hangup", peer)
+    peers.pop(peer.id, None)
+    announce_peers()
+
+
+def peer_connected(peer: Peer, queue: asyncio.Queue) -> None:
+    peer.queue, peer.seen = queue, time.time()
+    hub.send(queue, "peers", {"peers": [peer_card(p) for p in peers.values()
+                                        if reachable(p) and p is not peer]})
+
+
+def peer_disconnected(peer: Peer, queue: asyncio.Queue) -> None:
+    """Live updates break off now and then (a phone locks its screen, Wi-Fi
+    changes). The page is given CALL_GRACE to come back — in a call that has
+    been answered CALL_GRACE_LIVE, as the call itself runs between the
+    browsers."""
+    if peer.queue is queue:
+        peer.queue, peer.seen = None, time.time()
+        announce_peers()
+
+
+async def watch_calls(interval: int = 5) -> None:
+    while True:
+        await asyncio.sleep(interval)
+        now = time.time()
+        for call in list(calls.values()):
+            if not call.active and now - call.started > CALL_RING:
+                end_call(call, "missed")
+        for address in [a for a, times in invites.items() if all(now - t > 60 for t in times)]:
+            invites.pop(address, None)
+        for peer in list(peers.values()):
+            live = peer.call in calls and calls[peer.call].active
+            if peer.queue is None and now - peer.seen > (CALL_GRACE_LIVE if live else CALL_GRACE):
+                drop_peer(peer)
+
+
+@app.post("/api/call/presence")
+async def call_presence(request: Request) -> JSONResponse:
+    """A page says what it is called and whether it can be called right now:
+    over HTTPS (browsers give camera and microphone to nothing else), showing
+    the shared area, the page open."""
+    body = await json_body(request)
+    if not isinstance(body, dict):
+        raise HTTPException(400, "Expected an object")
+    peer = peer_of(request, body.get("peer"))
+    before = (peer.name, peer.device, peer.available)
+    peer.name = short_text(body.get("name"))
+    peer.device = short_text(body.get("device"))
+    peer.available = body.get("available") is True
+    # The page says which call it is in. A call it no longer has — its
+    # hang-up got lost on the way — ends here, or both would stay busy.
+    if peer.call and peer.call in calls and "call" in body and body["call"] is None:
+        end_call(calls[peer.call], "hangup", peer)
+    if (peer.name, peer.device, peer.available) != before:
+        announce_peers()
+    return JSONResponse({"id": peer.id, "call": peer.call})
+
+
+@app.post("/api/call/invite")
+async def call_invite(request: Request) -> JSONResponse:
+    body = await json_body(request)
+    if not isinstance(body, dict):
+        raise HTTPException(400, "Expected an object")
+    caller = peer_of(request, body.get("peer"))
+    callee = peers.get(str(body.get("to", "")))
+    if callee is None or callee is caller or not reachable(callee) or not reachable(caller):
+        raise api_error(404, "call_gone", "Not available")
+    now = time.time()
+    recent = invites[caller.address] = [t for t in invites.get(caller.address, []) if now - t < 60]
+    if len(recent) >= 10:
+        raise api_error(429, "call_too_many", "Too many calls")
+    if caller.call or callee.call:
+        raise api_error(409, "call_busy", "Busy")
+    recent.append(now)
+    call = Call(caller, callee, body.get("video") is True)
+    calls[call.id] = call
+    caller.call = callee.call = call.id
+    tell(callee, {"type": "invite", "call": call.id, "video": call.video,
+                  "from": peer_card(caller)})
+    announce_peers()
+    return JSONResponse({"call": call.id, "ring": CALL_RING})
+
+
+@app.post("/api/call/signal")
+async def call_signal(request: Request) -> JSONResponse:
+    """Passes a message on to the other side of the call. What is in it — the
+    browsers' session descriptions and addresses — is theirs; Drop only checks
+    who may send what, and how much."""
+    body = await json_body(request)
+    if not isinstance(body, dict):
+        raise HTTPException(400, "Expected an object")
+    peer = peer_of(request, body.get("peer"))
+    call = calls.get(str(body.get("call", "")))
+    kind = body.get("type")
+    if call is None or peer not in (call.caller, call.callee):
+        raise api_error(404, "call_gone", "No such call")
+    if kind not in CALL_SIGNALS:
+        raise HTTPException(400, "Unknown message")
+    data = body.get("data")
+    if len(json.dumps(data)) > CALL_SIGNAL_MAX:
+        raise HTTPException(413, "Message too large")
+    if kind in ("decline", "cancel", "hangup"):
+        if kind == "decline" and peer is not call.callee:
+            raise HTTPException(400, "Only the one called can decline")
+        end_call(call, kind, peer)
+        return JSONResponse({"ok": True})
+    if kind == "accept":
+        if peer is not call.callee or call.active:
+            raise HTTPException(409, "Not ringing")
+        call.active = True
+        announce_peers()
+    elif not call.active:
+        raise HTTPException(409, "Not answered yet")
+    tell(call.other(peer), {"type": kind, "call": call.id, "data": data})
+    return JSONResponse({"ok": True})
 
 
 # ---- Text fields ------------------------------------------------------------
@@ -3078,10 +3526,44 @@ if __name__ == "__main__":
         port = int(os.environ.get("PORT", "8080"))
         print(f"{app_name()} — public part on port {port}, shares only, from {SHARES_DIR}",
               flush=True)
-        # No TLS: the reverse proxy in front does that, and this container never
-        # even sees the private key.
-        uvicorn.run(public, host="0.0.0.0", port=port, workers=1,
-                    timeout_keep_alive=75, proxy_headers=False, server_header=False)
+        # Plain HTTP for the reverse proxy in front. With certificates from Cert
+        # Warden, drop leaves a pair in shares/.tls/: then also HTTPS on 443.
+        pair = pair_in(PUB_TLS_DIR)
+        try:
+            if pair:
+                ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER).load_cert_chain(*pair)
+        except (OSError, ssl.SSLError) as error:
+            print(f"Certificate in {PUB_TLS_DIR} not usable: {error} — HTTP only.", flush=True)
+            pair = None
+
+        async def serve_public() -> None:
+            common = dict(host="0.0.0.0", workers=1, timeout_keep_alive=75,
+                          proxy_headers=False, server_header=False)
+            servers = [uvicorn.Server(uvicorn.Config(public, port=port, **common))]
+            if pair:
+                tls_port = int(os.environ.get("TLS_PORT", "443"))
+                servers.append(uvicorn.Server(uvicorn.Config(
+                    public, port=tls_port, ssl_certfile=pair[0], ssl_keyfile=pair[1], **common)))
+                print(f"HTTPS on port {tls_port} with {pair[0]}", flush=True)
+
+            async def watch() -> None:
+                """A new pair from drop (or a first one): restart to serve it."""
+                stamp = lambda: [Path(p).stat().st_mtime for p in pair] if pair else None
+                first = stamp()
+                while True:
+                    await asyncio.sleep(300)
+                    try:
+                        now = stamp() if pair else (True if pair_in(PUB_TLS_DIR) else None)
+                    except OSError:
+                        continue
+                    if now != first:
+                        print("Certificate for drop-share changed — restarting.", flush=True)
+                        os._exit(0)
+
+            asyncio.get_running_loop().create_task(watch())
+            await asyncio.gather(*(server.serve() for server in servers))
+
+        asyncio.run(serve_public())
         raise SystemExit(0)
 
     if USER_PROBLEMS:
@@ -3089,6 +3571,14 @@ if __name__ == "__main__":
         banner("USERS (USER_…) CANNOT BE USED:", *[f"  {p}" for p in USER_PROBLEMS],
                "Start aborted — fix them and start again.")
         raise SystemExit(1)
+    if CERTWARDEN:
+        print(f"Certificates from Cert Warden ({certwarden_api()}), fetched again "
+              f"{CERT_CHECK_DAYS} days before they expire", flush=True)
+        certwarden_sync()
+    elif certwarden_missing():
+        print(f"Cert Warden not used — missing: {', '.join(certwarden_missing())} "
+              "(with an older compose.yaml none of them reach Drop: take the current one).",
+              flush=True)
     cert, key = tls_ready()
     port = int(os.environ.get("PORT", "443" if cert else "80"))
     print(f"Starting on port {port} {'with' if cert else 'without'} TLS", flush=True)

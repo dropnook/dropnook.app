@@ -70,7 +70,7 @@
     "Files of any size — Drag them in or pick them. Uploads resume after an interruption, and everyone sees the progress.",
     "Screenshots with Ctrl+V — Paste a screenshot straight from the clipboard. On the other computer, one click puts it back into the clipboard.",
     "Share links that expire — Need it outside the house? One file or text through a link that ends by itself — with a password if you like.",
-    "17 languages — From Arabic to Chinese, picked from the browser — or add your own with one file.",
+    "Video calls at home — Video or voice from one device to another, at the push of a button — picture and sound go straight between the two, never through a server outside. With mute, front and back camera, and a photo straight into the files.",
     "Five colours, light and dark — Teal, gold, blue, violet or coral — each in light and dark. Every browser keeps its own.",
     "Users, if you want — Up to five people with name, PIN and colour: everyone gets an area of their own next to the shared one.",
     "Like an app — On the home screen with its own icon; on Android, share straight into it. A QR code opens it on the phone, a PIN keeps out guests on your home network."
@@ -127,6 +127,14 @@
      "acceptedAnswer": {
       "@type": "Answer",
       "text": "Yes, if you want: up to five users in the .env, each with a name, a PIN and a colour. Everyone signs in once per device and then switches between their own area — only they see it — and the shared one. Without users, everyone simply shares everything."
+     }
+    },
+    {
+     "@type": "Question",
+     "name": "Where do I report bugs and wishes?",
+     "acceptedAnswer": {
+      "@type": "Answer",
+      "text": "On GitHub: open the issues, click New issue (a free GitHub account is needed) and write briefly what you did, what happened and what you expected — with your device and browser and the Dropnook version from Unraid’s Docker tab; a screenshot helps. Wishes go there too. Without a GitHub account, ask in the Unraid forum."
      }
     }
    ]
@@ -246,9 +254,9 @@
         <p>Need it outside the house? One file or text through a link that ends by itself — with a password if you like.</p>
       </article>
       <article class="card">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg>
-        <h3>17 languages</h3>
-        <p>From Arabic to Chinese, picked from the browser — or add your own with one file.</p>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6.5" width="12.5" height="11" rx="2"/><path d="M15.5 10.5l5-3v9l-5-3z"/></svg>
+        <h3>Video calls at home</h3>
+        <p>Video or voice from one device to another, at the push of a button — picture and sound go straight between the two, never through a server outside. With mute, front and back camera, and a photo straight into the files.</p>
       </article>
       <article class="card">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.7-.8 1.7-1.7 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-.9.8-1.7 1.7-1.7H16a5 5 0 0 0 5-5c0-4-4-7.2-9-7.2z"/><circle cx="7.5" cy="11" r="1.2"/><circle cx="10.5" cy="7" r="1.2"/><circle cx="15" cy="7.5" r="1.2"/></svg>
@@ -315,7 +323,7 @@
     <p class="sub wide"><b>drop</b> holds your files and texts and is reachable only in your network. <b>drop-share</b> serves the share links to the internet — and sees nothing but what you shared. Your reverse proxy and your certificates stay yours.</p>
     <picture class="diagram">
       <source media="(prefers-color-scheme: dark)" srcset="diagram/architecture-en-dark.webp">
-      <img src="diagram/architecture-en-light.webp" width="2000" height="1125" loading="lazy" alt="Architecture: devices in your network reach drop directly at drop.yourdomain.com, whose DNS entry points to drop's LAN address. drop and the optional drop-share run as two separate containers, each with a LAN address of its own (br0, macvlan), walled off from each other with only shares/ in common. drop answers your network only and refuses anything with proxy headers or from a public IP; it reads and writes the whole data share. drop-share serves only share links, only through your reverse proxy, and reads only shares/. A shared file is a hard link in shares/ — no copy. A firewall separates the internet from everything else; its only door leads through your reverse proxy to drop-share on port 80 — there is none to drop.">
+      <img src="diagram/architecture-en-light.webp" width="2000" height="1125" loading="lazy" alt="Architecture: devices in your network reach drop directly at drop.yourdomain.com, whose DNS entry points to drop's LAN address. drop and the optional drop-share run as two separate containers, each with an IP address of its own in your network, walled off from each other with only shares/ in common. drop answers your network only and refuses anything with proxy headers or from a public IP; it reads and writes the whole data share. drop-share serves only share links, only through your reverse proxy, and reads only shares/. A shared file is a hard link in shares/ — no copy. A firewall separates the internet from everything else; its only door leads through your reverse proxy to drop-share on port 80 — there is none to drop.">
     </picture>
   </div>
 </section>
@@ -355,6 +363,7 @@
     <details><summary>Do I need Unraid?</summary><p><span class="dn">Drop<span>nook</span></span> is made for Unraid, and the guide is for Unraid. It runs on any Linux host with Docker Compose, too.</p></details>
     <details><summary>And when I am away from home?</summary><p>Through your VPN, <span class="dn">Drop<span>nook</span></span> works just like at home. Without it, only the share links you create can be opened.</p></details>
     <details><summary>Can several people have their own space?</summary><p>Yes, if you want: up to five users in the <code>.env</code>, each with a name, a PIN and a colour. Everyone signs in once per device and then switches between their own area — only they see it — and the shared one. Without users, everyone simply shares everything.</p></details>
+    <details><summary>Where do I report bugs and wishes?</summary><p>On GitHub: open the <a href="https://github.com/dropnook/dropnook.app/issues">issues</a>, click <em>New issue</em> (a free GitHub account is needed) and write briefly what you did, what happened and what you expected — with your device and browser and the <span class="dn">Drop<span>nook</span></span> version from Unraid’s Docker tab; a screenshot helps. Wishes go there too. Without a GitHub account, ask in the <a href="https://forums.unraid.net/">Unraid forum</a>.</p></details>
   </div>
 </section>
 

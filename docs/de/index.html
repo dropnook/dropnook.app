@@ -70,7 +70,7 @@
     "Dateien jeder Grösse — Hineinziehen oder auswählen. Uploads laufen nach einer Unterbrechung weiter, und alle sehen den Fortschritt.",
     "Screenshots mit Strg+V — Einen Screenshot direkt aus der Zwischenablage einfügen. Am anderen Computer legt ihn ein Klick wieder in die Zwischenablage.",
     "Links, die von selbst ablaufen — Muss etwas aus dem Haus? Eine Datei oder ein Text über einen Link, der von selbst endet — auf Wunsch mit Passwort.",
-    "17 Sprachen — Von Arabisch bis Chinesisch, automatisch nach dem Browser — oder mit einer Datei eine eigene dazu.",
+    "Videoanruf im Heimnetz — Video oder nur Ton von Gerät zu Gerät, auf Knopfdruck — Bild und Ton gehen direkt zwischen den beiden, nie über einen fremden Server. Mit Stumm, vorderer und hinterer Kamera und einem Foto direkt in die Dateien.",
     "Fünf Farben, hell und dunkel — Türkis, Gold, Blau, Violett oder Koralle — jede hell und dunkel. Jeder Browser merkt sich seine.",
     "Benutzer, wenn du willst — Bis zu fünf Personen mit Name, PIN und Farbe: Jede bekommt einen eigenen Bereich neben dem gemeinsamen.",
     "Wie eine App — Mit eigenem Symbol auf dem Home-Bildschirm; unter Android direkt hinein teilen. Ein QR-Code öffnet es auf dem Handy, eine PIN hält hausinterne Gäste draussen."
@@ -127,6 +127,14 @@
      "acceptedAnswer": {
       "@type": "Answer",
       "text": "Ja, wenn du willst: bis zu fünf Benutzer in der .env, jeder mit Name, PIN und Farbe. Jeder meldet sich einmal pro Gerät an und wechselt dann zwischen seinem eigenen Bereich — nur er sieht ihn — und dem gemeinsamen. Ohne Benutzer teilen einfach alle alles."
+     }
+    },
+    {
+     "@type": "Question",
+     "name": "Wo melde ich Fehler und Wünsche?",
+     "acceptedAnswer": {
+      "@type": "Answer",
+      "text": "Auf GitHub: Issues öffnen, New issue klicken (ein kostenloses GitHub-Konto braucht es) und kurz schreiben, was du getan hast, was passiert ist und was du erwartet hast — mit Gerät, Browser und der Dropnook-Version aus Unraids Docker-Tab; ein Screenshot hilft. Wünsche gehören auch dorthin. Ohne GitHub-Konto: im Unraid-Forum fragen."
      }
     }
    ]
@@ -246,9 +254,9 @@
         <p>Muss etwas aus dem Haus? Eine Datei oder ein Text über einen Link, der von selbst endet — auf Wunsch mit Passwort.</p>
       </article>
       <article class="card">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg>
-        <h3>17 Sprachen</h3>
-        <p>Von Arabisch bis Chinesisch, automatisch nach dem Browser — oder mit einer Datei eine eigene dazu.</p>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6.5" width="12.5" height="11" rx="2"/><path d="M15.5 10.5l5-3v9l-5-3z"/></svg>
+        <h3>Videoanruf im Heimnetz</h3>
+        <p>Video oder nur Ton von Gerät zu Gerät, auf Knopfdruck — Bild und Ton gehen direkt zwischen den beiden, nie über einen fremden Server. Mit Stumm, vorderer und hinterer Kamera und einem Foto direkt in die Dateien.</p>
       </article>
       <article class="card">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.7-.8 1.7-1.7 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-.9.8-1.7 1.7-1.7H16a5 5 0 0 0 5-5c0-4-4-7.2-9-7.2z"/><circle cx="7.5" cy="11" r="1.2"/><circle cx="10.5" cy="7" r="1.2"/><circle cx="15" cy="7.5" r="1.2"/></svg>
@@ -315,7 +323,7 @@
     <p class="sub wide"><b>drop</b> hält deine Dateien und Texte und ist nur im Heimnetz erreichbar. <b>drop-share</b> liefert die Freigabe-Links ins Internet aus — und sieht nichts ausser dem, was du geteilt hast. Reverse Proxy und Zertifikate bleiben deine Sache.</p>
     <picture class="diagram">
       <source media="(prefers-color-scheme: dark)" srcset="../diagram/architecture-de-dark.webp">
-      <img src="../diagram/architecture-de-light.webp" width="2000" height="1125" loading="lazy" alt="Architektur: Geräte im Heimnetz erreichen drop direkt unter drop.deinedomain.com, dessen DNS-Eintrag auf die LAN-Adresse von drop zeigt. drop und das optionale drop-share laufen als zwei getrennte Container mit je eigener LAN-Adresse (br0, macvlan); gemeinsam haben sie nur shares/. drop antwortet nur im Heimnetz und weist alles mit Proxy-Headern oder von öffentlichen IPs ab; es liest und schreibt den ganzen Daten-Share. drop-share liefert nur Freigabe-Links, nur über deinen Reverse Proxy, und liest nur shares/. Eine geteilte Datei ist ein Hardlink in shares/ — keine Kopie. Eine Firewall trennt das Internet von allem anderen; ihre einzige Tür führt über deinen Reverse Proxy zu drop-share auf Port 80 — zu drop gibt es keine.">
+      <img src="../diagram/architecture-de-light.webp" width="2000" height="1125" loading="lazy" alt="Architektur: Geräte im Heimnetz erreichen drop direkt unter drop.deinedomain.com, dessen DNS-Eintrag auf die LAN-Adresse von drop zeigt. drop und das optionale drop-share laufen als zwei getrennte Container mit je eigener IP-Adresse im Heimnetz; gemeinsam haben sie nur shares/. drop antwortet nur im Heimnetz und weist alles mit Proxy-Headern oder von öffentlichen IPs ab; es liest und schreibt den ganzen Daten-Share. drop-share liefert nur Freigabe-Links, nur über deinen Reverse Proxy, und liest nur shares/. Eine geteilte Datei ist ein Hardlink in shares/ — keine Kopie. Eine Firewall trennt das Internet von allem anderen; ihre einzige Tür führt über deinen Reverse Proxy zu drop-share auf Port 80 — zu drop gibt es keine.">
     </picture>
   </div>
 </section>
@@ -355,6 +363,7 @@
     <details><summary>Brauche ich Unraid?</summary><p><span class="dn">Drop<span>nook</span></span> ist für Unraid gemacht, und die Anleitung ist für Unraid. Es läuft aber auch auf jedem Linux-Rechner mit Docker Compose.</p></details>
     <details><summary>Und wenn ich unterwegs bin?</summary><p>Über dein VPN funktioniert <span class="dn">Drop<span>nook</span></span> wie zu Hause. Ohne VPN lassen sich nur die Freigabe-Links öffnen, die du erstellt hast.</p></details>
     <details><summary>Können mehrere Leute einen eigenen Bereich haben?</summary><p>Ja, wenn du willst: bis zu fünf Benutzer in der <code>.env</code>, jeder mit Name, PIN und Farbe. Jeder meldet sich einmal pro Gerät an und wechselt dann zwischen seinem eigenen Bereich — nur er sieht ihn — und dem gemeinsamen. Ohne Benutzer teilen einfach alle alles.</p></details>
+    <details><summary>Wo melde ich Fehler und Wünsche?</summary><p>Auf GitHub: <a href="https://github.com/dropnook/dropnook.app/issues">Issues</a> öffnen, <em>New issue</em> klicken (ein kostenloses GitHub-Konto braucht es) und kurz schreiben, was du getan hast, was passiert ist und was du erwartet hast — mit Gerät, Browser und der <span class="dn">Drop<span>nook</span></span>-Version aus Unraids Docker-Tab; ein Screenshot hilft. Wünsche gehören auch dorthin. Ohne GitHub-Konto: im <a href="https://forums.unraid.net/">Unraid-Forum</a> fragen.</p></details>
   </div>
 </section>
 

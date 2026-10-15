@@ -5,6 +5,7 @@
 #                                then tag v1.2.3 and a GitHub release for it
 #   release v1.2.3 published  →  the same images (for releases made by hand)
 #   push to main              →  ghcr.io/<owner>/<repo>:edge
+#   Run workflow on a branch  →  ghcr.io/<owner>/<repo>:<branch>, to try it out
 #   every Monday              →  the latest release rebuilt on a fresh base image,
 #                                for its security updates: :1.2, :1, :latest
 #                                (:1.2.3 stays as released). Skipped when the base
@@ -158,6 +159,7 @@ jobs:
             type=semver,pattern={{major}},value=${{ env.VERSION }}
             type=raw,value=latest,enable=${{ github.event_name == 'release' || env.VERSION != '' }}
             type=edge,branch=main,enable=${{ env.SCHEDULED != 'true' }}
+            type=ref,event=branch,enable=${{ github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main' && inputs.version == '' && env.SCHEDULED != 'true' }}
           labels: |
             org.opencontainers.image.title=Dropnook
             org.opencontainers.image.description=Instant sharing for your home network, with expiring links to the internet
