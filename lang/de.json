@@ -282,6 +282,9 @@
   "ui.error_call_busy": "Besetzt – schon in einem Anruf.",
   "ui.error_call_too_many": "Zu viele Anrufe in kurzer Zeit – warte eine Minute.",
 
+  "ui.call_smaller": "Verkleinern",
+  "ui.call_larger": "Vergrössern",
+
   "public.unavailable_title": "Link nicht verfügbar",
   "public.unavailable_heading": "Dieser Link ist nicht verfügbar",
   "public.unavailable_body": "Er ist abgelaufen, wurde beendet oder hat nie existiert. Frag bei der Person nach, die ihn dir geschickt hat.",

@@ -260,6 +260,9 @@
   "ui.error_call_gone": "已无法联系。",
   "ui.error_call_busy": "忙线 — 已在通话中。",
   "ui.error_call_too_many": "短时间内呼叫过多 — 请等一分钟。",
+
+  "ui.call_smaller": "缩小",
+  "ui.call_larger": "放大",
   "public.unavailable_title": "链接不可用",
   "public.unavailable_heading": "此链接不可用",
   "public.unavailable_body": "它已过期、已被停用，或从未存在。请询问发给你链接的人。",

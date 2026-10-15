@@ -279,6 +279,9 @@
   "ui.error_call_gone": "Ya no está disponible.",
   "ui.error_call_busy": "Ocupado — ya en una llamada.",
   "ui.error_call_too_many": "Demasiadas llamadas en poco tiempo — espera un minuto.",
+
+  "ui.call_smaller": "Reducir",
+  "ui.call_larger": "Ampliar",
   "public.unavailable_title": "Enlace no disponible",
   "public.unavailable_heading": "Este enlace no está disponible",
   "public.unavailable_body": "Ha caducado, se desactivó o nunca existió. Pregunta a la persona que te lo envió.",

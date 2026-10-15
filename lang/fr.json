@@ -281,6 +281,9 @@
   "ui.error_call_gone": "N’est plus joignable.",
   "ui.error_call_busy": "Occupé — déjà en appel.",
   "ui.error_call_too_many": "Trop d’appels en peu de temps — attendez une minute.",
+
+  "ui.call_smaller": "Réduire",
+  "ui.call_larger": "Agrandir",
   "public.unavailable_title": "Lien indisponible",
   "public.unavailable_heading": "Ce lien n’est pas disponible",
   "public.unavailable_body": "Il a expiré, a été arrêté ou n’a jamais existé. Demande à la personne qui te l’a envoyé.",

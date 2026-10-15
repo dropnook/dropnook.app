@@ -286,6 +286,9 @@
   "ui.error_call_busy": "Busy — already in a call.",
   "ui.error_call_too_many": "Too many calls in a short time — wait a minute.",
 
+  "ui.call_smaller": "Smaller",
+  "ui.call_larger": "Larger",
+
   "public.unavailable_title": "Link not available",
   "public.unavailable_heading": "This link is not available",
   "public.unavailable_body": "It has expired, was ended, or never existed. Ask the person who sent it to you.",

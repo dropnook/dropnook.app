@@ -286,6 +286,9 @@
   "ui.error_call_gone": "Больше недоступно.",
   "ui.error_call_busy": "Занято — уже идёт звонок.",
   "ui.error_call_too_many": "Слишком много звонков за короткое время — подождите минуту.",
+
+  "ui.call_smaller": "Свернуть",
+  "ui.call_larger": "Развернуть",
   "public.unavailable_title": "Ссылка недоступна",
   "public.unavailable_heading": "Эта ссылка недоступна",
   "public.unavailable_body": "Срок её действия истёк, доступ закрыт или её никогда не было. Спросите того, кто её прислал.",

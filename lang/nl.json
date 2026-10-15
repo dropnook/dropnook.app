@@ -276,6 +276,9 @@
   "ui.error_call_gone": "Niet meer bereikbaar.",
   "ui.error_call_busy": "Bezet — al in gesprek.",
   "ui.error_call_too_many": "Te veel oproepen in korte tijd — wacht een minuut.",
+
+  "ui.call_smaller": "Verkleinen",
+  "ui.call_larger": "Vergroten",
   "public.unavailable_title": "Link niet beschikbaar",
   "public.unavailable_heading": "Deze link is niet beschikbaar",
   "public.unavailable_body": "Hij is verlopen, beëindigd of heeft nooit bestaan. Vraag het de persoon die hem naar je stuurde.",

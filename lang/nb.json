@@ -279,6 +279,9 @@
   "ui.error_call_gone": "Kan ikke nås lenger.",
   "ui.error_call_busy": "Opptatt — allerede i en samtale.",
   "ui.error_call_too_many": "For mange anrop på kort tid — vent et minutt.",
+
+  "ui.call_smaller": "Mindre",
+  "ui.call_larger": "Større",
   "public.unavailable_title": "Lenken er ikke tilgjengelig",
   "public.unavailable_heading": "Denne lenken er ikke tilgjengelig",
   "public.unavailable_body": "Den har utløpt, er avsluttet eller har aldri eksistert. Spør personen som sendte den til deg.",

@@ -260,6 +260,9 @@
   "ui.error_call_gone": "더 이상 연결할 수 없습니다.",
   "ui.error_call_busy": "통화 중 — 이미 통화하고 있습니다.",
   "ui.error_call_too_many": "짧은 시간에 통화가 너무 많습니다 — 1분만 기다리세요.",
+
+  "ui.call_smaller": "작게",
+  "ui.call_larger": "크게",
   "public.unavailable_title": "링크를 사용할 수 없음",
   "public.unavailable_heading": "이 링크는 사용할 수 없습니다",
   "public.unavailable_body": "만료되었거나 종료되었거나 처음부터 없던 링크입니다. 링크를 보낸 사람에게 물어보세요.",

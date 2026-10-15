@@ -2004,12 +2004,14 @@ function sendPresence() {
 function updateCallButton() {
   const button = $('#btn-call');
   button.hidden = !callShown();
-  const n = callable ? peers.filter((p) => !p.busy).length : 0;
-  $('#call-count').textContent = n ? num(n) : '';
+  // No number on the button: it read like something unanswered. Who can be
+  // called is in the dialog; tests and the curious find the count here.
+  button.dataset.peers = callable ? peers.filter((p) => !p.busy).length : 0;
   button.title = t('ui.call_title');
 }
 
 function showCalls() {
+  if (call) { setMini(false); return; }          // in a call: back to it
   if (!callable) {
     dialog({ title: t('ui.call_https_title'), content: [t('ui.call_https_text')] });
     return;
@@ -2165,7 +2167,7 @@ function newCall(fields) {
   call = {
     id: null, peer: null, role: 'caller', video: true, state: 'ringing', stream: null,
     pc: null, senders: {}, remote: new MediaStream(), pendingIce: [], facing: 'user',
-    micOn: true, cameraOn: false, theirs: { video: null, audio: true }, swapped: false,
+    micOn: true, cameraOn: false, mini: false, theirs: { video: null, audio: true }, swapped: false,
     started: 0, ended: false, dropout: null, wakeLock: null, cameras: 0, preview: null,
     ...fields,
   };
@@ -2505,6 +2507,8 @@ const ICONS = {
   cam: '<rect x="3" y="6.5" width="12.5" height="11" rx="2"/><path d="M15.5 10.5l5-3v9l-5-3z"/>',
   camOff: '<path d="M8 6.5h5.5a2 2 0 0 1 2 2v3M15.5 15.5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a2 2 0 0 1 1.5-1.9M15.5 10.5l5-3v9l-3-1.8M3 3l18 18"/>',
   flip: '<path d="M4 8.5h11.5a4 4 0 0 1 4 4v0M16.5 5.5l3 3-3 3M20 15.5H8.5a4 4 0 0 1-4-4v0M7.5 18.5l-3-3 3-3"/>',
+  shrink: '<path d="M14.5 4.5v5h5M9.5 19.5v-5h-5M14.5 9.5l6-6M9.5 14.5l-6 6"/>',
+  grow: '<path d="M15 3.5h5.5V9M9 20.5H3.5V15M20.5 3.5l-6.5 6.5M3.5 20.5l6.5-6.5"/>',
   photo: '<path d="M4 8.5a2 2 0 0 1 2-2h2l1.5-2h5l1.5 2h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.5"/>',
   hangup: '<path d="M3.5 14.5c4.7-4.3 12.3-4.3 17 0l-2 2.5-3.3-1.3.3-2.5a10 10 0 0 0-7 0l.3 2.5L5.5 17z"/>',
   phone: '<path d="M6.5 3.5h3l1.5 4-2 1.5a10 10 0 0 0 6 6l1.5-2 4 1.5v3a2 2 0 0 1-2 2A16 16 0 0 1 4.5 5.5a2 2 0 0 1 2-2z"/>',
@@ -2538,6 +2542,8 @@ function showCallScreen() {
   sound.id = 'call-remote';
   sound.autoplay = true;
   small.onclick = () => { if (call) { call.swapped = !call.swapped; drawCallScreen(); } };
+  // Small, the picture itself brings the call back to full size.
+  big.onclick = () => { if (call && call.mini) setMini(false); };
   small.title = t('ui.call_swap');
   const placeholder = el('div', 'call-placeholder');
   // My own camera off: the small picture stays as a dark tile that says so —
@@ -2550,6 +2556,14 @@ function showCallScreen() {
   const bar = el('div', 'call-bar');
   screen.append(big, placeholder, small, selfOff, sound, top, bar);
   document.body.appendChild(screen);
+  drawCallScreen();
+}
+
+// Smaller: the call goes into a corner and Drop is usable below it — texts,
+// files, uploads. Larger again with its button, a tap on it, or the header button.
+function setMini(on) {
+  if (!call) return;
+  call.mini = on;
   drawCallScreen();
 }
 
@@ -2566,6 +2580,9 @@ function drawCallScreen() {
   const screen = $('#call');
   if (!c || !screen) return;
   const name = peerTitle(c.peer);
+  const mini = c.mini && c.state !== 'incoming';
+  screen.classList.toggle('mini', mini);
+  screen.setAttribute('aria-modal', String(!mini));
   const big = $('#call-screen-big');
   const small = $('#call-screen-small');
   const sound = $('#call-remote');
@@ -2620,6 +2637,14 @@ function drawCallScreen() {
     return;
   }
   const ready = !!c.stream;
+  if (mini) {
+    const mic = iconButton(c.micOn ? 'mic' : 'micOff', t(c.micOn ? 'ui.call_mic_off' : 'ui.call_mic_on'),
+      c.micOn ? '' : 'off', toggleMic);
+    mic.disabled = !ready;
+    bar.append(iconButton('grow', t('ui.call_larger'), '', () => setMini(false)), mic,
+      iconButton('hangup', t('ui.call_hangup'), 'end', () => hangUp()));
+    return;
+  }
   const mic = iconButton(c.micOn ? 'mic' : 'micOff', t(c.micOn ? 'ui.call_mic_off' : 'ui.call_mic_on'),
     c.micOn ? '' : 'off', toggleMic);
   const cam = iconButton(c.cameraOn ? 'cam' : 'camOff', t(c.cameraOn ? 'ui.call_camera_off' : 'ui.call_camera_on'),
@@ -2631,7 +2656,8 @@ function drawCallScreen() {
   }
   const photo = iconButton('photo', t('ui.call_photo'), '', takePhoto);
   photo.disabled = !bigStream;
-  bar.append(photo, iconButton('hangup', t('ui.call_hangup'), 'end', () => hangUp()));
+  bar.append(photo, iconButton('shrink', t('ui.call_smaller'), '', () => setMini(true)),
+    iconButton('hangup', t('ui.call_hangup'), 'end', () => hangUp()));
 }
 
 // ------------------------------------------------------------------ Connection

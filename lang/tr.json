@@ -261,6 +261,9 @@
   "ui.error_call_gone": "Artık ulaşılamıyor.",
   "ui.error_call_busy": "Meşgul — zaten bir görüşmede.",
   "ui.error_call_too_many": "Kısa sürede çok fazla arama — bir dakika bekleyin.",
+
+  "ui.call_smaller": "Küçült",
+  "ui.call_larger": "Büyüt",
   "public.unavailable_title": "Bağlantı kullanılamıyor",
   "public.unavailable_heading": "Bu bağlantı kullanılamıyor",
   "public.unavailable_body": "Süresi doldu, sonlandırıldı ya da hiç var olmadı. Sana gönderen kişiye sor.",

@@ -269,6 +269,9 @@
   "ui.error_call_gone": "अब उपलब्ध नहीं।",
   "ui.error_call_busy": "व्यस्त — पहले से कॉल पर।",
   "ui.error_call_too_many": "कम समय में बहुत सारी कॉल — एक मिनट रुकें।",
+
+  "ui.call_smaller": "छोटा करें",
+  "ui.call_larger": "बड़ा करें",
   "public.unavailable_title": "लिंक उपलब्ध नहीं",
   "public.unavailable_heading": "यह लिंक उपलब्ध नहीं है",
   "public.unavailable_body": "इसकी समय-सीमा खत्म हो गई, इसे बंद कर दिया गया या यह कभी था ही नहीं। जिसने भेजा है, उससे पूछें।",

@@ -287,6 +287,9 @@
   "ui.error_call_gone": "لم يعد متاحًا.",
   "ui.error_call_busy": "مشغول — في مكالمة بالفعل.",
   "ui.error_call_too_many": "مكالمات كثيرة في وقت قصير — انتظر دقيقة.",
+
+  "ui.call_smaller": "تصغير",
+  "ui.call_larger": "تكبير",
   "public.unavailable_title": "الرابط غير متاح",
   "public.unavailable_heading": "هذا الرابط غير متاح",
   "public.unavailable_body": "انتهت صلاحيته أو أُوقف أو لم يوجد أصلًا. اسأل الشخص الذي أرسله إليك.",

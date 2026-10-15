@@ -260,6 +260,9 @@
   "ui.error_call_gone": "もう利用できません。",
   "ui.error_call_busy": "話し中 — すでに通話中です。",
   "ui.error_call_too_many": "短時間に通話が多すぎます — 1 分お待ちください。",
+
+  "ui.call_smaller": "縮小",
+  "ui.call_larger": "拡大",
   "public.unavailable_title": "リンクは利用できません",
   "public.unavailable_heading": "このリンクは利用できません",
   "public.unavailable_body": "期限が切れたか、終了されたか、もともと存在しません。リンクを送ってくれた人に確認してください。",

@@ -269,6 +269,9 @@
   "ui.error_call_gone": "Ekki lengur hægt að ná í.",
   "ui.error_call_busy": "Á tali — þegar í símtali.",
   "ui.error_call_too_many": "Of mörg símtöl á stuttum tíma — bíddu í mínútu.",
+
+  "ui.call_smaller": "Minnka",
+  "ui.call_larger": "Stækka",
   "public.unavailable_title": "Hlekkur ekki tiltækur",
   "public.unavailable_heading": "Þessi hlekkur er ekki tiltækur",
   "public.unavailable_body": "Hann er útrunninn, honum var lokið eða hann var aldrei til. Spurðu þann sem sendi þér hann.",

@@ -280,6 +280,9 @@
   "ui.error_call_gone": "Já não está disponível.",
   "ui.error_call_busy": "Ocupado — já numa chamada.",
   "ui.error_call_too_many": "Demasiadas chamadas em pouco tempo — aguarde um minuto.",
+
+  "ui.call_smaller": "Reduzir",
+  "ui.call_larger": "Ampliar",
   "public.unavailable_title": "Ligação indisponível",
   "public.unavailable_heading": "Esta ligação não está disponível",
   "public.unavailable_body": "Expirou, foi terminada ou nunca existiu. Pergunta à pessoa que ta enviou.",

@@ -280,6 +280,9 @@
   "ui.error_call_gone": "Non più raggiungibile.",
   "ui.error_call_busy": "Occupato — già in una chiamata.",
   "ui.error_call_too_many": "Troppe chiamate in poco tempo — attendi un minuto.",
+
+  "ui.call_smaller": "Riduci",
+  "ui.call_larger": "Ingrandisci",
   "public.unavailable_title": "Link non disponibile",
   "public.unavailable_heading": "Questo link non è disponibile",
   "public.unavailable_body": "È scaduto, è stato terminato o non è mai esistito. Chiedi alla persona che te l’ha inviato.",

@@ -288,6 +288,9 @@
   "ui.error_call_gone": "Już niedostępne.",
   "ui.error_call_busy": "Zajęte — już w rozmowie.",
   "ui.error_call_too_many": "Za dużo połączeń w krótkim czasie — odczekaj minutę.",
+
+  "ui.call_smaller": "Zmniejsz",
+  "ui.call_larger": "Powiększ",
   "public.unavailable_title": "Link niedostępny",
   "public.unavailable_heading": "Ten link jest niedostępny",
   "public.unavailable_body": "Wygasł, został zakończony albo nigdy nie istniał. Zapytaj osobę, która go wysłała.",
