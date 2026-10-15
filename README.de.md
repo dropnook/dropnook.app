@@ -268,6 +268,19 @@ Ganz ohne HTTPS im Heimnetz: `TLS_CERT=` (leer), und `CERTS_DIR=` ein
 bestehender Ordner ohne Zertifikate, z. B. `/mnt/user/appdata/drop` — sonst legt
 Docker den vorgegebenen leer an.
 
+**Zertifikate aus Cert Warden?** Das Skript
+[`tools/certwarden/certwarden-drop.sh`](tools/certwarden/certwarden-drop.sh)
+holt Zertifikat und Schlüssel über die Download-API von
+[Cert Warden](https://www.certwarden.com/) — mit dem Plugin *User Scripts*:
+*Settings* → *User Scripts* → *Add New Script*, den Inhalt einfügen, oben
+Adresse, Namen und API-Keys eintragen, einmal von Hand starten, dann einen
+Zeitplan wählen (z. B. *Custom* `17 4 * * *`, einmal täglich). Es legt die
+beiden Dateien in einen eigenen Ordner (vorgegeben
+`/mnt/user/appdata/certwarden-drop`), und nur, wenn sie gültig sind und
+zusammenpassen; in der `.env` dann `CERTS_DIR=` dieser Ordner und
+`TLS_CERT=auto`. Drop sieht so genau dieses eine Zertifikat und übernimmt jede
+Erneuerung selbst.
+
 **Wenn `auto` kein Zertifikat findet** — im Bereich *Compose* beim Stack `drop`
 die **Logs** des Containers `drop` öffnen. Direkt nach dem Start steht dort, was
 Drop gefunden hat. Die Lösung kommt in die `.env` (*Edit Stack* → Reiter

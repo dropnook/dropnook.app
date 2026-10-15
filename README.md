@@ -262,6 +262,18 @@ files there are links into `archive/`. Without HTTPS in your network at all:
 `TLS_CERT=` (empty), and `CERTS_DIR=` any existing folder without certificates,
 e.g. `/mnt/user/appdata/drop` — otherwise Docker creates the preset one, empty.
 
+**Certificates from Cert Warden?** The script
+[`tools/certwarden/certwarden-drop.sh`](tools/certwarden/certwarden-drop.sh)
+fetches certificate and key through [Cert Warden](https://www.certwarden.com/)'s
+download API — with the *User Scripts* plugin: *Settings* → *User Scripts* →
+*Add New Script*, paste it in, fill in address, names and API keys at the top,
+run it once by hand, then pick a schedule (e.g. *Custom* `17 4 * * *`, once a
+day). It puts the two files into a folder of their own (preset
+`/mnt/user/appdata/certwarden-drop`), and only when they are valid and belong
+together; in the `.env` then `CERTS_DIR=` that folder and `TLS_CERT=auto`. Drop
+sees exactly this one certificate that way and picks up every renewal by
+itself.
+
 **If `auto` does not get a certificate** — on the stack `drop` in the
 *Compose* section, open **Logs** of the container `drop`. Right after the start
 it says what it found, and the fix goes into the `.env` (*Edit Stack* → tab
