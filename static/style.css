@@ -568,6 +568,13 @@ h1,h2,h3{margin:0; font-weight:650; letter-spacing:-.01em}
 /* On a phone the picture fills the screen, as in any video call; the photo still takes the whole frame. */
 @media (max-width:699px){#call-screen-big{object-fit:cover}}
 .call video.mirror{transform:scaleX(-1)}
+.call-self-off{position:absolute; top:calc(14px + env(safe-area-inset-top)); inset-inline-end:14px; z-index:2;
+  width:min(28vw,220px); aspect-ratio:3/4; border-radius:10px; border:1px solid rgba(255,255,255,.25);
+  background:#1B252B; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px;
+  font-size:12.5px; color:#C3D0D6; text-align:center; padding:8px}
+.call-self-off[hidden]{display:none}
+.call-self-off svg{width:28px; height:28px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round}
+@media (min-width:700px){.call-self-off{aspect-ratio:4/3}}
 .call-placeholder{position:absolute; inset:0; display:flex; flex-direction:column; align-items:center;
   justify-content:center; gap:8px; text-align:center; padding:24px}
 .call-placeholder[hidden]{display:none}

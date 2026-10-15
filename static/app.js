@@ -2540,9 +2540,15 @@ function showCallScreen() {
   small.onclick = () => { if (call) { call.swapped = !call.swapped; drawCallScreen(); } };
   small.title = t('ui.call_swap');
   const placeholder = el('div', 'call-placeholder');
+  // My own camera off: the small picture stays as a dark tile that says so —
+  // otherwise only the other side shows a change, and it looks like theirs.
+  const selfOff = el('div', 'call-self-off');
+  selfOff.id = 'call-self-off';
+  selfOff.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS.camOff}</svg>`;
+  selfOff.appendChild(el('span', '', t('ui.call_camera_is_off')));
   const top = el('div', 'call-top');
   const bar = el('div', 'call-bar');
-  screen.append(big, placeholder, small, sound, top, bar);
+  screen.append(big, placeholder, small, selfOff, sound, top, bar);
   document.body.appendChild(screen);
   drawCallScreen();
 }
@@ -2575,6 +2581,7 @@ function drawCallScreen() {
   big.muted = small.muted = true;
   big.hidden = !bigStream;
   small.hidden = !smallStream;
+  $('#call-self-off').hidden = !(c.stream && !c.cameraOn && !c.swapped && c.state !== 'incoming');
   big.classList.toggle('mirror', !!bigStream && bigStream === mine && mirrorMine);
   small.classList.toggle('mirror', !!smallStream && smallStream === mine && mirrorMine);
   [big, small].forEach((v) => { if (v.srcObject) v.play().catch(() => {}); });
