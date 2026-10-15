@@ -72,6 +72,11 @@ check "compose.yaml: presets for the rest" \
 check "compose.yaml: .env.example as it is, with two addresses" \
   test "$(conf --env-file "${COMPOSE%/*}/.env.example" --env-file "$WORK/min.env")" = '|||auto|||192.168.1.20|192.168.1.21|/mnt/user/drop|/mnt/user/drop/shares'
 check "compose.yaml: without .env it refuses, naming the address" refused
+images() { docker compose -f "$COMPOSE" "$@" config --format json | python3 -c '
+import json, sys; print(" ".join(sorted({v["image"] for v in json.load(sys.stdin)["services"].values()})))'; }
+check "compose.yaml: image version 2 by default" test "$(images --env-file "$WORK/min.env")" = ghcr.io/dropnook/dropnook:2
+printf 'DROPNOOK_VERSION=2.2.1\n' | cat "$WORK/min.env" - > "$WORK/pinned.env"
+check "compose.yaml: image version from .env"   test "$(images --env-file "$WORK/pinned.env")" = ghcr.io/dropnook/dropnook:2.2.1
 
 # ---------------------------------------------------------------- drop (LAN)
 docker run -d --name ci-drop -p "$LAN:80" \

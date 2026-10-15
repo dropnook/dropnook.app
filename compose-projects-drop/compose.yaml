@@ -2,7 +2,7 @@ name: drop
 
 services:
   drop:
-    image: ghcr.io/dropnook/dropnook:2
+    image: ghcr.io/dropnook/dropnook:${DROPNOOK_VERSION:-2}
     container_name: drop
     restart: unless-stopped
     cap_drop: [ALL]
@@ -57,7 +57,7 @@ services:
         max-file: "5"
 
   drop-share:
-    image: ghcr.io/dropnook/dropnook:2
+    image: ghcr.io/dropnook/dropnook:${DROPNOOK_VERSION:-2}
     container_name: drop-share
     restart: unless-stopped
     depends_on:
