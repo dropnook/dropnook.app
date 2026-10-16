@@ -555,6 +555,8 @@ h1,h2,h3{margin:0; font-weight:650; letter-spacing:-.01em}
 .live-note{font-size:13px; color:var(--muted)}
 
 .peers-head{font-size:12.5px; font-weight:600; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin:4px 0 8px}
+.still-line{color:var(--muted)}
+.still-time{color:var(--ink); font-variant-numeric:tabular-nums}
 .peers{list-style:none; margin:0 0 14px; padding:0; display:flex; flex-direction:column; gap:8px}
 .peers li.empty{color:var(--muted); font-size:14px; padding:6px 0}
 .peer{display:flex; align-items:center; gap:10px; padding:9px 11px; border:1px solid var(--line); border-radius:6px}
@@ -603,7 +605,7 @@ h1,h2,h3{margin:0; font-weight:650; letter-spacing:-.01em}
 .call-label span{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 .call-label svg{width:14px; height:14px; flex:none; fill:none; stroke:#F0A096; stroke-width:2; stroke-linecap:round; stroke-linejoin:round}
 .call-tile.big .call-label{top:calc(54px + env(safe-area-inset-top)); bottom:auto; inset-inline-start:20px}
-.call.mini .call-label{display:none}
+.call.mini .call-label, .call-tile.big.me .call-label{display:none}
 .call-note{position:absolute; top:50%; inset-inline:8px; transform:translateY(34px); text-align:center; font-size:13px; color:#C3D0D6}
 .call-note[hidden]{display:none}
 .call-tile.big .call-note{transform:translateY(64px); font-size:14px}

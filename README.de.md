@@ -415,7 +415,9 @@ der `.env`). Im Raum: stumm schalten, Kamera aus, zwischen vorderer und hinterer
 Kamera wechseln, *Foto* — ein Bild in den gemeinsamen Dateien — und *Einladen*,
 das jemanden anstupst, der Drop offen hat (dort klingelt es kurz). Wer den Raum
 geöffnet hat, kann ihn abschliessen; *Verkleinern* schiebt ihn in eine Ecke, und
-Drop bleibt darunter bedienbar. Je mehr Personen, desto kleiner wird jedes Bild
+Drop bleibt darunter bedienbar. Wer 5 Minuten allein im Raum ist, wird gefragt
+*Noch da?* — ohne Antwort verlässt Drop ihn 2 Minuten später, und der Raum
+endet. Je mehr Personen, desto kleiner wird jedes Bild
 gesendet — so kommen Handys mit. Bild und Ton gehen direkt von Gerät zu Gerät
 (WebRTC); Drop reicht nur die paar Nachrichten weiter, die die Verbindungen
 aufbauen, und nichts verlässt dein Netz. Der Live-Raum braucht

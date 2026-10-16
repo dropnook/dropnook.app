@@ -399,7 +399,9 @@ fields and joins with one click; up to 10 people (`LIVE_MAX` in the `.env`). In
 the room: mute, camera off, switch between front and back camera, *Photo* — a
 picture saved to the shared files — and *Invite*, which nudges someone who has
 Drop open (it rings briefly there). Whoever opened the room can lock it;
-*Smaller* moves it into a corner and Drop stays usable below. The more people,
+*Smaller* moves it into a corner and Drop stays usable below. Alone for 5
+minutes, Drop asks *Still there?* — without an answer it leaves 2 minutes later
+and the room ends. The more people,
 the smaller each picture is sent, so phones keep up. Picture and sound go
 straight from device to device (WebRTC); Drop only passes on the few messages
 that set the connections up, and nothing leaves your network. The live room
