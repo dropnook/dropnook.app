@@ -296,6 +296,11 @@
   "ui.live_nudge_text": "{name} is live and would like you to join.",
   "ui.live_later": "Later",
   "ui.live_no_link": "No connection",
+  "ui.live_still_title": "Still there?",
+  "ui.live_still_text": "You have been alone in the live room for {minutes} minutes.",
+  "ui.live_still_closes": "Without an answer it closes in",
+  "ui.live_stay": "Stay",
+  "ui.live_closed_alone": "Live room closed — nobody came in.",
   "ui.error_call_full": "The live room is full.",
   "ui.error_call_locked": "The live room is locked.",
 

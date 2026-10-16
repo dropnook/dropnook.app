@@ -175,7 +175,9 @@ Unraid and can stay.
   (`qualityFor` in `app.js`: from 4 others 480p, from 6 360p, from 10 240p —
   camera constraints plus `scaleResolutionDownBy`, frame rate and bit rate per
   sender); a connection that fails is set up anew by the newcomer, three times
-  in all. A photo is a JPEG of the large (or first) picture, uploaded into the
+  in all. Alone in the room for 5 minutes (`ALONE_ASK`), a page asks "Still
+  there?" and leaves 2 minutes later (`ALONE_WAIT`) without an answer; someone
+  coming in ends the question. A photo is a JPEG of the large (or first) picture, uploaded into the
   shared files like any other. A certificate renewal waits until nobody is
   live. `drop-share` has none of this.
 * **Colour layouts**: `data-palette` on `<html>` (`gold`, `blue`, `violet`,

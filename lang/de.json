@@ -292,6 +292,11 @@
   "ui.live_nudge_text": "{name} ist live und möchte, dass du dazukommst.",
   "ui.live_later": "Später",
   "ui.live_no_link": "Keine Verbindung",
+  "ui.live_still_title": "Noch da?",
+  "ui.live_still_text": "Du bist seit {minutes} Minuten allein im Live-Raum.",
+  "ui.live_still_closes": "Ohne Antwort schliesst er in",
+  "ui.live_stay": "Bleiben",
+  "ui.live_closed_alone": "Live-Raum geschlossen – niemand ist dazugekommen.",
   "ui.error_call_full": "Der Live-Raum ist voll.",
   "ui.error_call_locked": "Der Live-Raum ist abgeschlossen.",
 

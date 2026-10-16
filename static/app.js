@@ -1935,6 +1935,8 @@ const CALL_NAME_KEY  = 'drop.device';           // this device's name, as the ot
 const CALL_DROPOUT   = 12000;                   // ms a broken connection may take to come back
 const CALL_SETUP     = 25000;                   // ms until picture and sound flow to a member
 const CALL_TRIES     = 3;                       // connections to one member before giving up
+const ALONE_ASK      = 5 * 60 * 1000;           // ms alone in the room until "Still there?"
+const ALONE_WAIT     = 2 * 60 * 1000;           // … and without an answer, until the page leaves
 const callable       = window.isSecureContext && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)
                        && 'RTCPeerConnection' in window;
 // Who this page is in the room: a secret of its own, the others only see a hash of it.
@@ -2278,7 +2280,7 @@ async function joinRoom(video) {
     you: null, joined: false, ended: false, stream: null, preview: null, links: new Map(),
     micOn: true, cameraOn: false, facing: 'user', cameras: 0, cameraBusy: false,
     mini: false, focus: null, since: 0, clock: null, levels: null, wakeLock: null, quality: null,
-    tiles: new Map(), tries: new Map(), toldFailed: false,
+    tiles: new Map(), tries: new Map(), toldFailed: false, aloneSince: 0, askedAt: 0, askBox: null,
   };
   showCallScreen();
   try {
@@ -2295,7 +2297,7 @@ async function joinRoom(video) {
     l.you = d.you;
     l.joined = true;
     l.since = Date.now();
-    l.clock = setInterval(drawCallClock, 1000);
+    l.clock = setInterval(() => { drawCallClock(); checkAlone(); }, 1000);
     l.levels = setInterval(drawSpeaking, 400);
     keepAwake();
     setRoom(d.room, true);
@@ -2721,6 +2723,44 @@ function drawCallClock() {
   const p = (n) => String(n).padStart(2, '0');
   const clock = s >= 3600 ? `${Math.floor(s / 3600)}:${p(Math.floor(s / 60) % 60)}:${p(s % 60)}` : `${p(Math.floor(s / 60))}:${p(s % 60)}`;
   node.textContent = `${t('ui.live_people', { n: roomMembers().length })} · ${clock}`;
+}
+
+/* Alone in the room for ALONE_ASK: a short sound and "Still there?". Without
+   an answer the page leaves ALONE_WAIT later — the room ends with it, rather
+   than stay live all night on a forgotten tab. Someone coming in ends the
+   question; closing it counts as staying. */
+function checkAlone() {
+  const l = live;
+  if (!l || !l.joined) return;
+  const alone = !roomMembers().some((m) => m.id !== l.you);
+  const now = Date.now();
+  if (!alone) {
+    l.aloneSince = 0;
+    if (l.askedAt) { l.askedAt = 0; if (l.askBox && document.contains(l.askBox)) hideDialog(); }
+    return;
+  }
+  if (!l.aloneSince) l.aloneSince = now;
+  if (l.askedAt) {
+    if (!l.askBox || !document.contains(l.askBox)) { l.askedAt = 0; l.aloneSince = now; return; }   // closed: stays
+    const left = Math.max(0, Math.ceil((l.askedAt + ALONE_WAIT - now) / 1000));
+    l.askBox.querySelector('.still-time').textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+    if (!left) { hideDialog(); leaveRoom(); toast(t('ui.live_closed_alone')); }
+    return;
+  }
+  if (now - l.aloneSince < ALONE_ASK) return;
+  l.askedAt = now;
+  beep([660, 880], 0.25);
+  if (navigator.vibrate) navigator.vibrate(200);
+  const box = el('div', 'still');
+  const text = el('p', '', t('ui.live_still_text', { minutes: Math.round(ALONE_ASK / 60000) }));
+  const time = el('p', 'still-line');
+  time.append(el('span', '', t('ui.live_still_closes') + ' '), el('strong', 'still-time', ''));
+  box.append(text, time);
+  l.askBox = box;
+  const stay = () => { if (live === l) { l.askedAt = 0; l.aloneSince = Date.now(); } };
+  dialog({ title: t('ui.live_still_title'), content: box,
+    buttons: [{ text: t('ui.live_leave'), action: leaveRoom }, { text: t('ui.live_stay'), kind: 'go', action: stay }] });
+  checkAlone();
 }
 
 // One tile per person, kept from one drawing to the next: a <video> that is
