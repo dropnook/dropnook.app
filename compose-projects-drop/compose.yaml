@@ -14,6 +14,7 @@ services:
       - MODE=lan
       - TZ=${TZ:-}
       - WEBUI=${WEBUI:-}
+      - LIVE_MAX=${LIVE_MAX:-10}
       - HOSTS=${HOSTS:-}
       - SHARE_SUBDOMAIN=${SHARE_SUBDOMAIN:-drop-share}
       # Access

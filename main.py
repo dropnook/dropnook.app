@@ -471,8 +471,8 @@ def certwarden_sync() -> bool:
 
 
 async def restart_when_idle(reason: str) -> None:
-    """Exit once no upload or call runs; `restart: unless-stopped` brings it back."""
-    while running_uploads() or calls:
+    """Exit once no upload runs and nobody is live; `restart: unless-stopped` brings it back."""
+    while running_uploads() or room is not None:
         await asyncio.sleep(30)
     print(f"{reason} — restarting so it takes effect.", flush=True)
     os._exit(0)
@@ -1479,7 +1479,7 @@ async def watch_certificate(paths: list, interval: int = 300) -> None:
     start-up. So: notice the change and exit — `restart: unless-stopped` brings
     the container straight back. Only while no upload is running — one that
     has not moved for UPLOAD_QUIET does not count, or a single abandoned upload
-    would keep the old certificate until it expires. Nor during a call."""
+    would keep the old certificate until it expires. Nor while someone is live."""
     def stamps() -> list:
         out = []
         for path in paths:
@@ -1492,7 +1492,7 @@ async def watch_certificate(paths: list, interval: int = 300) -> None:
     while True:
         await asyncio.sleep(interval)
         now = stamps()
-        if now != last and None not in now and not running_uploads() and not calls:
+        if now != last and None not in now and not running_uploads() and room is None:
             print("Certificate renewed — restarting so it takes effect.", flush=True)
             os._exit(0)
 
@@ -2197,6 +2197,7 @@ async def state(request: Request) -> JSONResponse:
         "sharing": {"enabled": SHARING_ENABLED, "max_days": SHARE_MAX_DAYS,
                     "base_url": SHARE_BASE_URL or None, "subdomain": SHARE_SUBDOMAIN},
         "shares": visible_shares(shares, user),
+        "room": room_card(),
     })
 
 
@@ -2209,7 +2210,7 @@ async def events(request: Request) -> StreamingResponse:
         # Registered only once the stream runs: a client gone before that
         # leaves nothing behind.
         hub.clients[queue] = user
-        # A page that can call says so with its secret; see Calls below.
+        # A page that can go live says so with its secret; see Live room below.
         # Whatever is wrong with that, the page still gets its live updates.
         peer = None
         try:
@@ -2242,32 +2243,38 @@ async def events(request: Request) -> StreamingResponse:
     })
 
 
-# ---- Calls ------------------------------------------------------------------
+# ---- Live room ----------------------------------------------------------------
 #
-# Video and voice calls between two devices in the home network. Picture and
-# sound go straight from one browser to the other (WebRTC, nothing in between
-# in a LAN); Drop only passes on the few messages that set a call up: who is
-# there, the ringing, the answer, and the browsers' connection details. Calls
-# belong to the shared area — with users, a page showing its own area is not
-# reachable. drop-share knows nothing of any of this.
+# Video and voice between the devices in the home network, as one room per
+# Drop: someone goes live, everyone else sees a tile and joins with a click.
+# Picture and sound go straight from browser to browser (WebRTC, every member
+# connected to every other, nothing in between in a LAN); Drop only passes on
+# the few messages that set the connections up: who is there, who is in the
+# room, and the browsers' connection details. The room belongs to the shared
+# area — with users, a page showing its own area cannot join. drop-share knows
+# nothing of any of this.
 #
-# Every page that can call makes up a secret for itself and opens its live
-# updates with it (?peer=). Others only ever see a hash of it, so nobody can
-# speak for another page.
+# Every page that can take part makes up a secret for itself and opens its
+# live updates with it (?peer=). Others only ever see a hash of it, so nobody
+# can speak for another page.
 
-CALL_RING = 45                      # seconds until an unanswered call counts as missed
+LIVE_MAX = min(50, max(2, int(os.environ.get("LIVE_MAX", "10") or 10)))  # people in the room
 CALL_GRACE = 20                     # a page without live updates: this long until it is gone …
-CALL_GRACE_LIVE = 10 * 60           # … unless it is in a call: that runs between the browsers
-CALL_PEERS_EACH = 20                # pages per address that can be called
+CALL_GRACE_LIVE = 120               # … in the room a little longer: a phone that locked its screen comes back
+CALL_PEERS_EACH = 20                # pages per address
 CALL_SIGNAL_MAX = 64 * 1024         # characters of one message; a session description is a few KB
 CALL_PEERS_MAX = 200
 CALL_NAME_MAX = 40
-CALL_SIGNALS = {"accept", "decline", "cancel", "hangup", "offer", "answer", "ice", "state", "photo"}
+CALL_LIMIT = 20                     # joins and nudges per address and minute
+CALL_TO_ONE = {"offer", "answer", "ice"}       # for one member
+CALL_TO_ALL = {"photo"}                        # for all the others
+CALL_STATE = "state"                           # camera and microphone on or off: into the room's card
 PEER_SECRET = re.compile(r"^[A-Za-z0-9_-]{22,64}$")
 
 
 class Peer:
-    __slots__ = ("id", "user", "address", "name", "device", "available", "queue", "seen", "call")
+    __slots__ = ("id", "user", "address", "name", "device", "available", "queue", "seen",
+                 "video", "audio")
 
     def __init__(self, pid: str, user: Optional[User], address: str):
         self.id, self.user, self.address = pid, user, address
@@ -2275,25 +2282,20 @@ class Peer:
         self.available = False
         self.queue: Optional[asyncio.Queue] = None
         self.seen = time.time()
-        self.call: Optional[str] = None
+        self.video = self.audio = False
 
 
-class Call:
-    __slots__ = ("id", "caller", "callee", "video", "active", "started")
+class Room:
+    __slots__ = ("members", "owner", "locked", "started")
 
-    def __init__(self, caller: Peer, callee: Peer, video: bool):
-        self.id = secrets.token_urlsafe(12)
-        self.caller, self.callee, self.video = caller, callee, video
-        self.active = False
-        self.started = time.time()
-
-    def other(self, peer: Peer) -> Peer:
-        return self.callee if peer is self.caller else self.caller
+    def __init__(self, owner: Peer):
+        self.members: Dict[str, Peer] = {}       # in the order they came in
+        self.owner, self.locked, self.started = owner, False, time.time()
 
 
 peers: Dict[str, Peer] = {}
-calls: Dict[str, Call] = {}
-invites: Dict[str, list] = {}       # address -> times of its last calls
+room: Optional[Room] = None
+attempts: Dict[str, list] = {}      # address -> times of its last joins and nudges
 
 
 def peer_id(secret: str) -> str:
@@ -2333,15 +2335,36 @@ def reachable(peer: Peer) -> bool:
     return peer.available and peer.queue is not None
 
 
+def in_room(peer: Peer) -> bool:
+    return room is not None and peer.id in room.members
+
+
 def peer_card(peer: Peer) -> dict:
     return {"id": peer.id, "name": peer.name, "device": peer.device,
             "user": peer.user.name if peer.user else None,
             "palette": peer.user.palette if peer.user else None,
-            "busy": peer.call is not None}
+            "live": in_room(peer)}
+
+
+def room_card() -> Optional[dict]:
+    if room is None:
+        return None
+    return {"members": [{**peer_card(p), "video": p.video, "audio": p.audio}
+                        for p in room.members.values()],
+            "owner": room.owner.id, "locked": room.locked, "max": LIVE_MAX,
+            "started": int(room.started)}
+
+
+def announce_room() -> None:
+    """Every page learns whether someone is live — also those that cannot
+    join (plain HTTP, their own area): the tile tells them why."""
+    card = room_card()
+    for queue in list(hub.clients):
+        hub.send(queue, "room", {"room": card})
 
 
 def announce_peers() -> None:
-    """Every page that can call learns who else can — itself left out."""
+    """Every page that can take part learns who else can — itself left out."""
     present = [p for p in peers.values() if reachable(p)]
     for peer in peers.values():
         if peer.queue is not None:
@@ -2354,20 +2377,37 @@ def tell(peer: Peer, data: dict) -> None:
         hub.send(peer.queue, "call", data)
 
 
-def end_call(call: Call, reason: str, by: Optional[Peer] = None) -> None:
-    if calls.pop(call.id, None) is None:
+def too_often(peer: Peer) -> bool:
+    now = time.time()
+    recent = attempts[peer.address] = [t for t in attempts.get(peer.address, []) if now - t < 60]
+    if len(recent) >= CALL_LIMIT:
+        return True
+    recent.append(now)
+    return False
+
+
+def leave_room(peer: Peer) -> None:
+    """Out of the room; the others close their connection to it. The last one
+    out ends the room, and the one who came in next after the owner takes over
+    the lock."""
+    global room
+    if not in_room(peer):
         return
-    for peer in (call.caller, call.callee):
-        if peer.call == call.id:
-            peer.call = None
-        if peer is not by:
-            tell(peer, {"type": reason, "call": call.id})
+    del room.members[peer.id]
+    peer.video = peer.audio = False
+    if not room.members:
+        room = None
+    else:
+        if room.owner is peer:
+            room.owner = next(iter(room.members.values()))
+        for other in room.members.values():
+            tell(other, {"type": "left", "from": peer.id})
+    announce_room()
     announce_peers()
 
 
 def drop_peer(peer: Peer) -> None:
-    if peer.call and peer.call in calls:
-        end_call(calls[peer.call], "hangup", peer)
+    leave_room(peer)
     peers.pop(peer.id, None)
     announce_peers()
 
@@ -2380,9 +2420,8 @@ def peer_connected(peer: Peer, queue: asyncio.Queue) -> None:
 
 def peer_disconnected(peer: Peer, queue: asyncio.Queue) -> None:
     """Live updates break off now and then (a phone locks its screen, Wi-Fi
-    changes). The page is given CALL_GRACE to come back — in a call that has
-    been answered CALL_GRACE_LIVE, as the call itself runs between the
-    browsers."""
+    changes). The page is given CALL_GRACE to come back — in the room
+    CALL_GRACE_LIVE, as picture and sound run between the browsers."""
     if peer.queue is queue:
         peer.queue, peer.seen = None, time.time()
         announce_peers()
@@ -2392,95 +2431,134 @@ async def watch_calls(interval: int = 5) -> None:
     while True:
         await asyncio.sleep(interval)
         now = time.time()
-        for call in list(calls.values()):
-            if not call.active and now - call.started > CALL_RING:
-                end_call(call, "missed")
-        for address in [a for a, times in invites.items() if all(now - t > 60 for t in times)]:
-            invites.pop(address, None)
+        for address in [a for a, times in attempts.items() if all(now - t > 60 for t in times)]:
+            attempts.pop(address, None)
         for peer in list(peers.values()):
-            live = peer.call in calls and calls[peer.call].active
-            if peer.queue is None and now - peer.seen > (CALL_GRACE_LIVE if live else CALL_GRACE):
+            if peer.queue is None and now - peer.seen > (CALL_GRACE_LIVE if in_room(peer) else CALL_GRACE):
                 drop_peer(peer)
+
+
+async def peer_body(request: Request) -> tuple:
+    body = await json_body(request)
+    if not isinstance(body, dict):
+        raise HTTPException(400, "Expected an object")
+    return body, peer_of(request, body.get("peer"))
 
 
 @app.post("/api/call/presence")
 async def call_presence(request: Request) -> JSONResponse:
-    """A page says what it is called and whether it can be called right now:
+    """A page says what it is called and whether it can take part right now:
     over HTTPS (browsers give camera and microphone to nothing else), showing
-    the shared area, the page open."""
-    body = await json_body(request)
-    if not isinstance(body, dict):
-        raise HTTPException(400, "Expected an object")
-    peer = peer_of(request, body.get("peer"))
+    the shared area, the page open. It also says whether it is in the room —
+    one that left without the server hearing of it is taken out here."""
+    body, peer = await peer_body(request)
     before = (peer.name, peer.device, peer.available)
     peer.name = short_text(body.get("name"))
     peer.device = short_text(body.get("device"))
     peer.available = body.get("available") is True
-    # The page says which call it is in. A call it no longer has — its
-    # hang-up got lost on the way — ends here, or both would stay busy.
-    if peer.call and peer.call in calls and "call" in body and body["call"] is None:
-        end_call(calls[peer.call], "hangup", peer)
     if (peer.name, peer.device, peer.available) != before:
         announce_peers()
-    return JSONResponse({"id": peer.id, "call": peer.call})
+        if in_room(peer):
+            announce_room()
+    if body.get("live") is False:
+        leave_room(peer)
+    return JSONResponse({"id": peer.id, "live": in_room(peer)})
 
 
-@app.post("/api/call/invite")
-async def call_invite(request: Request) -> JSONResponse:
-    body = await json_body(request)
-    if not isinstance(body, dict):
-        raise HTTPException(400, "Expected an object")
-    caller = peer_of(request, body.get("peer"))
-    callee = peers.get(str(body.get("to", "")))
-    if callee is None or callee is caller or not reachable(callee) or not reachable(caller):
+@app.post("/api/call/join")
+async def call_join(request: Request) -> JSONResponse:
+    """Into the room — or a new one. The newcomer connects to everyone who is
+    already there (they are in the answer), so two never start the same
+    connection from both ends."""
+    global room
+    body, peer = await peer_body(request)
+    if not reachable(peer):
         raise api_error(404, "call_gone", "Not available")
-    now = time.time()
-    recent = invites[caller.address] = [t for t in invites.get(caller.address, []) if now - t < 60]
-    if len(recent) >= 10:
-        raise api_error(429, "call_too_many", "Too many calls")
-    if caller.call or callee.call:
-        raise api_error(409, "call_busy", "Busy")
-    recent.append(now)
-    call = Call(caller, callee, body.get("video") is True)
-    calls[call.id] = call
-    caller.call = callee.call = call.id
-    tell(callee, {"type": "invite", "call": call.id, "video": call.video,
-                  "from": peer_card(caller)})
+    if not in_room(peer):
+        if room is not None and room.locked:
+            raise api_error(423, "call_locked", "The room is locked")
+        if room is not None and len(room.members) >= LIVE_MAX:
+            raise api_error(409, "call_full", "The room is full")
+        if too_often(peer):
+            raise api_error(429, "call_too_many", "Too many attempts")
+        if room is None:
+            room = Room(peer)
+        others = list(room.members.values())
+        room.members[peer.id] = peer
+        for other in others:
+            tell(other, {"type": "joined", "from": peer_card(peer)})
+    peer.video, peer.audio = body.get("video") is True, body.get("audio") is not False
+    announce_room()
     announce_peers()
-    return JSONResponse({"call": call.id, "ring": CALL_RING})
+    return JSONResponse({"you": peer.id, "room": room_card(),
+                         "connect": [p for p in room.members if p != peer.id]})
+
+
+@app.post("/api/call/leave")
+async def call_leave(request: Request) -> JSONResponse:
+    _, peer = await peer_body(request)
+    leave_room(peer)
+    return JSONResponse({"ok": True})
+
+
+@app.post("/api/call/lock")
+async def call_lock(request: Request) -> JSONResponse:
+    """Who opened the room (or took it over) can close it to newcomers."""
+    body, peer = await peer_body(request)
+    if not in_room(peer):
+        raise api_error(404, "call_gone", "Not in the room")
+    if room.owner is not peer:
+        raise HTTPException(403, "Only the owner of the room")
+    room.locked = body.get("locked") is True
+    announce_room()
+    return JSONResponse({"locked": room.locked})
+
+
+@app.post("/api/call/nudge")
+async def call_nudge(request: Request) -> JSONResponse:
+    """From inside the room: a sound and a note on another page — come in."""
+    body, peer = await peer_body(request)
+    target = peers.get(str(body.get("to", "")))
+    if not in_room(peer):
+        raise api_error(404, "call_gone", "Not in the room")
+    if target is None or not reachable(target) or in_room(target):
+        raise api_error(404, "call_gone", "Not available")
+    if room.locked:
+        raise api_error(423, "call_locked", "The room is locked")
+    if too_often(peer):
+        raise api_error(429, "call_too_many", "Too many attempts")
+    tell(target, {"type": "nudge", "from": peer_card(peer)})
+    return JSONResponse({"ok": True})
 
 
 @app.post("/api/call/signal")
 async def call_signal(request: Request) -> JSONResponse:
-    """Passes a message on to the other side of the call. What is in it — the
-    browsers' session descriptions and addresses — is theirs; Drop only checks
-    who may send what, and how much."""
-    body = await json_body(request)
-    if not isinstance(body, dict):
-        raise HTTPException(400, "Expected an object")
-    peer = peer_of(request, body.get("peer"))
-    call = calls.get(str(body.get("call", "")))
+    """Passes a message on to one member of the room, or to all the others.
+    What is in it — the browsers' session descriptions and addresses — is
+    theirs; Drop only checks who may send what, and how much."""
+    body, peer = await peer_body(request)
     kind = body.get("type")
-    if call is None or peer not in (call.caller, call.callee):
-        raise api_error(404, "call_gone", "No such call")
-    if kind not in CALL_SIGNALS:
+    if kind not in CALL_TO_ONE and kind not in CALL_TO_ALL and kind != CALL_STATE:
         raise HTTPException(400, "Unknown message")
+    if not in_room(peer):
+        raise api_error(404, "call_gone", "Not in the room")
     data = body.get("data")
     if len(json.dumps(data)) > CALL_SIGNAL_MAX:
         raise HTTPException(413, "Message too large")
-    if kind in ("decline", "cancel", "hangup"):
-        if kind == "decline" and peer is not call.callee:
-            raise HTTPException(400, "Only the one called can decline")
-        end_call(call, kind, peer)
+    if kind in CALL_TO_ONE:
+        target = room.members.get(str(body.get("to", "")))
+        if target is None or target is peer:
+            raise api_error(404, "call_gone", "Not in the room")
+        tell(target, {"type": kind, "from": peer.id, "data": data})
         return JSONResponse({"ok": True})
-    if kind == "accept":
-        if peer is not call.callee or call.active:
-            raise HTTPException(409, "Not ringing")
-        call.active = True
-        announce_peers()
-    elif not call.active:
-        raise HTTPException(409, "Not answered yet")
-    tell(call.other(peer), {"type": kind, "call": call.id, "data": data})
+    if kind == CALL_STATE:
+        if isinstance(data, dict):
+            peer.video, peer.audio = data.get("video") is True, data.get("audio") is True
+            announce_room()
+        return JSONResponse({"ok": True})
+    for other in room.members.values():
+        if other is not peer:
+            tell(other, {"type": kind, "from": peer.id, "data": data})
     return JSONResponse({"ok": True})
 
 

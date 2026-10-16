@@ -102,7 +102,7 @@ listed under [What Drop expects from your reverse proxy](#what-drop-expects-from
 > in your network (network type *Custom: br0*; put a free address into *Fixed
 > IP address*) and opens at `http://<that address>/`. Rather *Bridge*? Then
 > Unraid itself has port 80 — change the port in the template, e.g. to 8088,
-> and open `http://Tower:8088`. For HTTPS (e.g. for video calls), enter a
+> and open `http://Tower:8088`. For HTTPS (e.g. for the live room), enter a
 > certificate from Cert Warden under *Show more settings*. Create the share for
 > its files first (step 1). The steps below set up the full stack, with sharing.
 
@@ -157,6 +157,7 @@ On the new stack, **Edit Stack**:
 | `SHARE_SUBDOMAIN` | `drop-share` | First part of the share links' name |
 | `WEBUI` | `https://drop.yourdomain.com` | Your name for Drop — what *WebUI* in the Docker tab opens, and a name Drop answers to. Without a domain and without sharing: `http://[IP]/` |
 | `TZ` | empty | Optional: time zone of the log, e.g. `Europe/Berlin` |
+| `LIVE_MAX` | `10` | Most people in the [live room](#using-drop) at once (2–50); more costs each phone more |
 | `PIN`, `USER_…` | empty | Optional — see [PIN](#pin-or-password-optional) and [Users](#users-optional) |
 
 Comments go on lines of their own, never behind a value. The image is
@@ -392,15 +393,18 @@ Portuguese, Russian, Spanish and Turkish. To change wording or add a language
 for yourself, put a file into `lang/` in the appdata folder — see
 [`lang/README.md`](lang/README.md).
 
-**Video calls** — the camera button in the header lists the devices that have
-Drop open right now. *Video* or *Voice*: the other one rings and answers with or
-without its camera. During the call: mute, camera off, switch between front and
-back camera, and *Photo* — a picture of the large video, saved to the shared
-files. Picture and sound go straight from device to device (WebRTC); Drop only
-passes on the few messages that set the call up, and nothing leaves your
-network. Calls need [HTTPS](#https-in-your-network) — browsers give camera and
-microphone to nothing else — and are always between two; with
-[users](#users-optional) they belong to the shared area.
+**Live room** — go live with the camera button in the header, with *Video* or
+*Voice* only. Everyone with Drop open then sees a live tile above the text
+fields and joins with one click; up to 10 people (`LIVE_MAX` in the `.env`). In
+the room: mute, camera off, switch between front and back camera, *Photo* — a
+picture saved to the shared files — and *Invite*, which nudges someone who has
+Drop open (it rings briefly there). Whoever opened the room can lock it;
+*Smaller* moves it into a corner and Drop stays usable below. The more people,
+the smaller each picture is sent, so phones keep up. Picture and sound go
+straight from device to device (WebRTC); Drop only passes on the few messages
+that set the connections up, and nothing leaves your network. The live room
+needs [HTTPS](#https-in-your-network) — browsers give camera and microphone to
+nothing else; with [users](#users-optional) it belongs to the shared area.
 
 **On another device** — the QR button in the header (on computers and tablets)
 shows Drop's address as a QR code: point the phone's camera at it, and the page
@@ -456,9 +460,9 @@ uploads and texts too large to handle.
   is locked for that time.
 * Downloads are always attachments — a shared HTML file never runs in the
   browser. Expired links disappear by themselves.
-* Calls exist only in `drop`: no STUN or TURN server, no recording, nothing
-  through the reverse proxy. A page can only speak for itself in a call — it
-  identifies itself with a secret only it knows.
+* The live room exists only in `drop`: no STUN or TURN server, no recording,
+  nothing through the reverse proxy. A page can only speak for itself in the
+  room — it identifies itself with a secret only it knows.
 
 ### PIN or password (optional)
 
@@ -570,8 +574,9 @@ typing; unsaved text is sent once the connection is back.
   continued for a week. Keep an eye on the free space shown at the top right;
   an upload that does not fit is refused.
 * No uploads from outside. Sharing works in one direction only: out.
-* No calls from outside your network (a VPN into it works), no group calls, no
-  recording.
+* No live room from outside your network (a VPN into it works), no recording.
+  More than about 10 people with video is more than phones like: every one of
+  them sends its picture to every other one.
 
 ## Support Dropnook
 

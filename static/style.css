@@ -501,7 +501,7 @@ h1,h2,h3{margin:0; font-weight:650; letter-spacing:-.01em}
 
 /* ---------------------------------------------------------------- Dialog */
 .dialog-backdrop{
-  position:fixed; inset:0; z-index:80; display:flex; align-items:center; justify-content:center;
+  position:fixed; inset:0; z-index:88; display:flex; align-items:center; justify-content:center;
   padding:18px; background:rgba(6,12,16,.5);
 }
 .dialog{
@@ -533,9 +533,28 @@ h1,h2,h3{margin:0; font-weight:650; letter-spacing:-.01em}
   padding:14px 22px 18px; border-top:1px solid var(--line); margin-top:8px;
 }
 
-/* ---------------------------------------------------------------- Calls
-   The list of devices in a dialog; the call itself fills the screen, dark
-   whatever the theme, like the picture viewer. */
+/* ---------------------------------------------------------------- Live room
+   The tile above the text fields, the list of devices in a dialog; the room
+   itself fills the screen, dark whatever the theme, like the picture viewer. */
+.live{display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding:11px 13px;
+  background:var(--surface); border:1px solid var(--line); border-inline-start:3px solid #D2412F; border-radius:6px}
+.live[hidden]{display:none}
+.live-faces{display:flex; flex:none}
+.live-faces .initial{width:30px; height:30px; font-size:13px; border:2px solid var(--surface); box-sizing:content-box}
+.live-faces .initial + .initial{margin-inline-start:-9px}
+.live-faces .initial.plus{background:var(--surface-2); color:var(--ink-2)}
+.live-text{flex:1 1 140px; min-width:0}
+.live-head{display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:13px; color:var(--muted)}
+.live-badge{display:inline-flex; align-items:center; gap:6px; font-size:11.5px; font-weight:700; letter-spacing:.08em;
+  text-transform:uppercase; color:#fff; background:#D2412F; border-radius:4px; padding:2px 7px 2px 6px; flex:none}
+.live-badge::before{content:""; width:7px; height:7px; border-radius:50%; background:#fff; animation:pulse 1.6s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.35}}
+.live-flag{font-size:12px; color:var(--ink-2); background:var(--surface-2); border-radius:4px; padding:1px 7px}
+.live-names{font-weight:600; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-top:3px}
+.live-actions{display:flex; gap:8px; flex:none; margin-inline-start:auto}
+.live-note{font-size:13px; color:var(--muted)}
+
+.peers-head{font-size:12.5px; font-weight:600; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin:4px 0 8px}
 .peers{list-style:none; margin:0 0 14px; padding:0; display:flex; flex-direction:column; gap:8px}
 .peers li.empty{color:var(--muted); font-size:14px; padding:6px 0}
 .peer{display:flex; align-items:center; gap:10px; padding:9px 11px; border:1px solid var(--line); border-radius:6px}
@@ -546,6 +565,7 @@ h1,h2,h3{margin:0; font-weight:650; letter-spacing:-.01em}
 .call-own{display:flex; flex-direction:column; gap:5px; font-size:13px; color:var(--muted)}
 .call-own input{font:inherit; font-size:14.5px; color:var(--ink); background:var(--surface); padding:7px 10px;
   border:1px solid var(--line-2); border-radius:var(--radius)}
+.live-lock{display:flex; align-items:center; gap:8px; font-size:14px; color:var(--ink); cursor:pointer}
 /* A user's colour on their initial, the same in light and dark. */
 .initial[data-p="teal"]{background:#1E9AA0; color:#fff}
 .initial[data-p="gold"]{background:#F5A623; color:#17130A}
@@ -554,37 +574,49 @@ h1,h2,h3{margin:0; font-weight:650; letter-spacing:-.01em}
 .initial[data-p="coral"]{background:#E0607A; color:#fff}
 
 .call{position:fixed; inset:0; z-index:85; background:#070B0D; color:#E3EBEF; overflow:hidden}
-.call video{position:absolute; background:#000}
-.call video[hidden]{display:none}
-#call-screen-big{inset:0; width:100%; height:100%; object-fit:contain}
-#call-screen-small{
-  top:calc(14px + env(safe-area-inset-top)); inset-inline-end:14px; width:min(28vw,220px); aspect-ratio:3/4;
-  object-fit:cover; border-radius:10px; border:1px solid rgba(255,255,255,.25); cursor:pointer;
-  box-shadow:0 10px 30px -10px rgba(0,0,0,.8); z-index:2;
-}
-@media (min-width:700px){#call-screen-small{aspect-ratio:4/3}}
+/* The pictures: one large (with this page small in the corner), or a grid of all. */
+.call-grid{position:absolute; inset:0}
+.call-tile{position:absolute; inset:0; background:#11181C; overflow:hidden; cursor:pointer}
+.call-tile[hidden]{display:none}
+.call-tile video{position:absolute; inset:0; width:100%; height:100%; object-fit:contain; background:#000}
+.call-tile video[hidden]{display:none}
+.call-tile video.mirror{transform:scaleX(-1)}
 /* On a phone the picture fills the screen, as in any video call; the photo still takes the whole frame. */
-@media (max-width:699px){#call-screen-big{object-fit:cover}}
-.call video.mirror{transform:scaleX(-1)}
-.call-self-off{position:absolute; top:calc(14px + env(safe-area-inset-top)); inset-inline-end:14px; z-index:2;
+@media (max-width:699px){.call-tile.big video{object-fit:cover}}
+.call-tile.pip{inset:auto; top:calc(14px + env(safe-area-inset-top)); inset-inline-end:14px; z-index:2;
   width:min(28vw,220px); aspect-ratio:3/4; border-radius:10px; border:1px solid rgba(255,255,255,.25);
-  background:#1B252B; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px;
-  font-size:12.5px; color:#C3D0D6; text-align:center; padding:8px}
-.call-self-off[hidden]{display:none}
-.call-self-off svg{width:28px; height:28px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round}
-@media (min-width:700px){.call-self-off{aspect-ratio:4/3}}
-.call-placeholder{position:absolute; inset:0; display:flex; flex-direction:column; align-items:center;
-  justify-content:center; gap:8px; text-align:center; padding:24px}
-.call-placeholder[hidden]{display:none}
-.call-placeholder .initial{width:96px; height:96px; font-size:42px; margin-bottom:8px}
-.call-name{font-size:22px; font-weight:650}
-.call-sub{font-size:14px; color:#A9B8C0}
-.call-top{position:absolute; top:0; inset-inline:0; display:flex; align-items:baseline; gap:10px; flex-wrap:wrap;
+  box-shadow:0 10px 30px -10px rgba(0,0,0,.8)}
+@media (min-width:700px){.call-tile.pip{aspect-ratio:4/3}}
+.call-tile.pip video{object-fit:cover}
+.call-grid.grid{display:grid; gap:6px; padding:calc(58px + env(safe-area-inset-top)) 8px calc(118px + env(safe-area-inset-bottom));
+  grid-template-columns:repeat(var(--cols,2), minmax(0,1fr)); grid-template-rows:repeat(var(--rows,1), minmax(0,1fr))}
+.call-grid.grid .call-tile{position:relative; inset:auto; border-radius:8px}
+.call-grid.grid .call-tile video{object-fit:cover}
+.call-tile.speaking{box-shadow:inset 0 0 0 3px #3CC47C}
+.call-tile.pip.speaking{border-color:#3CC47C}
+.call-face{position:absolute; inset:0; display:flex; align-items:center; justify-content:center}
+.call-face[hidden]{display:none}
+.call-face .initial{width:min(96px,30%); height:auto; aspect-ratio:1; font-size:clamp(18px,4vw,42px)}
+.call-tile.big .call-face .initial{width:96px; font-size:42px}
+.call-label{position:absolute; inset-inline-start:8px; bottom:8px; display:flex; align-items:center; gap:5px; max-width:calc(100% - 16px);
+  font-size:12.5px; background:rgba(0,0,0,.55); border-radius:4px; padding:2px 7px}
+.call-label span{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.call-label svg{width:14px; height:14px; flex:none; fill:none; stroke:#F0A096; stroke-width:2; stroke-linecap:round; stroke-linejoin:round}
+.call-tile.big .call-label{top:calc(54px + env(safe-area-inset-top)); bottom:auto; inset-inline-start:20px}
+.call.mini .call-label{display:none}
+.call-note{position:absolute; top:50%; inset-inline:8px; transform:translateY(34px); text-align:center; font-size:13px; color:#C3D0D6}
+.call-note[hidden]{display:none}
+.call-tile.big .call-note{transform:translateY(64px); font-size:14px}
+.call-tile.pip .call-note{transform:translateY(-50%); font-size:12px}
+.call-tile.failed .call-face{opacity:.4}
+/* Small tiles: the note at the top, out of the way of the name. */
+.call-grid.grid .call-note{top:8px; transform:none; inset-inline:8px; text-align:start; font-size:12px; text-shadow:0 1px 3px #000}
+.call-top{position:absolute; top:0; inset-inline:0; display:flex; align-items:center; gap:10px; flex-wrap:wrap;
   padding:calc(16px + env(safe-area-inset-top)) 20px 30px; padding-inline-end:calc(min(28vw,220px) + 30px);
-  background:linear-gradient(rgba(0,0,0,.55), transparent); font-size:14px; z-index:1}
-.call-who{font-weight:650; font-size:16px}
+  background:linear-gradient(rgba(0,0,0,.55), transparent); font-size:14px; z-index:1; pointer-events:none}
 .call-status{color:#C3D0D6; font-variant-numeric:tabular-nums}
-.call-flag{background:rgba(227,128,115,.2); color:#F0A096; border-radius:4px; padding:1px 7px; font-size:12.5px}
+.call-flag{background:rgba(255,255,255,.14); color:#E3EBEF; border-radius:4px; padding:1px 7px; font-size:12.5px}
+.call-alone{flex-basis:100%; color:#C3D0D6; font-size:13.5px}
 .call-bar{position:absolute; bottom:0; inset-inline:0; display:flex; justify-content:center; gap:14px; flex-wrap:wrap;
   padding:30px 16px calc(22px + env(safe-area-inset-bottom)); background:linear-gradient(transparent, rgba(0,0,0,.6)); z-index:3}
 .call-btn{display:flex; flex-direction:column; align-items:center; gap:6px; min-width:64px; border:0; background:none;
@@ -596,8 +628,6 @@ h1,h2,h3{margin:0; font-weight:650; letter-spacing:-.01em}
 .call-btn.off svg{background:#E3EBEF; color:#0C1216}
 .call-btn.end svg{background:#D2412F; color:#fff}
 .call-btn.end:hover svg{background:#E04F3C}
-.call-btn.go svg{background:#2E9B5C; color:#fff}
-.call-btn.go:hover svg{background:#36AD68}
 .call-btn:disabled{opacity:.4; cursor:default}
 .call-btn:focus-visible{outline:none}
 .call-btn:focus-visible svg{outline:2px solid #E3EBEF; outline-offset:3px}
@@ -605,11 +635,10 @@ h1,h2,h3{margin:0; font-weight:650; letter-spacing:-.01em}
 .call.mini{inset:auto; bottom:calc(16px + env(safe-area-inset-bottom)); inset-inline-end:16px; z-index:70;
   width:min(320px, 48vw); aspect-ratio:4/3; border-radius:12px; border:1px solid rgba(255,255,255,.18);
   box-shadow:0 18px 50px -12px rgba(0,0,0,.7)}
-.call.mini #call-screen-big{object-fit:cover; cursor:pointer}
-.call.mini .call-top, .call.mini #call-screen-small, .call.mini .call-self-off, .call.mini .call-sub{display:none}
-.call.mini .call-placeholder{gap:4px; padding:8px 8px 56px}
-.call.mini .call-placeholder .initial{width:48px; height:48px; font-size:22px; margin-bottom:2px}
-.call.mini .call-name{font-size:15px}
+.call.mini .call-tile.big video{object-fit:cover}
+.call.mini .call-top, .call.mini .call-note{display:none}
+.call.mini .call-tile.big .call-face{padding-bottom:48px}
+.call.mini .call-tile.big .call-face .initial{width:48px; font-size:22px}
 .call.mini .call-bar{padding:18px 8px 8px; gap:10px}
 .call.mini .call-btn{min-width:0}
 .call.mini .call-btn span{display:none}
@@ -617,9 +646,11 @@ h1,h2,h3{margin:0; font-weight:650; letter-spacing:-.01em}
 .call.flash::after{content:""; position:absolute; inset:0; background:#fff; pointer-events:none; animation:flash .35s ease-out forwards; z-index:4}
 @keyframes flash{from{opacity:.85} to{opacity:0}}
 @media (max-width:560px){
-  .call-bar{gap:8px}
-  .call-btn{min-width:56px; font-size:11px}
-  .call-btn svg{width:52px; height:52px; padding:14px}
+  .call-bar{gap:6px; padding-inline:8px}
+  .call-btn{min-width:0; font-size:11px}
+  .call-btn span{display:none}
+  .call-btn svg{width:48px; height:48px; padding:13px}
+  .call-grid.grid{padding-bottom:calc(84px + env(safe-area-inset-bottom)); gap:4px; padding-inline:4px}
 }
 
 /* ---------------------------------------------------------------- Footer */
@@ -639,6 +670,9 @@ h1,h2,h3{margin:0; font-weight:650; letter-spacing:-.01em}
   animation:rise .18s ease-out; transition:opacity .25s;
 }
 .toast.warn{background:var(--danger); color:var(--on-signal)}
+/* In the live room: above its buttons. */
+body:has(.call:not(.mini)) .toasts{bottom:calc(128px + env(safe-area-inset-bottom))}
+@media (max-width:560px){body:has(.call:not(.mini)) .toasts{bottom:calc(96px + env(safe-area-inset-bottom))}}
 @keyframes rise{from{opacity:0; transform:translateY(8px)}to{opacity:1; transform:none}}
 /* On a phone the header has no room for the QR button — and the phone is already there. */
 @media (max-width:560px){
