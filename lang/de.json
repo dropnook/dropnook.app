@@ -297,6 +297,8 @@
   "ui.live_still_closes": "Ohne Antwort schliesst er in",
   "ui.live_stay": "Bleiben",
   "ui.live_closed_alone": "Live-Raum geschlossen – niemand ist dazugekommen.",
+  "ui.live_watchers_one": "{n} schaut in der Vorschau zu",
+  "ui.live_watchers_other": "{n} schauen in der Vorschau zu",
   "ui.error_call_full": "Der Live-Raum ist voll.",
   "ui.error_call_locked": "Der Live-Raum ist abgeschlossen.",
 

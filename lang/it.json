@@ -296,6 +296,8 @@
   "ui.live_still_closes": "Senza risposta si chiude tra",
   "ui.live_stay": "Resta",
   "ui.live_closed_alone": "Stanza live chiusa — non è entrato nessuno.",
+  "ui.live_watchers_one": "{n} guarda l’anteprima",
+  "ui.live_watchers_other": "{n} guardano l’anteprima",
   "ui.error_call_full": "La stanza live è piena.",
   "ui.error_call_locked": "La stanza live è chiusa.",
   "public.unavailable_title": "Link non disponibile",

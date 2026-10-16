@@ -422,7 +422,10 @@ gesendet — so kommen Handys mit. Bild und Ton gehen direkt von Gerät zu Gerä
 (WebRTC); Drop reicht nur die paar Nachrichten weiter, die die Verbindungen
 aufbauen, und nichts verlässt dein Netz. Der Live-Raum braucht
 [HTTPS](#https-im-heimnetz) — Kamera und Mikrofon geben Browser sonst nicht
-frei; mit [Benutzern](#benutzer-optional) gehört er in den Bereich „Gemeinsam“.
+frei. Ausserhalb des Raums zeigt die Kachel ein kleines Bild davon (ohne Ton,
+240p); das Auge oben im Raum zeigt, wie viele zuschauen, und ein abgeschlossener
+Raum zeigt keins. Nach einem Update lädt sich jede offene Seite von selbst neu
+(nicht mitten im Raum oder in einem Upload); mit [Benutzern](#benutzer-optional) gehört er in den Bereich „Gemeinsam“.
 
 **Auf einem anderen Gerät** — der QR-Knopf oben (auf Computer und Tablet) zeigt
 die Adresse von Drop als QR-Code: Handy-Kamera darauf richten, und die Seite

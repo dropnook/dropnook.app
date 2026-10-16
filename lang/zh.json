@@ -275,6 +275,7 @@
   "ui.live_still_closes": "无应答将在以下时间后关闭:",
   "ui.live_stay": "留下",
   "ui.live_closed_alone": "直播间已关闭——没有人加入。",
+  "ui.live_watchers_other": "{n} 人正在看预览",
   "ui.error_call_full": "直播间已满。",
   "ui.error_call_locked": "直播间已锁定。",
   "public.unavailable_title": "链接不可用",

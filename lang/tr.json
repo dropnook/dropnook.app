@@ -276,6 +276,7 @@
   "ui.live_still_closes": "Yanıt gelmezse kapanmasına kalan:",
   "ui.live_stay": "Kal",
   "ui.live_closed_alone": "Canlı oda kapandı — kimse katılmadı.",
+  "ui.live_watchers_other": "{n} kişi önizlemeyi izliyor",
   "ui.error_call_full": "Canlı oda dolu.",
   "ui.error_call_locked": "Canlı oda kilitli.",
   "public.unavailable_title": "Bağlantı kullanılamıyor",

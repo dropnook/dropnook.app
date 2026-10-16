@@ -295,6 +295,8 @@
   "ui.live_still_closes": "Sin respuesta se cierra en",
   "ui.live_stay": "Quedarme",
   "ui.live_closed_alone": "Sala en directo cerrada — no ha entrado nadie.",
+  "ui.live_watchers_one": "{n} mira la vista previa",
+  "ui.live_watchers_other": "{n} miran la vista previa",
   "ui.error_call_full": "La sala en directo está llena.",
   "ui.error_call_locked": "La sala en directo está cerrada.",
   "public.unavailable_title": "Enlace no disponible",

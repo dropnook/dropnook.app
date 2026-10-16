@@ -275,6 +275,7 @@
   "ui.live_still_closes": "응답이 없으면 닫히기까지",
   "ui.live_stay": "계속 있기",
   "ui.live_closed_alone": "라이브 룸을 닫았습니다 — 아무도 들어오지 않았습니다.",
+  "ui.live_watchers_other": "{n}명이 미리보기를 보고 있습니다",
   "ui.error_call_full": "라이브 룸이 가득 찼습니다.",
   "ui.error_call_locked": "라이브 룸이 잠겨 있습니다.",
   "public.unavailable_title": "링크를 사용할 수 없음",

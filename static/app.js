@@ -1950,6 +1950,7 @@ let peersList        = null;                    // the <ul> in an open dialog, s
 let peersAction      = null;                    // … and what its buttons do
 let room             = null;                    // the room as the server sees it; null: nobody is live
 let live             = null;                    // this page in the room, see joinRoom
+let preview          = null;                    // outside the room: its small picture, see updatePreview
 let audioContext     = null;
 
 const callShown      = () => !usersOn || area === 'shared';
@@ -2026,6 +2027,7 @@ function updateCallButton() {
   // is in the dialog; tests and the curious find the count here.
   button.dataset.peers = callable ? peers.length : 0;
   button.title = t('ui.call_title');
+  updatePreview();
   drawLiveTile();
 }
 
@@ -2071,7 +2073,13 @@ function drawLiveTile() {
     voice.disabled = video.disabled = !!live;
     actions.append(voice, video);
   }
-  tile.append(faces, text, actions);
+  const picture = preview && !inside && preview.stream.getVideoTracks().some((x) => !x.muted);
+  if (picture) {
+    if (previewVideo.srcObject !== preview.stream) previewVideo.srcObject = preview.stream;
+    previewVideo.play().catch(() => {});
+  }
+  tile.classList.toggle('with-picture', !!picture);
+  tile.append(picture ? previewVideo : faces, text, actions);
 }
 
 // ---- The header button: go live, or join; who is there; this device's name.
@@ -2204,6 +2212,165 @@ function setRoom(next, quiet) {
   drawPeers();
 }
 
+/* ---- The preview: outside the room, the tile shows the picture of the first
+   member with a camera on — small, without sound, at most PREVIEW_FPS. The
+   room sees how many watch (the eye at the top); a locked room shows none.
+   Only while this page is visible: a tab in the background costs the member
+   a connection for nothing. */
+const PREVIEW_HEIGHT = 240;
+const PREVIEW_FPS    = 10;
+const previewVideo   = (() => {
+  const v = document.createElement('video');
+  v.className = 'live-preview';
+  v.muted = true;
+  v.autoplay = true;
+  v.playsInline = true;
+  v.setAttribute('playsinline', '');
+  return v;
+})();
+let previewQueue     = Promise.resolve();       // one change after the other
+let previewPause     = 0;                       // after a failure: not again before this
+
+function previewWanted() {
+  if (!room || live || !callable || !callShown() || room.locked || document.visibilityState !== 'visible'
+      || !source || source.readyState !== 1 || Date.now() < previewPause) return null;
+  const m = room.members.find((x) => x.video);
+  return m ? m.id : null;
+}
+
+function updatePreview() {
+  previewQueue = previewQueue.then(async () => {
+    const want = previewWanted();
+    if (preview && preview.source === want) return;
+    if (preview) await stopPreview(true);
+    if (want) await startPreview(want);
+  }).catch(() => {});
+}
+
+async function startPreview(id) {
+  const p = preview = { source: id, pc: null, stream: new MediaStream(), pendingIce: [] };
+  try {
+    await callPost('watch', { on: true });
+    if (preview !== p) return;
+    const pc = p.pc = new RTCPeerConnection({ iceServers: [] });
+    pc.addTransceiver('video', { direction: 'recvonly' });
+    pc.ontrack = (e) => {
+      p.stream.addTrack(e.track);
+      e.track.onunmute = () => drawLiveTile();
+      e.track.onmute = () => drawLiveTile();
+      drawLiveTile();
+    };
+    pc.onicecandidate = (e) => {
+      if (e.candidate) callPost('signal', { to: id, type: 'ice', preview: true, data: e.candidate.toJSON() }).catch(() => {});
+    };
+    pc.onconnectionstatechange = () => {
+      if (preview === p && pc.connectionState === 'failed') previewFailed();
+    };
+    await pc.setLocalDescription(await pc.createOffer());
+    await callPost('signal', { to: id, type: 'offer', preview: true, data: pc.localDescription.toJSON() });
+  } catch (e) {
+    if (preview !== p) return;
+    // Locked or full meanwhile: the room's next card decides, no pause for that.
+    if (e.status === 423 || e.status === 409) { preview = null; drawLiveTile(); } else previewFailed();
+  }
+}
+
+async function stopPreview(tell) {
+  const p = preview;
+  if (!p) return;
+  preview = null;
+  try { if (p.pc) p.pc.close(); } catch (e) {}
+  previewVideo.srcObject = null;
+  drawLiveTile();
+  if (tell) await callPost('watch', { on: false }).catch(() => {});
+}
+
+// No preview then — the tile still says who is live. Another try later.
+function previewFailed() {
+  previewPause = Date.now() + 20000;
+  stopPreview(true);
+  setTimeout(updatePreview, 20500);
+}
+
+function onPreviewEvent(d) {
+  const p = preview;
+  if (d.type === 'unwatch' || (d.type === 'left' && d.from === p.source)) {
+    stopPreview(false);                // the room's next card says what to show instead
+    return;
+  }
+  if (!d.preview || d.from !== p.source || !p.pc) return;
+  if (d.type === 'answer') {
+    p.pc.setRemoteDescription(d.data).then(() => {
+      p.pendingIce.splice(0).forEach((x) => p.pc.addIceCandidate(x).catch(() => {}));
+    }).catch(() => previewFailed());
+  } else if (d.type === 'ice') {
+    if (p.pc.remoteDescription) p.pc.addIceCandidate(d.data).catch(() => {});
+    else p.pendingIce.push(d.data);
+  }
+}
+
+// In the room: a page outside wants the preview — only the picture, small.
+async function onWatcherEvent(d) {
+  const l = live;
+  const old = l.watchers.get(d.from);
+  if (d.type === 'unwatch') {
+    if (old) { try { old.close(); } catch (e) {} l.watchers.delete(d.from); }
+    return;
+  }
+  if (d.type === 'ice') {
+    if (old) old.addIceCandidate(d.data).catch(() => {});
+    return;
+  }
+  if (d.type !== 'offer') return;
+  if (old) { try { old.close(); } catch (e) {} }
+  const pc = new RTCPeerConnection({ iceServers: [] });
+  l.watchers.set(d.from, pc);
+  pc.onicecandidate = (e) => {
+    if (e.candidate) callPost('signal', { to: d.from, type: 'ice', preview: true, data: e.candidate.toJSON() }).catch(() => {});
+  };
+  try {
+    await pc.setRemoteDescription(d.data);
+    const tr = pc.getTransceivers()[0];
+    tr.direction = 'sendonly';
+    await tr.sender.replaceTrack(l.stream.getVideoTracks()[0] || null);
+    await pc.setLocalDescription(await pc.createAnswer());
+    await callPost('signal', { to: d.from, type: 'answer', preview: true, data: pc.localDescription.toJSON() });
+    const params = tr.sender.getParameters();
+    if (params.encodings && params.encodings.length) {
+      const track = l.stream.getVideoTracks()[0];
+      const height = (track && track.getSettings && track.getSettings().height) || 720;
+      Object.assign(params.encodings[0], { scaleResolutionDownBy: Math.max(1, height / PREVIEW_HEIGHT),
+        maxFramerate: PREVIEW_FPS, maxBitrate: 150000 });
+      tr.sender.setParameters(params).catch(() => {});
+    }
+  } catch (e) {
+    try { pc.close(); } catch (x) {}
+    l.watchers.delete(d.from);
+  }
+}
+
+/* ---- After an update: a page loaded before it still runs the old code. It
+   notices by the build in /api/state and loads itself again — but not in
+   the middle of the room or of an upload; then once those are over. */
+let pageBuild        = null;
+let reloadPending    = false;
+
+function checkBuild(build) {
+  if (!build) return;
+  if (!pageBuild) { pageBuild = build; return; }
+  if (build !== pageBuild && !reloadPending) {
+    reloadPending = true;
+    setInterval(reloadWhenIdle, 3000);   // uploads end in many places; just look again
+    reloadWhenIdle();
+  }
+}
+
+function reloadWhenIdle() {
+  if (!reloadPending || live || ownUploads.size) return;
+  fields.forEach((f) => { if (f.timer || f.maxTimer) save(f); });   // drafts stay in the browser anyway
+  setTimeout(() => location.reload(), 300);
+}
+
 // ---- Sound: browsers only play after a touch or click on the page, so the
 // first one anywhere unlocks it.
 function unlockSound() {
@@ -2276,11 +2443,13 @@ async function joinRoom(video) {
   if (!callable) { showHttpsNote(); return; }
   hideDialog();
   unlockSound();
+  stopPreview(false);                  // the server ends it with the join
   const l = live = {
     you: null, joined: false, ended: false, stream: null, preview: null, links: new Map(),
     micOn: true, cameraOn: false, facing: 'user', cameras: 0, cameraBusy: false,
     mini: false, focus: null, since: 0, clock: null, levels: null, wakeLock: null, quality: null,
     tiles: new Map(), tries: new Map(), toldFailed: false, aloneSince: 0, askedAt: 0, askBox: null,
+    watchers: new Map(),
   };
   showCallScreen();
   try {
@@ -2322,6 +2491,8 @@ function leaveLocally(message, warn) {
   l.ended = true;
   l.links.forEach(closeLink);
   l.links.clear();
+  l.watchers.forEach((pc) => { try { pc.close(); } catch (e) {} });
+  l.watchers.clear();
   clearInterval(l.clock);
   clearInterval(l.levels);
   if (l.stream) l.stream.getTracks().forEach((x) => x.stop());
@@ -2333,11 +2504,14 @@ function leaveLocally(message, warn) {
   updateCallButton();
   drawPeers();
   sendPresence();
+  reloadWhenIdle();
 }
 
 // What the server passes on from the others.
 function onCallEvent(d) {
   if (d.type === 'nudge') { nudged(d.from); return; }
+  if (!live && preview) { onPreviewEvent(d); return; }
+  if (live && live.joined && (d.preview || d.type === 'unwatch')) { onWatcherEvent(d); return; }
   const l = live;
   // Messages can come before this page's own join has its answer — only the
   // camera has to be ready, the connections are set up with it.
@@ -2574,7 +2748,8 @@ function toggleMic() {
   drawCallScreen();
 }
 
-const videoSenders = (l) => [...l.links.values()].map((k) => k.senders.video).filter(Boolean);
+const videoSenders = (l) => [...l.links.values()].map((k) => k.senders.video)
+  .concat([...l.watchers.values()].map((pc) => pc.getSenders()[0])).filter(Boolean);
 
 // Off means off: the camera is let go of (its light goes out), not just hidden.
 async function toggleCamera() {
@@ -2892,6 +3067,11 @@ function drawCallScreen() {
   top.innerHTML = '';
   top.append(el('span', 'live-badge', t('ui.live_badge')), el('span', 'call-status', ''));
   if (room && room.locked) top.appendChild(el('span', 'call-flag', t('ui.live_locked')));
+  if (room && room.watchers) {
+    const watching = el('span', 'call-flag watching', '👁 ' + room.watchers);
+    watching.title = t('ui.live_watchers', { n: room.watchers });
+    top.appendChild(watching);
+  }
   if (others.length === 0 && l.joined) top.appendChild(el('div', 'call-alone', t('ui.live_alone')));
   drawCallClock();
 
@@ -3024,6 +3204,7 @@ async function loadState() {
     if (user) applyPalette(user.palette);
     showAreas();
     setRoom(d.room, true);
+    checkBuild(d.build);
     if (d.name) {
       appName = d.name;
       document.title = d.name;
@@ -3188,6 +3369,7 @@ function wireButtons() {
       loadState();
       if (!source || source.readyState === 2) connectEvents();
     }
+    updatePreview();
   });
 
   window.addEventListener('online', () => connectEvents());

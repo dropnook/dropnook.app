@@ -1500,6 +1500,19 @@ async def watch_certificate(paths: list, interval: int = 300) -> None:
 REQUIRED_FILES = ("index.html", "app.js", "style.css")
 
 
+def build_id() -> str:
+    """Changes with every version of the page: a page loaded before an update
+    sees a new one here and loads itself again (see loadState in app.js)."""
+    digest = hashlib.sha256()
+    for path in sorted(STATIC_DIR.glob("*")):
+        if path.is_file():
+            digest.update(path.name.encode() + b"\0" + path.read_bytes())
+    return digest.hexdigest()[:12]
+
+
+BUILD = build_id()
+
+
 def missing_files() -> list:
     return [n for n in REQUIRED_FILES if not (STATIC_DIR / n).is_file()]
 
@@ -2198,6 +2211,7 @@ async def state(request: Request) -> JSONResponse:
                     "base_url": SHARE_BASE_URL or None, "subdomain": SHARE_SUBDOMAIN},
         "shares": visible_shares(shares, user),
         "room": room_card(),
+        "build": BUILD,
     })
 
 
@@ -2266,6 +2280,7 @@ CALL_SIGNAL_MAX = 64 * 1024         # characters of one message; a session descr
 CALL_PEERS_MAX = 200
 CALL_NAME_MAX = 40
 CALL_LIMIT = 20                     # joins and nudges per address and minute
+CALL_WATCHERS_MAX = 10              # pages that watch the small preview without being in the room
 CALL_TO_ONE = {"offer", "answer", "ice"}       # for one member
 CALL_TO_ALL = {"photo"}                        # for all the others
 CALL_STATE = "state"                           # camera and microphone on or off: into the room's card
@@ -2286,10 +2301,11 @@ class Peer:
 
 
 class Room:
-    __slots__ = ("members", "owner", "locked", "started")
+    __slots__ = ("members", "owner", "locked", "started", "watchers")
 
     def __init__(self, owner: Peer):
         self.members: Dict[str, Peer] = {}       # in the order they came in
+        self.watchers: Dict[str, Peer] = {}      # pages outside that see the preview
         self.owner, self.locked, self.started = owner, False, time.time()
 
 
@@ -2352,7 +2368,7 @@ def room_card() -> Optional[dict]:
     return {"members": [{**peer_card(p), "video": p.video, "audio": p.audio}
                         for p in room.members.values()],
             "owner": room.owner.id, "locked": room.locked, "max": LIVE_MAX,
-            "started": int(room.started)}
+            "started": int(room.started), "watchers": len(room.watchers)}
 
 
 def announce_room() -> None:
@@ -2386,6 +2402,16 @@ def too_often(peer: Peer) -> bool:
     return False
 
 
+def unwatch(peer: Peer, announce: bool = True) -> None:
+    """No longer watching the preview: the members let go of its connection."""
+    if room is None or room.watchers.pop(peer.id, None) is None:
+        return
+    for member in room.members.values():
+        tell(member, {"type": "unwatch", "from": peer.id})
+    if announce:
+        announce_room()
+
+
 def leave_room(peer: Peer) -> None:
     """Out of the room; the others close their connection to it. The last one
     out ends the room, and the one who came in next after the owner takes over
@@ -2396,17 +2422,20 @@ def leave_room(peer: Peer) -> None:
     del room.members[peer.id]
     peer.video = peer.audio = False
     if not room.members:
+        for watcher in room.watchers.values():
+            tell(watcher, {"type": "left", "from": peer.id, "preview": True})
         room = None
     else:
         if room.owner is peer:
             room.owner = next(iter(room.members.values()))
-        for other in room.members.values():
+        for other in list(room.members.values()) + list(room.watchers.values()):
             tell(other, {"type": "left", "from": peer.id})
     announce_room()
     announce_peers()
 
 
 def drop_peer(peer: Peer) -> None:
+    unwatch(peer)
     leave_room(peer)
     peers.pop(peer.id, None)
     announce_peers()
@@ -2483,6 +2512,7 @@ async def call_join(request: Request) -> JSONResponse:
             raise api_error(429, "call_too_many", "Too many attempts")
         if room is None:
             room = Room(peer)
+        unwatch(peer, announce=False)
         others = list(room.members.values())
         room.members[peer.id] = peer
         for other in others:
@@ -2510,8 +2540,33 @@ async def call_lock(request: Request) -> JSONResponse:
     if room.owner is not peer:
         raise HTTPException(403, "Only the owner of the room")
     room.locked = body.get("locked") is True
+    if room.locked:                     # closed means private: no more preview either
+        for watcher in list(room.watchers.values()):
+            unwatch(watcher, announce=False)
+            tell(watcher, {"type": "unwatch", "from": peer.id, "preview": True})
     announce_room()
     return JSONResponse({"locked": room.locked})
+
+
+@app.post("/api/call/watch")
+async def call_watch(request: Request) -> JSONResponse:
+    """A page outside the room shows a small preview of it, without sound and
+    without being seen — the members see how many watch. Not while the room
+    is locked."""
+    body, peer = await peer_body(request)
+    if body.get("on") is not True:
+        unwatch(peer)
+        return JSONResponse({"watching": False})
+    if room is None or in_room(peer) or not reachable(peer):
+        raise api_error(404, "call_gone", "No room to watch")
+    if room.locked:
+        raise api_error(423, "call_locked", "The room is locked")
+    if peer.id not in room.watchers:
+        if len(room.watchers) >= CALL_WATCHERS_MAX:
+            raise api_error(409, "call_full", "Enough watchers")
+        room.watchers[peer.id] = peer
+        announce_room()
+    return JSONResponse({"watching": True})
 
 
 @app.post("/api/call/nudge")
@@ -2540,11 +2595,22 @@ async def call_signal(request: Request) -> JSONResponse:
     kind = body.get("type")
     if kind not in CALL_TO_ONE and kind not in CALL_TO_ALL and kind != CALL_STATE:
         raise HTTPException(400, "Unknown message")
-    if not in_room(peer):
-        raise api_error(404, "call_gone", "Not in the room")
     data = body.get("data")
     if len(json.dumps(data)) > CALL_SIGNAL_MAX:
         raise HTTPException(413, "Message too large")
+    # The preview: between a page that watches and a member, either way.
+    if kind in CALL_TO_ONE and body.get("preview") is True and room is not None:
+        to = str(body.get("to", ""))
+        if peer.id in room.watchers and to in room.members:
+            target = room.members[to]
+        elif in_room(peer) and to in room.watchers:
+            target = room.watchers[to]
+        else:
+            raise api_error(404, "call_gone", "Not watching")
+        tell(target, {"type": kind, "from": peer.id, "data": data, "preview": True})
+        return JSONResponse({"ok": True})
+    if not in_room(peer):
+        raise api_error(404, "call_gone", "Not in the room")
     if kind in CALL_TO_ONE:
         target = room.members.get(str(body.get("to", "")))
         if target is None or target is peer:
