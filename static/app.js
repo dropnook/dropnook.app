@@ -1887,7 +1887,7 @@ async function switchArea(next) {
   showAreas();
   updateShares();            // marks and the file list, for this area
   updateCallButton();
-  sendPresence();            // calls only in the shared area
+  sendPresence();            // the room only in the shared area
   await loadState();
 }
 
@@ -1921,28 +1921,33 @@ async function showHelp() {
   dialog({ title: t('ui.help'), content: box, buttons: [{ text: t('ui.close') }] });
 }
 
-// ------------------------------------------------------------------ Calls
-/* Video and voice calls between two devices in the home network. Picture and
-   sound go straight from browser to browser (WebRTC); Drop only passes on
-   the messages that set a call up (see Calls in main.py). No server outside
-   the network is asked for anything: in a LAN the browsers find each other
-   by their own addresses. Browsers give camera and microphone only to pages
-   opened over HTTPS — over plain HTTP the button explains that instead.
-   With users, calls belong to the shared area. */
+// ------------------------------------------------------------------ Live room
+/* Video and voice in the home network, as one room per Drop. Someone goes
+   live; everyone else sees a tile above the text fields and joins with a
+   click. Picture and sound go straight from browser to browser (WebRTC, every
+   member connected to every other one); Drop only passes on the messages that
+   set the connections up (see Live room in main.py). No server outside the
+   network is asked for anything: in a LAN the browsers find each other by
+   their own addresses. Browsers give camera and microphone only to pages
+   opened over HTTPS — over plain HTTP the tile explains that instead. With
+   users, the room belongs to the shared area. */
 const CALL_NAME_KEY  = 'drop.device';           // this device's name, as the others see it
 const CALL_DROPOUT   = 12000;                   // ms a broken connection may take to come back
-const CALL_SETUP     = 25000;                   // ms from the answer until picture and sound flow
+const CALL_SETUP     = 25000;                   // ms until picture and sound flow to a member
+const CALL_TRIES     = 3;                       // connections to one member before giving up
 const callable       = window.isSecureContext && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)
                        && 'RTCPeerConnection' in window;
-// Who this page is in calls: a secret of its own, the others only see a hash of it.
+// Who this page is in the room: a secret of its own, the others only see a hash of it.
 const callSecret     = (() => {
   const bytes = new Uint8Array(24);
   crypto.getRandomValues(bytes);
   return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 })();
-let peers            = [];                      // the others that can be called now
-let peersList        = null;                    // the <ul> in the open calls dialog
-let call             = null;                    // the one call of this page, see startCall/incoming
+let peers            = [];                      // the other pages that can take part now
+let peersList        = null;                    // the <ul> in an open dialog, see drawPeers
+let peersAction      = null;                    // … and what its buttons do
+let room             = null;                    // the room as the server sees it; null: nobody is live
+let live             = null;                    // this page in the room, see joinRoom
 let audioContext     = null;
 
 const callShown      = () => !usersOn || area === 'shared';
@@ -1969,6 +1974,16 @@ function peerSubtitle(p) {
 function peerInitial(p) {
   return (Array.from(p.user || peerTitle(p))[0] || '?').toUpperCase();
 }
+function avatarOf(p, cls) {
+  const avatar = el('span', 'initial' + (cls ? ' ' + cls : ''), peerInitial(p));
+  if (p.palette) avatar.dataset.p = p.palette;
+  return avatar;
+}
+
+const roomMembers = () => (room ? room.members : []);
+const memberOf    = (id) => roomMembers().find((m) => m.id === id) || null;
+const memberName  = (id) => { const m = memberOf(id); return m ? peerTitle(m) : '?'; };
+const roomFull    = () => !!room && room.members.length >= room.max;
 
 async function callPost(path, body) {
   const r = await fetch('/api/call/' + path, {
@@ -1976,8 +1991,8 @@ async function callPost(path, body) {
     body: JSON.stringify({ peer: callSecret, ...body }),
   });
   if (!r.ok) {
-    // Coded errors have a text in the language file. Anything else (a call
-    // answered or ended meanwhile, a page gone) means: no longer reachable.
+    // Coded errors have a text in the language file. Anything else (a page
+    // gone, the room ended meanwhile) means: no longer reachable.
     let code = '';
     try { code = ((await r.json()).detail || {}).code || ''; } catch (e) { /* no JSON */ }
     const error = new Error(t(strings['ui.error_' + code] !== undefined ? 'ui.error_' + code : 'ui.error_call_gone'));
@@ -1987,41 +2002,105 @@ async function callPost(path, body) {
   return r.json();
 }
 
-// Can be called right now: over HTTPS, in the shared area, live updates on.
-// It also says which call this page is in (none: null) — the server ends one
-// whose hang-up got lost, and tells this page if its call ended meanwhile.
+// Can take part right now: over HTTPS, in the shared area, live updates on.
+// It also says whether this page is in the room — the server takes out one
+// whose leaving got lost, and tells this page if it was taken out meanwhile.
+// While joining it says nothing about that: the join is on its way.
 function sendPresence() {
   if (!callable || !source || source.readyState !== 1) return;
-  const c = call;
+  const l = live;
   callPost('presence', {
     name: deviceName(), device: deviceLabel(), available: callShown(),
-    call: c ? c.id || '' : null,
+    live: l ? (l.joined ? true : undefined) : false,
   }).then((d) => {
-    if (c && call === c && c.id && d.call !== c.id) endLocally(t('ui.call_ended'));
+    if (l && live === l && l.joined && !d.live) leaveLocally(t('ui.live_ended'));
   }).catch(() => {});
 }
 
 function updateCallButton() {
   const button = $('#btn-call');
   button.hidden = !callShown();
-  // No number on the button: it read like something unanswered. Who can be
-  // called is in the dialog; tests and the curious find the count here.
-  button.dataset.peers = callable ? peers.filter((p) => !p.busy).length : 0;
+  // No number on the button: it read like something unanswered. Who is there
+  // is in the dialog; tests and the curious find the count here.
+  button.dataset.peers = callable ? peers.length : 0;
   button.title = t('ui.call_title');
+  drawLiveTile();
 }
 
-function showCalls() {
-  if (call) { setMini(false); return; }          // in a call: back to it
-  if (!callable) {
-    dialog({ title: t('ui.call_https_title'), content: [t('ui.call_https_text')] });
-    return;
+// ---- The tile above the text fields: someone is live, join with a click.
+function drawLiveTile() {
+  const tile = $('#live');
+  if (!tile) return;
+  const r = room;
+  tile.hidden = !r || !callShown();
+  tile.innerHTML = '';
+  if (tile.hidden) return;
+  const inside = !!(live && live.joined);
+  tile.classList.toggle('inside', inside);
+  tile.dataset.members = r.members.length;
+
+  const faces = el('div', 'live-faces');
+  r.members.slice(0, 4).forEach((m) => faces.appendChild(avatarOf(m)));
+  if (r.members.length > 4) faces.appendChild(el('span', 'initial plus', '+' + (r.members.length - 4)));
+
+  const text = el('div', 'live-text');
+  const head = el('div', 'live-head');
+  head.append(el('span', 'live-badge', t('ui.live_badge')),
+    el('span', 'live-count', t('ui.live_people', { n: r.members.length })));
+  if (r.locked) head.appendChild(el('span', 'live-flag', t('ui.live_locked')));
+  text.append(head, el('div', 'live-names', inside ? t('ui.live_you_in')
+    : r.members.map(peerTitle).join(', ')));
+
+  const actions = el('div', 'live-actions');
+  if (inside) {
+    if (live.mini) {
+      const back = smallButton(t('ui.call_larger'));
+      back.onclick = () => setMini(false);
+      actions.appendChild(back);
+    }
+  } else if (r.locked || roomFull()) {
+    if (!r.locked) actions.appendChild(el('span', 'live-note', t('ui.error_call_full')));
+  } else {
+    const voice = smallButton(t('ui.call_voice'));
+    const video = smallButton(t('ui.call_video'));
+    video.classList.remove('plain');
+    voice.onclick = () => joinRoom(false);
+    video.onclick = () => joinRoom(true);
+    voice.disabled = video.disabled = !!live;
+    actions.append(voice, video);
   }
+  tile.append(faces, text, actions);
+}
+
+// ---- The header button: go live, or join; who is there; this device's name.
+function showLive() {
+  if (live) { setMini(false); return; }
+  if (!callable) { showHttpsNote(); return; }
   unlockSound();
   const box = el('div', 'calls');
-  box.appendChild(el('p', '', t('ui.call_intro')));
+  box.appendChild(el('p', '', t('ui.live_intro')));
+  box.appendChild(el('div', 'peers-head', t('ui.live_here')));
   peersList = el('ul', 'peers');
+  peersAction = null;
   box.appendChild(peersList);
+  box.appendChild(nameField());
+  const open = !room || !(room.locked || roomFull());
+  const buttons = [{ text: t('ui.close') }];
+  if (open) {
+    buttons.push({ text: t('ui.call_voice'), action: () => joinRoom(false) },
+      { text: t('ui.call_video'), kind: 'go', action: () => joinRoom(true) });
+  } else {
+    box.appendChild(el('p', 'live-note', t(room.locked ? 'ui.error_call_locked' : 'ui.error_call_full')));
+  }
+  dialog({ title: t(room ? 'ui.live_join_title' : 'ui.live_go'), content: box, buttons });
+  drawPeers();
+}
 
+function showHttpsNote() {
+  dialog({ title: t('ui.call_https_title'), content: [t('ui.call_https_text')] });
+}
+
+function nameField() {
   const own = el('label', 'call-own');
   own.appendChild(el('span', '', t('ui.call_my_name')));
   const input = el('input');
@@ -2035,34 +2114,64 @@ function showCalls() {
     sendPresence();
   };
   own.appendChild(input);
-  box.appendChild(own);
-  dialog({ title: t('ui.call_title'), content: box, buttons: [{ text: t('ui.close') }] });
+  return own;
+}
+
+// From inside the room: nudge someone who has Drop open — a short ring there.
+function showInvite() {
+  const box = el('div', 'calls');
+  box.appendChild(el('p', '', t('ui.live_invite_intro')));
+  peersList = el('ul', 'peers');
+  peersAction = { text: t('ui.live_nudge'), run: nudge };
+  box.appendChild(peersList);
+  if (room && room.owner === live.you) {
+    const lock = el('label', 'live-lock');
+    const box2 = el('input');
+    box2.type = 'checkbox';
+    box2.checked = room.locked;
+    box2.onchange = () => {
+      callPost('lock', { locked: box2.checked }).catch((e) => { box2.checked = !box2.checked; toast(e.message, true); });
+    };
+    lock.append(box2, el('span', '', t('ui.live_lock')));
+    box.appendChild(lock);
+  }
+  dialog({ title: t('ui.live_invite'), content: box, buttons: [{ text: t('ui.close') }] });
   drawPeers();
+}
+
+async function nudge(p, button) {
+  button.disabled = true;
+  try {
+    await callPost('nudge', { to: p.id });
+    toast(t('ui.live_nudged', { name: peerTitle(p) }));
+  } catch (e) {
+    button.disabled = false;
+    toast(e.message, true);
+  }
 }
 
 function drawPeers() {
   const list = peersList;
   if (!list || !document.contains(list)) return;
   list.innerHTML = '';
-  if (!peers.length) {
+  const shown = peersAction ? peers.filter((p) => !p.live) : peers;
+  if (!shown.length) {
     list.appendChild(el('li', 'empty', t('ui.call_none') + (usersOn ? ' ' + t('ui.call_none_users') : '')));
     return;
   }
-  peers.slice().sort((a, b) => peerTitle(a).localeCompare(peerTitle(b), locale)).forEach((p) => {
+  shown.slice().sort((a, b) => peerTitle(a).localeCompare(peerTitle(b), locale)).forEach((p) => {
     const li = el('li', 'peer');
-    const avatar = el('span', 'initial', peerInitial(p));
-    if (p.palette) avatar.dataset.p = p.palette;
     const main = el('div', 'peer-main');
     main.appendChild(el('div', 'peer-name', peerTitle(p)));
-    const sub = p.busy ? t('ui.call_busy') : peerSubtitle(p);
+    const sub = peerSubtitle(p);
     if (sub) main.appendChild(el('div', 'peer-meta', sub));
-    const video = smallButton(t('ui.call_video'));
-    const voice = smallButton(t('ui.call_voice'));
-    video.classList.remove('plain');
-    [video, voice].forEach((b) => { b.disabled = p.busy || !!call; });
-    video.onclick = () => { hideDialog(); startCall(p, true); };
-    voice.onclick = () => { hideDialog(); startCall(p, false); };
-    li.append(avatar, main, voice, video);
+    li.append(avatarOf(p), main);
+    if (p.live) li.appendChild(el('span', 'live-badge', t('ui.live_badge')));
+    if (peersAction) {
+      const b = smallButton(peersAction.text);
+      b.onclick = () => peersAction.run(p, b);
+      li.appendChild(b);
+    }
     list.appendChild(li);
   });
 }
@@ -2073,8 +2182,28 @@ function hideDialog() {
   backdrop.hidden = true;
 }
 
-// ---- Sound: ringing in, ringing out. Browsers only play after a touch or
-// click on the page, so the first one anywhere unlocks it.
+// The room as the server sends it: the tile, and in the room the screen.
+function setRoom(next, quiet) {
+  const before = room;
+  room = next || null;
+  if (!before && room && !live && callShown() && !quiet) {
+    beep([660, 880], 0.22);
+    toast(t('ui.live_started', { name: peerTitle(room.members[0]) }));
+  }
+  const l = live;
+  if (l && l.joined) {
+    if (!room || !memberOf(l.you)) { leaveLocally(t('ui.live_ended')); return; }
+    // Someone gone whose leaving did not reach this page: let go of them too.
+    l.links.forEach((k, id) => { if (!memberOf(id)) { closeLink(k); l.links.delete(id); } });
+    tuneSenders();
+    drawCallScreen();
+  }
+  updateCallButton();
+  drawPeers();
+}
+
+// ---- Sound: browsers only play after a touch or click on the page, so the
+// first one anywhere unlocks it.
 function unlockSound() {
   try {
     if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -2100,36 +2229,20 @@ function beep(frequencies, seconds) {
   });
 }
 
-function startRinging(incoming) {
-  stopRinging();
-  const ring = () => {
-    if (incoming) {
-      beep([660, 880], 0.35);
-      setTimeout(() => beep([660, 880], 0.35), 450);
-      if (navigator.vibrate) navigator.vibrate([400, 200, 400]);
-    } else {
-      beep([425], 1.0);
-    }
-  };
-  ring();
-  call.ringTimer = setInterval(ring, incoming ? 2500 : 4000);
-  if (incoming) {
-    const title = document.title;
-    let on = false;
-    call.titleTimer = setInterval(() => {
-      on = !on;
-      document.title = on ? '📞 ' + peerTitle(call.peer) : title;
-    }, 1000);
-    call.title = title;
-  }
-}
-
-function stopRinging() {
-  if (!call) return;
-  clearInterval(call.ringTimer);
-  clearInterval(call.titleTimer);
-  if (call.title) { document.title = call.title; call.title = null; }
-  if (navigator.vibrate) navigator.vibrate(0);
+// Nudged from inside the room: a short ring, and the way in.
+function nudged(from) {
+  if (live) return;
+  beep([660, 880], 0.35);
+  setTimeout(() => beep([660, 880], 0.35), 450);
+  if (navigator.vibrate) navigator.vibrate([300, 150, 300]);
+  const name = peerTitle(from);
+  dialog({
+    title: t('ui.live_nudge_title', { name }),
+    content: [t('ui.live_nudge_text', { name })],
+    buttons: [{ text: t('ui.live_later') },
+      { text: t('ui.call_voice'), action: () => joinRoom(false) },
+      { text: t('ui.call_video'), kind: 'go', action: () => joinRoom(true) }],
+  });
 }
 
 // ---- Camera and microphone
@@ -2146,325 +2259,378 @@ async function getMedia(video, facing = 'user') {
 }
 
 // What this page shows of its own camera, and how many there are to switch between.
-async function cameraChanged(c) {
-  c.cameraOn = c.stream.getVideoTracks().length > 0;
-  c.preview = c.cameraOn ? new MediaStream(c.stream.getVideoTracks()) : null;
+async function cameraChanged(l) {
+  l.cameraOn = l.stream.getVideoTracks().length > 0;
+  l.preview = l.cameraOn ? new MediaStream(l.stream.getVideoTracks()) : null;
   try {
-    c.cameras = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'videoinput').length;
-  } catch (e) { c.cameras = 0; }
-  if (call === c) drawCallScreen();
+    l.cameras = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'videoinput').length;
+  } catch (e) { l.cameras = 0; }
+  if (live === l) { tuneSenders(); drawCallScreen(); }
 }
 
-// ---- Starting, answering, ending
-// Answered, but the connection never comes about: give up rather than wait forever.
-function connecting(c) {
-  c.state = 'connecting';
-  clearTimeout(c.setup);
-  c.setup = setTimeout(() => { if (call === c && c.state === 'connecting') failed(); }, CALL_SETUP);
-}
-
-function newCall(fields) {
-  call = {
-    id: null, peer: null, role: 'caller', video: true, state: 'ringing', stream: null,
-    pc: null, senders: {}, remote: new MediaStream(), pendingIce: [], facing: 'user',
-    micOn: true, cameraOn: false, mini: false, theirs: { video: null, audio: true }, swapped: false,
-    started: 0, ended: false, dropout: null, wakeLock: null, cameras: 0, preview: null,
-    ...fields,
+// ---- Joining and leaving
+async function joinRoom(video) {
+  if (live) { setMini(false); return; }
+  if (!callable) { showHttpsNote(); return; }
+  hideDialog();
+  unlockSound();
+  const l = live = {
+    you: null, joined: false, ended: false, stream: null, preview: null, links: new Map(),
+    micOn: true, cameraOn: false, facing: 'user', cameras: 0, cameraBusy: false,
+    mini: false, focus: null, since: 0, clock: null, levels: null, wakeLock: null, quality: null,
+    tiles: new Map(), tries: new Map(), toldFailed: false,
   };
-  return call;
-}
-
-async function startCall(p, video) {
-  if (call) { toast(t('ui.call_one_at_a_time'), true); return; }
-  unlockSound();
-  const c = newCall({ peer: p, role: 'caller', video });
   showCallScreen();
   try {
-    c.stream = await getMedia(video);
+    l.stream = await getMedia(video);
   } catch (e) {
-    endLocally(t('ui.call_no_media'));
+    leaveLocally(t('ui.call_no_media'), true);
     return;
   }
-  if (call !== c) { c.stream.getTracks().forEach((x) => x.stop()); return; }
-  cameraChanged(c);
+  if (live !== l) { l.stream.getTracks().forEach((x) => x.stop()); return; }
+  await cameraChanged(l);
   try {
-    const answer = await callPost('invite', { to: p.id, video });
-    if (call !== c) { callPost('signal', { call: answer.call, type: 'cancel' }).catch(() => {}); return; }
-    c.id = answer.call;
-    startRinging(false);
+    const d = await callPost('join', { video: l.cameraOn, audio: true });
+    if (live !== l) { callPost('leave', {}).catch(() => {}); return; }
+    l.you = d.you;
+    l.joined = true;
+    l.since = Date.now();
+    l.clock = setInterval(drawCallClock, 1000);
+    l.levels = setInterval(drawSpeaking, 400);
+    keepAwake();
+    setRoom(d.room, true);
+    // The newcomer connects to everyone already there; they wait for it.
+    d.connect.forEach((id) => connectTo(id, true));
+    drawCallScreen();
   } catch (e) {
-    endLocally(e.message);
+    leaveLocally(e.message, true);
   }
 }
 
-function incoming(d) {
-  // Already busy here (both called each other at once, or still at the camera
-  // question): say no at once rather than let the other side ring for nothing.
-  if (call) { callPost('signal', { call: d.call, type: 'decline' }).catch(() => {}); return; }
-  unlockSound();
-  newCall({ id: d.call, peer: d.from, role: 'callee', video: d.video, state: 'incoming' });
-  call.theirs.video = d.video;
-  showCallScreen();
-  startRinging(true);
+function leaveRoom() {
+  const l = live;
+  if (!l) return;
+  if (l.joined) callPost('leave', {}).catch(() => {});
+  leaveLocally('');
 }
 
-async function accept(video) {
-  const c = call;
-  if (!c || c.state !== 'incoming') return;
-  stopRinging();
-  connecting(c);
-  drawCallScreen();
-  try {
-    c.stream = await getMedia(video);
-  } catch (e) {
-    hangUp('decline');
-    toast(t('ui.call_no_media'), true);
-    return;
-  }
-  if (call !== c) { c.stream.getTracks().forEach((x) => x.stop()); return; }
-  cameraChanged(c);
-  createPeerConnection();
-  try {
-    await callPost('signal', { call: c.id, type: 'accept' });
-  } catch (e) {
-    endLocally(e.message);
-  }
-}
-
-// Ends this side and tells the other one: hangup, or cancel/decline while ringing.
-function hangUp(kind) {
-  const c = call;
-  if (!c) return;
-  if (!kind) kind = c.state === 'ringing' ? 'cancel' : c.state === 'incoming' ? 'decline' : 'hangup';
-  if (c.id) callPost('signal', { call: c.id, type: kind }).catch(() => {});
-  endLocally(kind === 'hangup' && c.started ? t('ui.call_ended') : '');
-}
-
-function endLocally(message, warn) {
-  const c = call;
-  if (!c || c.ended) return;
-  c.ended = true;
-  stopRinging();
-  clearTimeout(c.dropout);
-  clearTimeout(c.setup);
-  clearInterval(c.clock);
-  if (c.pc) { try { c.pc.close(); } catch (e) {} }
-  if (c.stream) c.stream.getTracks().forEach((x) => x.stop());
-  if (c.wakeLock) c.wakeLock.release().catch(() => {});
+function leaveLocally(message, warn) {
+  const l = live;
+  if (!l || l.ended) return;
+  l.ended = true;
+  l.links.forEach(closeLink);
+  l.links.clear();
+  clearInterval(l.clock);
+  clearInterval(l.levels);
+  if (l.stream) l.stream.getTracks().forEach((x) => x.stop());
+  if (l.wakeLock) l.wakeLock.release().catch(() => {});
   const screen = $('#call');
   if (screen) screen.remove();
-  call = null;
+  live = null;
   if (message) toast(message, warn);
   updateCallButton();
   drawPeers();
   sendPresence();
 }
 
-// What the server passes on from the other side.
+// What the server passes on from the others.
 function onCallEvent(d) {
-  if (d.type === 'invite') { incoming(d); return; }
-  const c = call;
-  if (!c || d.call !== c.id) return;
-  const name = peerTitle(c.peer);
+  if (d.type === 'nudge') { nudged(d.from); return; }
+  const l = live;
+  // Messages can come before this page's own join has its answer — only the
+  // camera has to be ready, the connections are set up with it.
+  if (!l || !l.stream || l.ended) return;
+  let k = l.links.get(d.from);
   switch (d.type) {
-    case 'accept':
-      stopRinging();
-      connecting(c);
-      createPeerConnection();
-      makeOffer();
+    case 'joined':
+      beep([880], 0.12);
+      toast(t('ui.live_joined', { name: peerTitle(d.from) }));
+      break;
+    case 'left':
+      if (k) { closeLink(k); l.links.delete(d.from); }
+      toast(t('ui.live_left', { name: memberName(d.from) }));
+      tuneSenders();
       drawCallScreen();
       break;
-    case 'offer': takeOffer(d.data); break;
+    case 'offer':
+      // Another offer: the other side starts over (see linkFailed) — so do we.
+      if (k && (k.pc.remoteDescription || k.pc.signalingState === 'closed')) { closeLink(k); l.links.delete(d.from); k = null; }
+      takeOffer(k || connectTo(d.from, false), d.data);
+      break;
     case 'answer':
-      c.pc.setRemoteDescription(d.data).then(flushIce).catch(() => failed());
+      if (k) k.pc.setRemoteDescription(d.data).then(() => flushIce(k)).catch(() => linkFailed(k));
       break;
     case 'ice':
-      if (c.pc && c.pc.remoteDescription) c.pc.addIceCandidate(d.data).catch(() => {});
-      else c.pendingIce.push(d.data);
+      if (!k) break;
+      if (k.pc.remoteDescription) k.pc.addIceCandidate(d.data).catch(() => {});
+      else k.pendingIce.push(d.data);
       break;
-    case 'state':
-      if (d.data && typeof d.data === 'object') {
-        c.theirs = { video: !!d.data.video, audio: !!d.data.audio };
-        drawCallScreen();
-      }
-      break;
-    case 'photo': toast(t('ui.call_photo_by', { name })); break;
-    case 'decline': endLocally(t('ui.call_declined', { name }), true); break;
-    case 'cancel': endLocally(t('ui.call_missed_in', { name }), true); break;
-    case 'missed':
-      endLocally(t(c.role === 'caller' ? 'ui.call_missed_out' : 'ui.call_missed_in', { name }), true);
-      break;
-    case 'hangup': endLocally(t('ui.call_ended')); break;
+    case 'photo': toast(t('ui.call_photo_by', { name: memberName(d.from) })); break;
     default: break;
   }
 }
 
-// ---- The connection between the two browsers
-function createPeerConnection() {
-  const c = call;
+// ---- One connection per other member
+function connectTo(id, offerer) {
+  const l = live;
+  const existing = l.links.get(id);
+  if (existing) return existing;
   // No STUN or TURN server: in the home network the devices reach each other
   // by their own addresses, and nothing goes outside.
   const pc = new RTCPeerConnection({ iceServers: [] });
-  c.pc = pc;
+  const k = {
+    id, pc, offerer, senders: {}, remote: new MediaStream(), pendingIce: [], state: 'connecting',
+    setup: null, dropout: null, wasLive: false, audio: null, speaking: false,
+  };
+  l.links.set(id, k);
   pc.onicecandidate = (e) => {
-    if (e.candidate && c.id) callPost('signal', { call: c.id, type: 'ice', data: e.candidate.toJSON() }).catch(() => {});
+    if (e.candidate) callPost('signal', { to: id, type: 'ice', data: e.candidate.toJSON() }).catch(() => {});
   };
   pc.ontrack = (e) => {
-    c.remote.addTrack(e.track);
-    if (e.track.kind === 'video') {
-      e.track.onunmute = () => { if (c.theirs.video === null) c.theirs.video = true; drawCallScreen(); };
-    }
-    const remote = $('#call-remote');
-    if (remote && remote.srcObject !== c.remote) { remote.srcObject = c.remote; }
-    if (remote) remote.play().catch(() => {});
+    k.remote.addTrack(e.track);
+    e.track.onunmute = () => drawCallScreen();
+    e.track.onmute = () => drawCallScreen();
+    drawCallScreen();
   };
   pc.onconnectionstatechange = () => {
-    if (call !== c) return;
+    if (live !== l || l.links.get(id) !== k) return;
     const s = pc.connectionState;
     if (s === 'connected') {
-      clearTimeout(c.dropout); c.dropout = null;
-      if (!c.started) {
-        c.started = Date.now();
-        c.clock = setInterval(drawCallClock, 1000);
-        keepAwake();
-      }
-      c.state = 'live';
-      sendState();
+      clearTimeout(k.dropout); clearTimeout(k.setup);
+      k.state = 'live';
+      k.wasLive = true;
+      live.tries.delete(id);
+      tuneSenders();
     } else if (s === 'disconnected') {
-      c.state = 'dropout';
-      clearTimeout(c.dropout);
-      c.dropout = setTimeout(() => { if (call === c) failed(); }, CALL_DROPOUT);
+      k.state = 'dropout';
+      clearTimeout(k.dropout);
+      k.dropout = setTimeout(() => { if (k.state === 'dropout') linkFailed(k); }, CALL_DROPOUT);
     } else if (s === 'failed') {
-      failed();
+      linkFailed(k);
     }
     drawCallScreen();
   };
+  k.setup = setTimeout(() => { if (live === l && k.state === 'connecting') linkFailed(k); }, CALL_SETUP);
+  if (offerer) makeOffer(k);
+  drawCallScreen();
+  return k;
 }
 
-function addLocalTracks(transceivers) {
-  const c = call;
-  const audio = c.stream.getAudioTracks()[0] || null;
-  const video = c.stream.getVideoTracks()[0] || null;
+function closeLink(k) {
+  clearTimeout(k.setup);
+  clearTimeout(k.dropout);
+  try { k.pc.close(); } catch (e) {}
+  if (k.audio) { k.audio.srcObject = null; k.audio.remove(); }
+}
+
+// Lost, or never there: the one who set the connection up starts over with a
+// new one, CALL_TRIES times in all; then the tile says there is no connection
+// — the others in the room are not affected.
+function linkFailed(k) {
+  const l = live;
+  if (!l || l.links.get(k.id) !== k || k.state === 'failed') return;
+  clearTimeout(k.setup);
+  clearTimeout(k.dropout);
+  const tries = (l.tries.get(k.id) || 1);
+  k.state = 'failed';
+  try { k.pc.close(); } catch (e) {}
+  if (k.offerer && tries < CALL_TRIES) {
+    l.tries.set(k.id, tries + 1);
+    k.state = 'dropout';
+    setTimeout(() => {
+      if (live !== l || l.links.get(k.id) !== k || !memberOf(k.id)) return;
+      closeLink(k);
+      l.links.delete(k.id);
+      connectTo(k.id, true);
+    }, 1500);
+  } else if (k.offerer && !k.wasLive && !l.toldFailed) {
+    // Never connected: say why that may be — once, not for every member.
+    l.toldFailed = true;
+    toast(t('ui.call_failed'), true);
+  }
+  drawCallScreen();
+}
+
+function addLocalTracks(k, transceivers) {
+  const audio = live.stream.getAudioTracks()[0] || null;
+  const video = live.stream.getVideoTracks()[0] || null;
   transceivers.forEach((tr) => {
     const kind = tr.receiver.track.kind;
     tr.direction = 'sendrecv';
-    c.senders[kind] = tr.sender;
+    k.senders[kind] = tr.sender;
     tr.sender.replaceTrack(kind === 'audio' ? audio : video).catch(() => {});
   });
 }
 
 // Always one audio and one video channel, even without a camera: switching the
 // camera on later, or to the other one, then needs no new negotiation.
-async function makeOffer() {
-  const c = call;
-  addLocalTracks([c.pc.addTransceiver('audio'), c.pc.addTransceiver('video')]);
+async function makeOffer(k) {
   try {
-    await c.pc.setLocalDescription(await c.pc.createOffer());
-    await callPost('signal', { call: c.id, type: 'offer', data: c.pc.localDescription.toJSON() });
-  } catch (e) { failed(); }
+    addLocalTracks(k, [k.pc.addTransceiver('audio'), k.pc.addTransceiver('video')]);
+    await k.pc.setLocalDescription(await k.pc.createOffer());
+    await callPost('signal', { to: k.id, type: 'offer', data: k.pc.localDescription.toJSON() });
+  } catch (e) { linkFailed(k); }
 }
 
-async function takeOffer(offer) {
-  const c = call;
-  if (!c.pc) return;
+async function takeOffer(k, offer) {
   try {
-    await c.pc.setRemoteDescription(offer);
-    addLocalTracks(c.pc.getTransceivers());
-    await c.pc.setLocalDescription(await c.pc.createAnswer());
-    await callPost('signal', { call: c.id, type: 'answer', data: c.pc.localDescription.toJSON() });
-    flushIce();
-  } catch (e) { failed(); }
+    const first = !k.pc.remoteDescription;
+    await k.pc.setRemoteDescription(offer);
+    if (first) addLocalTracks(k, k.pc.getTransceivers());
+    await k.pc.setLocalDescription(await k.pc.createAnswer());
+    await callPost('signal', { to: k.id, type: 'answer', data: k.pc.localDescription.toJSON() });
+    flushIce(k);
+    tuneSenders();
+  } catch (e) { linkFailed(k); }
 }
 
-function flushIce() {
-  const c = call;
-  if (!c || !c.pc) return;
-  c.pendingIce.splice(0).forEach((x) => c.pc.addIceCandidate(x).catch(() => {}));
+function flushIce(k) {
+  k.pendingIce.splice(0).forEach((x) => k.pc.addIceCandidate(x).catch(() => {}));
 }
 
-// Never connected: say why it may be. Connected, then lost: the call is over.
-function failed() {
-  const c = call;
-  if (!c) return;
-  if (c.id) callPost('signal', { call: c.id, type: 'hangup' }).catch(() => {});
-  endLocally(t(c.started ? 'ui.call_ended' : 'ui.call_failed'), true);
+/* The more people, the smaller this page's picture to each of them: every
+   connection encodes its own copy, and that is what a phone feels — not the
+   network. In a grid of ten the pictures are small anyway. */
+function qualityFor(connections) {
+  if (connections <= 3) return null;
+  if (connections <= 5) return { height: 480, fps: 24, bitrate: 900000 };
+  if (connections <= 9) return { height: 360, fps: 15, bitrate: 450000 };
+  return { height: 240, fps: 12, bitrate: 250000 };
+}
+
+async function tuneSenders() {
+  const l = live;
+  if (!l || !l.stream) return;
+  const track = l.stream.getVideoTracks()[0];
+  const q = qualityFor(l.links.size);
+  // The camera itself takes smaller pictures then: less to scale down for each.
+  if (track && track.applyConstraints && (q ? q.height : 0) !== l.quality) {
+    l.quality = q ? q.height : 0;
+    await track.applyConstraints(q ? { width: { ideal: Math.round(q.height * 16 / 9) }, height: { ideal: q.height }, frameRate: { ideal: q.fps } }
+      : { width: { ideal: 1280 }, height: { ideal: 720 } }).catch(() => {});
+    if (live !== l) return;
+  }
+  l.quality = q ? q.height : 0;
+  const height = (track && track.getSettings && track.getSettings().height) || 720;
+  const screen = $('#call');
+  if (screen) screen.dataset.quality = l.quality;
+  l.links.forEach((k) => {
+    const sender = k.senders.video;
+    if (!sender || !sender.getParameters) return;
+    const params = sender.getParameters();
+    if (!params.encodings || !params.encodings.length) return;   // not negotiated yet: again once connected
+    const e = params.encodings[0];
+    if (q) {
+      e.scaleResolutionDownBy = Math.max(1, height / q.height);
+      e.maxFramerate = q.fps;
+      e.maxBitrate = q.bitrate;
+    } else {
+      e.scaleResolutionDownBy = 1;
+      delete e.maxFramerate;
+      delete e.maxBitrate;
+    }
+    sender.setParameters(params).catch(() => {});
+  });
 }
 
 function sendState() {
-  const c = call;
-  if (!c || !c.id || c.state === 'incoming' || c.state === 'ringing') return;
-  callPost('signal', { call: c.id, type: 'state', data: { video: c.cameraOn, audio: c.micOn } }).catch(() => {});
+  const l = live;
+  if (!l || !l.joined) return;
+  callPost('signal', { type: 'state', data: { video: l.cameraOn, audio: l.micOn } }).catch(() => {});
 }
 
 async function keepAwake() {
-  try { if (navigator.wakeLock) call.wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {}
+  try { if (navigator.wakeLock && live) live.wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {}
 }
 
-// ---- Buttons during the call
+// Who is speaking: their tile gets a frame. The browser measures it anyway.
+function drawSpeaking() {
+  const l = live;
+  if (!l) return;
+  l.links.forEach((k) => {
+    let level = 0;
+    try {
+      const receiver = k.pc.getReceivers().find((r) => r.track && r.track.kind === 'audio');
+      const source = receiver && receiver.getSynchronizationSources ? receiver.getSynchronizationSources()[0] : null;
+      level = source && typeof source.audioLevel === 'number' ? source.audioLevel : 0;
+    } catch (e) { /* closed meanwhile */ }
+    const speaking = level > 0.04;
+    if (speaking !== k.speaking) {
+      k.speaking = speaking;
+      const tile = l.tiles.get(k.id);
+      if (tile) tile.classList.toggle('speaking', speaking);
+    }
+  });
+}
+
+// ---- Buttons in the room
 function toggleMic() {
-  const c = call;
-  c.micOn = !c.micOn;
-  c.stream.getAudioTracks().forEach((x) => { x.enabled = c.micOn; });
+  const l = live;
+  l.micOn = !l.micOn;
+  l.stream.getAudioTracks().forEach((x) => { x.enabled = l.micOn; });
   sendState();
   drawCallScreen();
 }
 
+const videoSenders = (l) => [...l.links.values()].map((k) => k.senders.video).filter(Boolean);
+
 // Off means off: the camera is let go of (its light goes out), not just hidden.
 async function toggleCamera() {
-  const c = call;
-  if (c.cameraBusy) return;           // one change at a time, or a second camera stays on
-  c.cameraBusy = true;
-  try { await cameraToggle(c); } finally { c.cameraBusy = false; }
+  const l = live;
+  if (l.cameraBusy) return;           // one change at a time, or a second camera stays on
+  l.cameraBusy = true;
+  try { await cameraToggle(l); } finally { l.cameraBusy = false; }
 }
 
-async function cameraToggle(c) {
-  if (c.cameraOn) {
-    c.stream.getVideoTracks().forEach((x) => { x.stop(); c.stream.removeTrack(x); });
-    if (c.senders.video) await c.senders.video.replaceTrack(null).catch(() => {});
-    cameraChanged(c);
+async function cameraToggle(l) {
+  if (l.cameraOn) {
+    l.stream.getVideoTracks().forEach((x) => { x.stop(); l.stream.removeTrack(x); });
+    await Promise.all(videoSenders(l).map((s) => s.replaceTrack(null).catch(() => {})));
+    await cameraChanged(l);
   } else {
-    await useCamera({ facingMode: c.facing });
+    await useCamera({ facingMode: l.facing });
   }
   sendState();
   drawCallScreen();
 }
 
 async function useCamera(constraints, quiet) {
-  const c = call;
+  const l = live;
   // Let go of the current one first — phones open only one camera at a time.
-  c.stream.getVideoTracks().forEach((x) => { x.stop(); c.stream.removeTrack(x); });
+  l.stream.getVideoTracks().forEach((x) => { x.stop(); l.stream.removeTrack(x); });
   let fresh;
   try {
     fresh = await navigator.mediaDevices.getUserMedia({ video: { ...constraints, width: { ideal: 1280 }, height: { ideal: 720 } } });
   } catch (e) {
     if (!quiet) toast(t('ui.call_no_media'), true);
-    cameraChanged(c);
+    await cameraChanged(l);
     return false;
   }
-  if (call !== c) { fresh.getTracks().forEach((x) => x.stop()); return false; }
+  if (live !== l) { fresh.getTracks().forEach((x) => x.stop()); return false; }
   const track = fresh.getVideoTracks()[0];
-  c.stream.addTrack(track);
-  if (c.senders.video) await c.senders.video.replaceTrack(track).catch(() => {});
-  await cameraChanged(c);
+  l.stream.addTrack(track);
+  await Promise.all(videoSenders(l).map((s) => s.replaceTrack(track).catch(() => {})));
+  l.quality = -1;                      // a new camera starts at full size: size it again
+  await cameraChanged(l);
   const facing = (track.getSettings && track.getSettings().facingMode) || '';
-  if (facing) c.facing = facing === 'environment' ? 'environment' : 'user';
+  if (facing) l.facing = facing === 'environment' ? 'environment' : 'user';
   return true;
 }
 
 // Front and back on phones; on a computer with several cameras, the next one.
 async function switchCamera() {
-  const c = call;
-  if (!c.cameraOn || c.cameraBusy) return;
-  c.cameraBusy = true;
-  try { await cameraSwitch(c); } finally { c.cameraBusy = false; }
+  const l = live;
+  if (!l.cameraOn || l.cameraBusy) return;
+  l.cameraBusy = true;
+  try { await cameraSwitch(l); } finally { l.cameraBusy = false; }
 }
 
-async function cameraSwitch(c) {
-  const current = c.stream.getVideoTracks()[0];
+async function cameraSwitch(l) {
+  const current = l.stream.getVideoTracks()[0];
   const settings = current && current.getSettings ? current.getSettings() : {};
   if (settings.facingMode) {
-    const next = c.facing === 'user' ? 'environment' : 'user';
-    if (await useCamera({ facingMode: { exact: next } }, true)) { c.facing = next; drawCallScreen(); return; }
+    const next = l.facing === 'user' ? 'environment' : 'user';
+    if (await useCamera({ facingMode: { exact: next } }, true)) { l.facing = next; drawCallScreen(); return; }
   }
   const cameras = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'videoinput');
   const at = cameras.findIndex((d) => d.deviceId === settings.deviceId);
@@ -2473,11 +2639,13 @@ async function cameraSwitch(c) {
   drawCallScreen();
 }
 
-// A photo of the large picture, into the shared files — like any other file.
+// A photo of the large picture (or the first one with a picture), into the
+// shared files — like any other file.
 function takePhoto() {
-  const c = call;
-  const video = $('#call-screen-big');
-  if (!video || !video.videoWidth || video.hidden) { toast(t('ui.call_photo_none'), true); return; }
+  const l = live;
+  const videos = [...document.querySelectorAll('#call .call-tile.big video, #call .call-tile:not(.me) video, #call .call-tile.me video')];
+  const video = videos.find((v) => !v.hidden && v.videoWidth && v.closest('.call-tile') && !v.closest('.call-tile').hidden);
+  if (!video) { toast(t('ui.call_photo_none'), true); return; }
   const canvas = document.createElement('canvas');
   canvas.width = video.videoWidth;
   canvas.height = video.videoHeight;
@@ -2493,14 +2661,14 @@ function takePhoto() {
     try {
       await uploadFile(file, 'shared');
       toast(t('ui.call_photo_saved'));
-      if (call === c) callPost('signal', { call: c.id, type: 'photo' }).catch(() => {});
+      if (live === l) callPost('signal', { type: 'photo' }).catch(() => {});
     } catch (e) {
       toast(t('ui.upload_failed', { name: file.name, reason: e.message }), true);
     }
   }, 'image/jpeg', 0.92);
 }
 
-// ---- The call screen
+// ---- The room screen
 const ICONS = {
   mic: '<path d="M12 3.5a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0v-5a3 3 0 0 0-3-3z"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5v3"/>',
   micOff: '<path d="M15 10.5v-4a3 3 0 0 0-5.6-1.5M9 9v2.5a3 3 0 0 0 4.7 2.5M5.5 11a6.5 6.5 0 0 0 10.6 5M18.5 11c0 .7-.1 1.4-.3 2M12 17.5v3M4 4l16 16"/>',
@@ -2510,8 +2678,8 @@ const ICONS = {
   shrink: '<path d="M14.5 4.5v5h5M9.5 19.5v-5h-5M14.5 9.5l6-6M9.5 14.5l-6 6"/>',
   grow: '<path d="M15 3.5h5.5V9M9 20.5H3.5V15M20.5 3.5l-6.5 6.5M3.5 20.5l6.5-6.5"/>',
   photo: '<path d="M4 8.5a2 2 0 0 1 2-2h2l1.5-2h5l1.5 2h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.5"/>',
-  hangup: '<path d="M3.5 14.5c4.7-4.3 12.3-4.3 17 0l-2 2.5-3.3-1.3.3-2.5a10 10 0 0 0-7 0l.3 2.5L5.5 17z"/>',
-  phone: '<path d="M6.5 3.5h3l1.5 4-2 1.5a10 10 0 0 0 6 6l1.5-2 4 1.5v3a2 2 0 0 1-2 2A16 16 0 0 1 4.5 5.5a2 2 0 0 1 2-2z"/>',
+  invite: '<circle cx="10" cy="8.5" r="3.5"/><path d="M3.5 19.5c.7-3.5 3.3-5.5 6.5-5.5s5.8 2 6.5 5.5M18.5 8v6M15.5 11h6"/>',
+  leave: '<path d="M3.5 14.5c4.7-4.3 12.3-4.3 17 0l-2 2.5-3.3-1.3.3-2.5a10 10 0 0 0-7 0l.3 2.5L5.5 17z"/>',
 };
 
 function iconButton(icon, label, cls, action) {
@@ -2532,132 +2700,182 @@ function showCallScreen() {
   screen.id = 'call';
   screen.setAttribute('role', 'dialog');
   screen.setAttribute('aria-modal', 'true');
-  const big = document.createElement('video');
-  big.id = 'call-screen-big';
-  const small = document.createElement('video');
-  small.id = 'call-screen-small';
-  [big, small].forEach((v) => { v.autoplay = true; v.playsInline = true; v.setAttribute('playsinline', ''); });
-  // Sound comes from a separate element: it keeps playing whichever picture is large.
-  const sound = document.createElement('audio');
-  sound.id = 'call-remote';
-  sound.autoplay = true;
-  small.onclick = () => { if (call) { call.swapped = !call.swapped; drawCallScreen(); } };
-  // Small, the picture itself brings the call back to full size.
-  big.onclick = () => { if (call && call.mini) setMini(false); };
-  small.title = t('ui.call_swap');
-  const placeholder = el('div', 'call-placeholder');
-  // My own camera off: the small picture stays as a dark tile that says so —
-  // otherwise only the other side shows a change, and it looks like theirs.
-  const selfOff = el('div', 'call-self-off');
-  selfOff.id = 'call-self-off';
-  selfOff.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS.camOff}</svg>`;
-  selfOff.appendChild(el('span', '', t('ui.call_camera_is_off')));
-  const top = el('div', 'call-top');
-  const bar = el('div', 'call-bar');
-  screen.append(big, placeholder, small, selfOff, sound, top, bar);
+  screen.append(el('div', 'call-grid'), el('div', 'call-top'), el('div', 'call-bar'));
   document.body.appendChild(screen);
   drawCallScreen();
 }
 
-// Smaller: the call goes into a corner and Drop is usable below it — texts,
-// files, uploads. Larger again with its button, a tap on it, or the header button.
+// Smaller: the room goes into a corner and Drop is usable below it — texts,
+// files, uploads. Larger again with its button, a tap on it, or the tile.
 function setMini(on) {
-  if (!call) return;
-  call.mini = on;
+  if (!live) return;
+  live.mini = on;
   drawCallScreen();
+  drawLiveTile();
 }
 
 function drawCallClock() {
   const node = $('#call .call-status');
-  if (!node || !call || !call.started || call.state !== 'live') return;
-  const s = Math.floor((Date.now() - call.started) / 1000);
+  if (!node || !live || !live.since) return;
+  const s = Math.floor((Date.now() - live.since) / 1000);
   const p = (n) => String(n).padStart(2, '0');
-  node.textContent = s >= 3600 ? `${Math.floor(s / 3600)}:${p(Math.floor(s / 60) % 60)}:${p(s % 60)}` : `${p(Math.floor(s / 60))}:${p(s % 60)}`;
+  const clock = s >= 3600 ? `${Math.floor(s / 3600)}:${p(Math.floor(s / 60) % 60)}:${p(s % 60)}` : `${p(Math.floor(s / 60))}:${p(s % 60)}`;
+  node.textContent = `${t('ui.live_people', { n: roomMembers().length })} · ${clock}`;
+}
+
+// One tile per person, kept from one drawing to the next: a <video> that is
+// built anew flickers. Sound plays from an <audio> of its own per person.
+function tileFor(l, key) {
+  let tile = l.tiles.get(key);
+  if (tile) return tile;
+  tile = el('div', 'call-tile' + (key === 'me' ? ' me' : ''));
+  tile.dataset.id = key;
+  const video = document.createElement('video');
+  video.autoplay = true;
+  video.muted = true;
+  video.playsInline = true;
+  video.setAttribute('playsinline', '');
+  tile.append(video, el('div', 'call-face'), el('div', 'call-label'), el('div', 'call-note'));
+  tile.onclick = () => {
+    if (live !== l) return;
+    if (l.mini) { setMini(false); return; }
+    l.focus = l.focus === key ? null : key;
+    drawCallScreen();
+  };
+  l.tiles.set(key, tile);
+  return tile;
+}
+
+function drawTile(tile, { person, stream, mirror, micOn, note, you }) {
+  const video = tile.querySelector('video');
+  if (video.srcObject !== stream) video.srcObject = stream;
+  video.hidden = !stream;
+  video.classList.toggle('mirror', !!stream && mirror);
+  if (stream) video.play().catch(() => {});
+  const face = tile.querySelector('.call-face');
+  face.hidden = !!stream;
+  face.innerHTML = '';
+  if (!stream && person) face.appendChild(avatarOf(person));
+  const label = tile.querySelector('.call-label');
+  label.innerHTML = '';
+  if (!micOn) label.insertAdjacentHTML('beforeend', `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS.micOff}</svg>`);
+  label.appendChild(el('span', '', you ? t('ui.live_you') : person ? peerTitle(person) : ''));
+  const noteNode = tile.querySelector('.call-note');
+  noteNode.textContent = note || '';
+  noteNode.hidden = !note;
+}
+
+function gridColumns(n, width, height) {
+  let best = 1;
+  let size = 0;
+  for (let cols = 1; cols <= n; cols++) {
+    const rows = Math.ceil(n / cols);
+    const s = Math.min(width / cols, (height / rows) * 4 / 3);
+    if (s > size + 1) { size = s; best = cols; }
+  }
+  return best;
 }
 
 function drawCallScreen() {
-  const c = call;
+  const l = live;
   const screen = $('#call');
-  if (!c || !screen) return;
-  const name = peerTitle(c.peer);
-  const mini = c.mini && c.state !== 'incoming';
-  screen.classList.toggle('mini', mini);
-  screen.setAttribute('aria-modal', String(!mini));
-  const big = $('#call-screen-big');
-  const small = $('#call-screen-small');
-  const sound = $('#call-remote');
-  if (sound.srcObject !== c.remote) { sound.srcObject = c.remote; sound.play().catch(() => {}); }
+  if (!l || !screen) return;
+  const grid = screen.querySelector('.call-grid');
+  screen.classList.toggle('mini', l.mini);
+  screen.setAttribute('aria-modal', String(!l.mini));
+  const mine = l.cameraOn ? l.preview : null;
+  const me = memberOf(l.you) || { name: deviceName(), device: deviceLabel() };
 
-  // Their picture large, mine small — or the other way round after a tap on the small one.
-  const mine = c.cameraOn ? c.preview : null;
-  const theirs = c.pc && c.theirs.video ? c.remote : null;
-  const [bigStream, smallStream] = c.swapped ? [mine, theirs] : [theirs, mine];
-  const mirrorMine = c.facing === 'user';
-  if (big.srcObject !== bigStream) big.srcObject = bigStream;
-  if (small.srcObject !== smallStream) small.srcObject = smallStream;
-  big.muted = small.muted = true;
-  big.hidden = !bigStream;
-  small.hidden = !smallStream;
-  $('#call-self-off').hidden = !(c.stream && !c.cameraOn && !c.swapped && c.state !== 'incoming');
-  big.classList.toggle('mirror', !!bigStream && bigStream === mine && mirrorMine);
-  small.classList.toggle('mirror', !!smallStream && smallStream === mine && mirrorMine);
-  [big, small].forEach((v) => { if (v.srcObject) v.play().catch(() => {}); });
+  // Everyone in the room, in the order they came in, then this page.
+  const others = roomMembers().filter((m) => m.id !== l.you).map((m) => ({ m, k: l.links.get(m.id) }));
+  l.tiles.forEach((tile, key) => { if (key !== 'me' && !memberOf(key)) { tile.remove(); l.tiles.delete(key); } });
+  const tiles = [];
+  others.forEach(({ m, k }) => {
+    const tile = tileFor(l, m.id);
+    const video = k && m.video && k.remote.getVideoTracks().some((x) => !x.muted) ? k.remote : null;
+    const note = !k || k.state === 'connecting' ? t('ui.call_connecting')
+      : k.state === 'dropout' ? t('ui.call_reconnecting') : k.state === 'failed' ? t('ui.live_no_link') : '';
+    drawTile(tile, { person: m, stream: video, mirror: false, micOn: m.audio, note });
+    tile.classList.toggle('failed', !!k && k.state === 'failed');
+    if (k && !k.audio) {
+      k.audio = document.createElement('audio');
+      k.audio.autoplay = true;
+      screen.appendChild(k.audio);
+    }
+    if (k && k.audio.srcObject !== k.remote) { k.audio.srcObject = k.remote; k.audio.play().catch(() => {}); }
+    tiles.push({ key: m.id, tile });
+  });
+  const meTile = tileFor(l, 'me');
+  drawTile(meTile, { person: me, stream: mine, mirror: l.facing === 'user', micOn: l.micOn, you: true,
+    note: !l.cameraOn && l.stream ? t('ui.call_camera_is_off') : '' });
+  tiles.push({ key: 'me', tile: meTile });
 
-  const placeholder = screen.querySelector('.call-placeholder');
-  placeholder.hidden = !!bigStream;
-  placeholder.innerHTML = '';
-  const avatar = el('span', 'initial', peerInitial(c.peer));
-  if (c.peer.palette) avatar.dataset.p = c.peer.palette;
-  placeholder.append(avatar, el('div', 'call-name', name));
-  const sub = peerSubtitle(c.peer);
-  if (sub) placeholder.appendChild(el('div', 'call-sub', sub));
-  if (c.state === 'live' && !c.swapped && c.theirs.video === false) {
-    placeholder.appendChild(el('div', 'call-sub', t('ui.call_camera_is_off')));
+  // How they are laid out: alone, one other (large, this page small in the
+  // corner), one picked by a tap (large), or a grid of all.
+  if (l.focus && !tiles.some((x) => x.key === l.focus)) l.focus = null;
+  let big = null;
+  let pip = null;
+  if (l.mini) {
+    big = l.focus || (others.find(({ m, k }) => k && k.speaking && m.video) || others.find(({ m }) => m.video) || others[0] || {}).m?.id || 'me';
+  } else if (l.focus) {
+    big = l.focus;
+    pip = l.focus === 'me' ? (others.length === 1 ? others[0].m.id : null) : 'me';
+  } else if (others.length === 0) {
+    big = 'me';
+  } else if (others.length === 1) {
+    big = others[0].m.id;
+    pip = 'me';
   }
+  const gridMode = !big;
+  grid.classList.toggle('grid', gridMode);
+  tiles.forEach(({ key, tile }) => {
+    tile.classList.toggle('big', key === big);
+    tile.classList.toggle('pip', key === pip);
+    tile.hidden = !gridMode && key !== big && key !== pip;
+  });
+  // In order: the others as they came, this page last. Only moved when out of place.
+  tiles.forEach(({ tile }, i) => {
+    if (grid.children[i] === tile) return;
+    grid.insertBefore(tile, grid.children[i] || null);
+    const video = tile.querySelector('video');
+    if (video.srcObject) video.play().catch(() => {});      // moving it paused it
+  });
+  if (gridMode) {
+    const cols = gridColumns(tiles.length, grid.clientWidth || window.innerWidth, grid.clientHeight || window.innerHeight);
+    grid.style.setProperty('--cols', cols);
+    grid.style.setProperty('--rows', Math.ceil(tiles.length / cols));
+  }
+  screen.dataset.members = roomMembers().length;
+  screen.dataset.connected = others.filter(({ k }) => k && k.state === 'live').length;
 
   const top = screen.querySelector('.call-top');
   top.innerHTML = '';
-  const status = {
-    ringing: t('ui.call_calling'), connecting: t('ui.call_connecting'),
-    dropout: t('ui.call_reconnecting'), live: '',
-    incoming: t(c.video ? 'ui.call_incoming_video' : 'ui.call_incoming_voice'),
-  }[c.state];
-  top.append(el('span', 'call-who', name), el('span', 'call-status', status));
-  if (c.state === 'live' && !c.theirs.audio) top.appendChild(el('span', 'call-flag', t('ui.call_their_mic_off')));
+  top.append(el('span', 'live-badge', t('ui.live_badge')), el('span', 'call-status', ''));
+  if (room && room.locked) top.appendChild(el('span', 'call-flag', t('ui.live_locked')));
+  if (others.length === 0 && l.joined) top.appendChild(el('div', 'call-alone', t('ui.live_alone')));
   drawCallClock();
 
   const bar = screen.querySelector('.call-bar');
   bar.innerHTML = '';
-  if (c.state === 'incoming') {
-    bar.append(
-      iconButton('hangup', t('ui.call_decline'), 'end', () => hangUp('decline')),
-      iconButton('phone', t('ui.call_accept_voice'), 'go', () => accept(false)),
-      ...(c.video ? [iconButton('cam', t('ui.call_accept_video'), 'go', () => accept(true))] : []));
-    bar.querySelector('.go').focus();
-    return;
-  }
-  const ready = !!c.stream;
-  if (mini) {
-    const mic = iconButton(c.micOn ? 'mic' : 'micOff', t(c.micOn ? 'ui.call_mic_off' : 'ui.call_mic_on'),
-      c.micOn ? '' : 'off', toggleMic);
-    mic.disabled = !ready;
+  const ready = !!l.stream;
+  const mic = iconButton(l.micOn ? 'mic' : 'micOff', t(l.micOn ? 'ui.call_mic_off' : 'ui.call_mic_on'),
+    l.micOn ? '' : 'off', toggleMic);
+  mic.disabled = !ready;
+  if (l.mini) {
     bar.append(iconButton('grow', t('ui.call_larger'), '', () => setMini(false)), mic,
-      iconButton('hangup', t('ui.call_hangup'), 'end', () => hangUp()));
+      iconButton('leave', t('ui.live_leave'), 'end', leaveRoom));
     return;
   }
-  const mic = iconButton(c.micOn ? 'mic' : 'micOff', t(c.micOn ? 'ui.call_mic_off' : 'ui.call_mic_on'),
-    c.micOn ? '' : 'off', toggleMic);
-  const cam = iconButton(c.cameraOn ? 'cam' : 'camOff', t(c.cameraOn ? 'ui.call_camera_off' : 'ui.call_camera_on'),
-    c.cameraOn ? '' : 'off', toggleCamera);
-  mic.disabled = cam.disabled = !ready;
+  const cam = iconButton(l.cameraOn ? 'cam' : 'camOff', t(l.cameraOn ? 'ui.call_camera_off' : 'ui.call_camera_on'),
+    l.cameraOn ? '' : 'off', toggleCamera);
+  cam.disabled = !ready;
   bar.append(mic, cam);
-  if (c.cameraOn && c.cameras > 1) {
-    bar.appendChild(iconButton('flip', t('ui.call_switch'), '', switchCamera));
-  }
-  const photo = iconButton('photo', t('ui.call_photo'), '', takePhoto);
-  photo.disabled = !bigStream;
-  bar.append(photo, iconButton('shrink', t('ui.call_smaller'), '', () => setMini(true)),
-    iconButton('hangup', t('ui.call_hangup'), 'end', () => hangUp()));
+  if (l.cameraOn && l.cameras > 1) bar.appendChild(iconButton('flip', t('ui.call_switch'), '', switchCamera));
+  const invite = iconButton('invite', t('ui.live_invite'), '', showInvite);
+  invite.disabled = !l.joined;
+  bar.append(iconButton('photo', t('ui.call_photo'), '', takePhoto), invite,
+    iconButton('shrink', t('ui.call_smaller'), '', () => setMini(true)),
+    iconButton('leave', t('ui.live_leave'), 'end', leaveRoom));
 }
 
 // ------------------------------------------------------------------ Connection
@@ -2731,6 +2949,7 @@ function connectEvents() {
   });
 
   source.addEventListener('call', (e) => onCallEvent(JSON.parse(e.data)));
+  source.addEventListener('room', (e) => setRoom(JSON.parse(e.data).room));
 
   source.addEventListener('upload', (e) => {
     const u = JSON.parse(e.data);
@@ -2764,7 +2983,7 @@ async function loadState() {
     user = d.user || null;
     if (user) applyPalette(user.palette);
     showAreas();
-    updateCallButton();
+    setRoom(d.room, true);
     if (d.name) {
       appName = d.name;
       document.title = d.name;
@@ -2819,20 +3038,21 @@ function stopAllSaves() {
 // ------------------------------------------------------------------ Start
 function wireButtons() {
   $('#btn-help').onclick = showHelp;
-  $('#btn-call').onclick = showCalls;
-  // Ringing needs sound, and browsers allow it only after a touch or click.
+  $('#btn-call').onclick = showLive;
+  // Nudges need sound, and browsers allow it only after a touch or click.
   document.addEventListener('pointerdown', unlockSound, { passive: true });
   document.addEventListener('keydown', unlockSound);
-  // Closed or reloaded during a call: the other side hears of it at once.
+  // Closed or reloaded in the room: the others hear of it at once.
   window.addEventListener('pagehide', () => {
-    if (call && call.id) {
-      fetch('/api/call/signal', {
+    if (live && live.joined) {
+      fetch('/api/call/leave', {
         method: 'POST', keepalive: true, headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ peer: callSecret, call: call.id, type: call.state === 'incoming' ? 'decline' : call.state === 'ringing' ? 'cancel' : 'hangup' }),
+        body: JSON.stringify({ peer: callSecret }),
       }).catch(() => {});
     }
-    endLocally('');      // a page restored from the back/forward cache shows no dead call
+    leaveLocally('');    // a page restored from the back/forward cache shows no dead room
   });
+  window.addEventListener('resize', () => { if (live) drawCallScreen(); });
   $('#btn-qr').onclick = showQr;
   $('#btn-qr').title = t('ui.qr_open');
   document.querySelectorAll('#theme-switch button').forEach((b) => { b.onclick = () => chooseTheme(b.dataset.mode); });
@@ -2924,7 +3144,7 @@ function wireButtons() {
 
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
-      if (call && call.started) keepAwake();     // the browser let go of it while hidden
+      if (live && live.joined) keepAwake();      // the browser let go of it while hidden
       loadState();
       if (!source || source.readyState === 2) connectEvents();
     }
@@ -2934,7 +3154,7 @@ function wireButtons() {
   window.addEventListener('offline', () => setConnected(false));
 
   window.addEventListener('beforeunload', (e) => {
-    if (ownUploads.size || (call && call.state === 'live')) { e.preventDefault(); e.returnValue = ''; }
+    if (ownUploads.size || (live && live.joined)) { e.preventDefault(); e.returnValue = ''; }
   });
 }
 

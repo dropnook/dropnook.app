@@ -151,47 +151,62 @@ check "share sheet: file in the list"     cmp -s "$DATA/files/shared.txt" "$WORK
 check "share sheet: link in a text field" grep -rqs 'https://example.com/shared' "$DATA/texts/"
 check "share sheet: no leftovers"         bash -c "! ls -A '$DATA/files' | grep -q '^\.shared-'"
 
-# Calls: two pages with live updates, one rings the other. Only the set-up
-# messages pass through drop; it checks who may send what.
+# Live room: pages with live updates go live and join; only the set-up
+# messages pass through drop, and it checks who may send what.
 call() {   # call <path> <json> → status, the reply in $WORK/reply
   curl -s -o "$WORK/reply" -w '%{http_code}' -H "Host: $HOST" -H 'Content-Type: application/json' \
     -d "$2" "http://$LAN/api/call/$1"
 }
 heard() { for _ in $(seq 1 25); do grep -qs "$2" "$WORK/$1.sse" && return 0; sleep 0.2; done; return 1; }
 secret() { head -c 18 /dev/urandom | base64 | tr "+/" "-_"; }
-PA=$(secret) PB=$(secret)
-check "calls: not without live updates" test "$(call presence "{\"peer\":\"$PA\",\"available\":true}")" = 404
+reply() { python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(eval(sys.argv[2]))' "$WORK/reply" "$1"; }
+PA=$(secret) PB=$(secret) PC=$(secret)
+check "live: not without live updates" test "$(call presence "{\"peer\":\"$PA\",\"available\":true}")" = 404
 curl -sN -H "Host: $HOST" "http://$LAN/api/events?peer=$PA" > "$WORK/a.sse" & SSE_A=$!
 curl -sN -H "Host: $HOST" "http://$LAN/api/events?peer=$PB" > "$WORK/b.sse" & SSE_B=$!
-heard a connected; heard b connected
-check "calls: page A available"  test "$(call presence "{\"peer\":\"$PA\",\"name\":\"Laptop\",\"device\":\"Linux\",\"available\":true}")" = 200
-check "calls: page B available"  test "$(call presence "{\"peer\":\"$PB\",\"name\":\"Phone\",\"available\":true}")" = 200
-check "calls: B sees A by name"  heard b '"name": "Laptop"'
-check "calls: never the secret"  bash -c "! grep -qF -- '$PA' '$WORK/b.sse'"
-ID_B=$(grep -o '"id": "[0-9a-f]*", "name": "Phone"' "$WORK/a.sse" | tail -1 | cut -d'"' -f4)
-check "calls: a made-up page cannot ring" test "$(call invite "{\"peer\":\"pageXXXXXXXXXXXXXXXXXXXXXXXX\",\"to\":\"$ID_B\"}")" = 404
-check "calls: A rings B"         test "$(call invite "{\"peer\":\"$PA\",\"to\":\"$ID_B\",\"video\":true}")" = 200
-CALL=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["call"])' "$WORK/reply")
-check "calls: B is rung"         heard b '"type": "invite"'
-check "calls: B is busy now"     test "$(call invite "{\"peer\":\"$PA\",\"to\":\"$ID_B\"}")" = 409
-check "calls: nothing before the answer" test "$(call signal "{\"peer\":\"$PA\",\"call\":\"$CALL\",\"type\":\"offer\",\"data\":{}}")" = 409
-check "calls: the caller cannot answer"  test "$(call signal "{\"peer\":\"$PA\",\"call\":\"$CALL\",\"type\":\"accept\"}")" = 409
-check "calls: no other messages"  test "$(call signal "{\"peer\":\"$PB\",\"call\":\"$CALL\",\"type\":\"evil\"}")" = 400
-check "calls: B answers"          test "$(call signal "{\"peer\":\"$PB\",\"call\":\"$CALL\",\"type\":\"accept\"}")" = 200
-check "calls: A hears the answer" heard a '"type": "accept"'
-check "calls: offer passed on"    test "$(call signal "{\"peer\":\"$PA\",\"call\":\"$CALL\",\"type\":\"offer\",\"data\":{\"sdp\":\"v=0 smoke\"}}")" = 200
-check "calls: B gets the offer"   heard b 'v=0 smoke'
-check "calls: too large refused"  test "$(python3 -c 'import json,sys; print(json.dumps({"peer":sys.argv[1],"call":sys.argv[2],"type":"ice","data":"x"*70000}))' "$PA" "$CALL" \
+curl -sN -H "Host: $HOST" "http://$LAN/api/events?peer=$PC" > "$WORK/c.sse" & SSE_C=$!
+heard a connected; heard b connected; heard c connected
+check "live: page A available"  test "$(call presence "{\"peer\":\"$PA\",\"name\":\"Laptop\",\"device\":\"Linux\",\"available\":true}")" = 200
+ID_A=$(reply 'd["id"]')
+check "live: page B available"  test "$(call presence "{\"peer\":\"$PB\",\"name\":\"Phone\",\"available\":true}")" = 200
+ID_B=$(reply 'd["id"]')
+check "live: page C available"  test "$(call presence "{\"peer\":\"$PC\",\"name\":\"Tablet\",\"available\":true}")" = 200
+ID_C=$(reply 'd["id"]')
+check "live: B sees A by name"   heard b '"name": "Laptop"'
+check "live: never the secret"   bash -c "! grep -qF -- '$PA' '$WORK/b.sse'"
+check "live: a made-up page cannot join" test "$(call join "{\"peer\":\"pageXXXXXXXXXXXXXXXXXXXXXXXX\"}")" = 404
+check "live: nothing sent outside the room" test "$(call signal "{\"peer\":\"$PB\",\"to\":\"$ID_A\",\"type\":\"offer\",\"data\":{}}")" = 404
+check "live: A goes live"        test "$(call join "{\"peer\":\"$PA\",\"video\":true}")" = 200
+check "live: A is the first"     test "$(reply 'd["you"] == "'"$ID_A"'" and d["connect"] == [] and d["room"]["owner"] == d["you"]')" = True
+check "live: everyone sees the room" heard c '"owner": "'"$ID_A"'"'
+state_room() { curl -sf -H "Host: $HOST" "http://$LAN/api/state" | python3 -c 'import json,sys; r=json.load(sys.stdin)["room"]; print(r and r["owner"])'; }
+check "live: in the state too"   test "$(state_room)" = "$ID_A"
+check "live: B joins"            test "$(call join "{\"peer\":\"$PB\",\"video\":false}")" = 200
+check "live: B connects to A"    test "$(reply 'd["connect"]')" = "['$ID_A']"
+check "live: A hears B coming"   heard a '"type": "joined"'
+check "live: offer passed on"    test "$(call signal "{\"peer\":\"$PB\",\"to\":\"$ID_A\",\"type\":\"offer\",\"data\":{\"sdp\":\"v=0 smoke\"}}")" = 200
+check "live: A gets the offer"   heard a 'v=0 smoke'
+check "live: only to members"    test "$(call signal "{\"peer\":\"$PB\",\"to\":\"$ID_C\",\"type\":\"offer\",\"data\":{}}")" = 404
+check "live: no other messages"  test "$(call signal "{\"peer\":\"$PB\",\"to\":\"$ID_A\",\"type\":\"evil\"}")" = 400
+check "live: too large refused"  test "$(python3 -c 'import json,sys; print(json.dumps({"peer":sys.argv[1],"to":sys.argv[2],"type":"ice","data":"x"*70000}))' "$PA" "$ID_B" \
   | curl -s -o /dev/null -w '%{http_code}' -H "Host: $HOST" -H 'Content-Type: application/json' -d @- "http://$LAN/api/call/signal")" = 413
-check "calls: A hangs up"         test "$(call signal "{\"peer\":\"$PA\",\"call\":\"$CALL\",\"type\":\"hangup\"}")" = 200
-check "calls: B hears it"         heard b '"type": "hangup"'
-check "calls: the call is gone"   test "$(call signal "{\"peer\":\"$PB\",\"call\":\"$CALL\",\"type\":\"state\",\"data\":{}}")" = 404
-call invite "{\"peer\":\"$PA\",\"to\":\"$ID_B\"}" > /dev/null
-check "calls: a lost hang-up does not leave both busy" \
-  test "$(call presence "{\"peer\":\"$PA\",\"name\":\"Laptop\",\"available\":true,\"call\":null}")" = 200
-check "calls: B hears that too"   bash -c "test \$(grep -c '\"type\": \"hangup\"' '$WORK/b.sse') = 2"
-check "calls: free again"         test "$(call invite "{\"peer\":\"$PA\",\"to\":\"$ID_B\"}")" = 200
-kill "$SSE_A" "$SSE_B" 2>/dev/null || true
+check "live: microphone off shown" test "$(call signal "{\"peer\":\"$PB\",\"type\":\"state\",\"data\":{\"video\":false,\"audio\":false}}")" = 200
+check "live: … to everyone"      heard c '"audio": false'
+check "live: only the owner locks" test "$(call lock "{\"peer\":\"$PB\",\"locked\":true}")" = 403
+check "live: A locks"            test "$(call lock "{\"peer\":\"$PA\",\"locked\":true}")" = 200
+check "live: C cannot join then" test "$(call join "{\"peer\":\"$PC\"}")" = 423
+check "live: nor be nudged"      test "$(call nudge "{\"peer\":\"$PA\",\"to\":\"$ID_C\"}")" = 423
+call lock "{\"peer\":\"$PA\",\"locked\":false}" > /dev/null
+check "live: only from inside nudges" test "$(call nudge "{\"peer\":\"$PC\",\"to\":\"$ID_A\"}")" = 404
+check "live: A nudges C"         test "$(call nudge "{\"peer\":\"$PA\",\"to\":\"$ID_C\"}")" = 200
+check "live: C hears it"         heard c '"type": "nudge"'
+check "live: A leaves"           test "$(call leave "{\"peer\":\"$PA\"}")" = 200
+check "live: B hears it"         heard b '"type": "left"'
+check "live: B owns the room now" test "$(call lock "{\"peer\":\"$PB\",\"locked\":false}")" = 200
+check "live: a lost leave ends it" test "$(call presence "{\"peer\":\"$PB\",\"name\":\"Phone\",\"available\":true,\"live\":false}")" = 200
+check "live: room gone"          test "$(state_room)" = None
+check "live: everyone hears that" heard c '"room": null'
+kill "$SSE_A" "$SSE_B" "$SSE_C" 2>/dev/null || true
 
 share() {   # share <json> → token
   curl -sf -H "Host: $HOST" -H 'Content-Type: application/json' -d "$1" "http://$LAN/api/shares" \

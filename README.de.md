@@ -106,7 +106,7 @@ steht.
 > freie Adresse bei *Fixed IP address* eintragen) und öffnet sich unter
 > `http://<diese Adresse>/`. Lieber *Bridge*? Dann hat Unraid selbst Port 80 —
 > den Port im Template ändern, z. B. auf 8088, und `http://Tower:8088` öffnen.
-> Für HTTPS (z. B. für Videoanrufe) unter *Show more settings* ein Zertifikat
+> Für HTTPS (z. B. für den Live-Raum) unter *Show more settings* ein Zertifikat
 > aus Cert Warden eintragen. Den Share für die Dateien vorher anlegen
 > (Schritt 1). Die Schritte unten richten den ganzen Stack ein, mit Teilen.
 
@@ -161,6 +161,7 @@ Beim neuen Stack **Edit Stack**:
 | `SHARE_SUBDOMAIN` | `drop-share` | Erster Teil des Namens der Freigabe-Links |
 | `WEBUI` | `https://drop.deinedomain.com` | Dein Name für Drop — diese Adresse öffnet *WebUI* im Docker-Tab, und auf diesen Namen antwortet Drop. Ohne Domain und ohne Teilen ins Internet: `http://[IP]/` |
 | `TZ` | leer | Optional: Zeitzone des Logs, z. B. `Europe/Zurich` |
+| `LIVE_MAX` | `10` | Höchstens so viele Personen im [Live-Raum](#drop-benutzen) (2–50); mehr kostet jedes Handy mehr |
 | `PIN`, `USER_…` | leer | Optional — siehe [PIN](#pin-oder-passwort-optional) und [Benutzer](#benutzer-optional) |
 
 Kommentare stehen auf eigenen Zeilen, nie hinter einem Wert. Das Image ist
@@ -407,16 +408,19 @@ Türkisch. Um Texte zu ändern oder eine Sprache für dich hinzuzufügen, legst 
 eine Datei in `lang/` im appdata-Ordner ab — siehe
 [`lang/README.md`](lang/README.md).
 
-**Videoanrufe** — der Kamera-Knopf oben zeigt die Geräte, auf denen Drop gerade
-offen ist. *Video* oder *Nur Ton*: Das andere Gerät klingelt und nimmt mit oder
-ohne Kamera an. Während des Gesprächs: stumm schalten, Kamera aus, zwischen
-vorderer und hinterer Kamera wechseln, und *Foto* — ein Bild des grossen Videos,
-gespeichert in den gemeinsamen Dateien. Bild und Ton gehen direkt von Gerät zu
-Gerät (WebRTC); Drop reicht nur die paar Nachrichten weiter, die den Anruf
-aufbauen, und nichts verlässt dein Netz. Anrufe brauchen
+**Live-Raum** — mit dem Kamera-Knopf oben gehst du live, mit *Video* oder *Nur
+Ton*. Alle, die Drop offen haben, sehen dann über den Textfeldern eine
+Live-Kachel und kommen mit einem Klick dazu; bis zu 10 Personen (`LIVE_MAX` in
+der `.env`). Im Raum: stumm schalten, Kamera aus, zwischen vorderer und hinterer
+Kamera wechseln, *Foto* — ein Bild in den gemeinsamen Dateien — und *Einladen*,
+das jemanden anstupst, der Drop offen hat (dort klingelt es kurz). Wer den Raum
+geöffnet hat, kann ihn abschliessen; *Verkleinern* schiebt ihn in eine Ecke, und
+Drop bleibt darunter bedienbar. Je mehr Personen, desto kleiner wird jedes Bild
+gesendet — so kommen Handys mit. Bild und Ton gehen direkt von Gerät zu Gerät
+(WebRTC); Drop reicht nur die paar Nachrichten weiter, die die Verbindungen
+aufbauen, und nichts verlässt dein Netz. Der Live-Raum braucht
 [HTTPS](#https-im-heimnetz) — Kamera und Mikrofon geben Browser sonst nicht
-frei — und gehen immer zu zweit; mit [Benutzern](#benutzer-optional) gehören sie
-in den Bereich „Gemeinsam“.
+frei; mit [Benutzern](#benutzer-optional) gehört er in den Bereich „Gemeinsam“.
 
 **Auf einem anderen Gerät** — der QR-Knopf oben (auf Computer und Tablet) zeigt
 die Adresse von Drop als QR-Code: Handy-Kamera darauf richten, und die Seite
@@ -475,9 +479,10 @@ grosse Uploads und Texte.
   Minuten ist ein Link für diese Zeit gesperrt.
 * Downloads sind immer Anhänge — eine geteilte HTML-Datei läuft nie im Browser.
   Abgelaufene Links verschwinden von selbst.
-* Anrufe gibt es nur in `drop`: kein STUN- oder TURN-Server, keine Aufzeichnung,
-  nichts über den Reverse Proxy. Eine Seite kann im Anruf nur für sich selbst
-  sprechen — sie weist sich mit einem Geheimnis aus, das nur sie kennt.
+* Den Live-Raum gibt es nur in `drop`: kein STUN- oder TURN-Server, keine
+  Aufzeichnung, nichts über den Reverse Proxy. Eine Seite kann im Raum nur für
+  sich selbst sprechen — sie weist sich mit einem Geheimnis aus, das nur sie
+  kennt.
 
 ### PIN oder Passwort (optional)
 
@@ -596,8 +601,9 @@ ungespeicherter Text wird nachgeschickt, sobald die Verbindung zurück ist.
   Uploads, die eine Woche lang niemand fortgesetzt hat. Den freien Platz oben
   rechts im Auge behalten; ein Upload, der nicht passt, wird abgelehnt.
 * Keine Uploads von aussen. Teilen geht nur in eine Richtung: hinaus.
-* Keine Anrufe von ausserhalb deines Netzes (per VPN hinein geht es), keine
-  Gruppenanrufe, keine Aufzeichnung.
+* Kein Live-Raum von ausserhalb deines Netzes (per VPN hinein geht es), keine
+  Aufzeichnung. Mehr als etwa 10 Personen mit Video mögen Handys nicht: Jede
+  schickt ihr Bild an jede andere.
 
 ## Dropnook unterstützen
 

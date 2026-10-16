@@ -25,6 +25,7 @@ label for Unraid's *WebUI*. Anything else from the table goes under
 | `USER_TEAL`, `USER_GOLD`, `USER_BLUE`, `USER_VIOLET`, `USER_CORAL` | empty | Up to five users, one per colour: `name:PIN`, or `name` alone — then `PIN` is theirs, or, without `PIN`, the name alone signs in. Each gets an area of their own in `USERS_DIR/<name>/` next to the shared one. Names: 1–40 characters, no `/` or `\`, not starting with a dot, each once — otherwise Drop does not start. `lan` only |
 | `TEXT_FIELDS` | `3` | Fields after the first start and after "Clear text fields" |
 | `TEXT_FIELDS_MAX` | `12` | Maximum number of fields |
+| `LIVE_MAX` | `10` | Most people in the live room (2–50). Every member sends its picture to every other one, so the phones set the limit, not the network. `lan` only |
 | `CHUNK_MB` | `64` | Upload chunk size |
 | `SHARING` | `on` | `off` hides sharing to the internet |
 | `SHARE_MAX_DAYS` | `30` | Longest lifetime of a share link |
@@ -39,7 +40,7 @@ label for Unraid's *WebUI*. Anything else from the table goes under
 | `CERTWARDEN_ENDPOINT_URL` | empty | Cert Warden's address, e.g. `https://certwarden.example.org` (or its full `…/certwarden/api/v1/download`). With it and `CERT_INT_*`, Drop fetches its certificates there instead of `CERTS_DIR`/`TLS_CERT`. `lan` only |
 | `CERT_INT_NAME`, `CERT_INT_CERT_API`, `CERT_INT_KEY_API` | empty | drop's certificate in Cert Warden: its name, the certificate's API key, the private key's API key. Fetched in one request (`privatecertchains`), checked (key fits, not expired) and kept in `/data/.certwarden/` |
 | `CERT_PUB_NAME`, `CERT_PUB_CERT_API`, `CERT_PUB_KEY_API` | empty | drop-share's certificate, the same way; drop fetches it and leaves it in `shares/.tls/` (600, `PUID:PGID`), where drop-share serves HTTPS on `TLS_PORT` with it besides HTTP on `PORT`. Empty or the same name: drop's own, if it covers `SHARE_SUBDOMAIN.<domain>` (a wildcard does) — fetched once |
-| `CERT_CHECK_DAY` | `30` | Fetch again once a certificate has fewer days left. Checked at start and every 6 hours; a new one restarts drop / drop-share for a moment (drop once no upload or call runs) |
+| `CERT_CHECK_DAY` | `30` | Fetch again once a certificate has fewer days left. Checked at start and every 6 hours; a new one restarts drop / drop-share for a moment (drop once no upload runs and nobody is live) |
 | `TLS_PORT` | `443` | `public` only: HTTPS port when `shares/.tls/` holds a certificate |
 | `HTTPS_HOST` | empty | Target name for the HTTP → HTTPS redirect when a client sends no Host header |
 | `HTTP_REDIRECT_PORT` | `80` | Port of that redirect |
@@ -152,20 +153,31 @@ Unraid and can stay.
   HEAD and that the browser marks as coming from elsewhere (`Sec-Fetch-Site`
   other than `same-origin` or `none`) is refused — also from a neighbouring
   subdomain, which the SameSite cookie would let through.
-* **Calls** (2.1): WebRTC between two browsers, `iceServers: []` — no STUN or
-  TURN, so only addresses in the network (or a VPN into it) are tried. `drop`
-  passes on the set-up messages only: a page that can call (HTTPS, and with
-  users the shared area) opens its live updates with `?peer=<secret>` it made
-  up itself; others see a hash of it. `POST /api/call/presence` (name, device,
-  available), `/api/call/invite`, `/api/call/signal` (`accept`, `decline`,
-  `cancel`, `hangup`, `offer`, `answer`, `ice`, `state`, `photo`, at most
-  64 KB each). A secret only works for the user who opened the page. One call
-  per page; unanswered after 45 s it counts as missed; a page whose live
-  updates broke off has 20 s to come back before its call ends. Every call
+* **Live room** (2.3; 1:1 calls since 2.1): one room per Drop, every member
+  connected to every other one by WebRTC (a mesh), `iceServers: []` — no STUN
+  or TURN, so only addresses in the network (or a VPN into it) are tried.
+  `drop` passes on the set-up messages only: a page that can take part
+  (HTTPS, and with users the shared area) opens its live updates with
+  `?peer=<secret>` it made up itself; others see a hash of it, and a secret
+  only works for the user who opened the page. `POST /api/call/presence`
+  (name, device, available, in the room or not), `/api/call/join` (answers
+  with the members to connect to — the newcomer makes every offer, so two
+  never start the same connection), `/api/call/leave`, `/api/call/lock` (the
+  owner: who opened the room, or the next one in after them), `/api/call/nudge`
+  (a short ring on a page outside), `/api/call/signal` (`offer`, `answer`,
+  `ice` to one member; `photo` to all; `state` — camera and microphone — into
+  the room's card; at most 64 KB each). The room, as a card of its members, goes
+  to every page as the `room` event and in `/api/state`. At most `LIVE_MAX`
+  members; joins and nudges at most 20 per address and minute. A page whose live
+  updates broke off has 20 s to come back, in the room 2 min. Every connection
   has one audio and one video channel, camera on/off and front/back are
-  `replaceTrack` — no new negotiation. A photo is a JPEG of the large video,
-  uploaded into the shared files like any other. A certificate renewal waits
-  until no call is running. `drop-share` has none of this.
+  `replaceTrack`. With more members each page sends smaller pictures
+  (`qualityFor` in `app.js`: from 4 others 480p, from 6 360p, from 10 240p —
+  camera constraints plus `scaleResolutionDownBy`, frame rate and bit rate per
+  sender); a connection that fails is set up anew by the newcomer, three times
+  in all. A photo is a JPEG of the large (or first) picture, uploaded into the
+  shared files like any other. A certificate renewal waits until nobody is
+  live. `drop-share` has none of this.
 * **Colour layouts**: `data-palette` on `<html>` (`gold`, `blue`, `violet`,
   `coral`; none = teal) switches the colour tokens in `static/style.css`, each
   in light and dark. With users the server sets the user's colour before the
