@@ -285,6 +285,8 @@
   "ui.live_still_closes": "Án svars lokast það eftir",
   "ui.live_stay": "Vera áfram",
   "ui.live_closed_alone": "Beina herberginu lokað — enginn kom inn.",
+  "ui.live_watchers_one": "{n} horfir á forskoðun",
+  "ui.live_watchers_other": "{n} horfa á forskoðun",
   "ui.error_call_full": "Beina herbergið er fullt.",
   "ui.error_call_locked": "Beina herbergið er læst.",
   "public.unavailable_title": "Hlekkur ekki tiltækur",

@@ -296,6 +296,8 @@
   "ui.live_still_closes": "Sem resposta fecha dentro de",
   "ui.live_stay": "Ficar",
   "ui.live_closed_alone": "Sala ao vivo fechada — ninguém entrou.",
+  "ui.live_watchers_one": "{n} vê a pré-visualização",
+  "ui.live_watchers_other": "{n} veem a pré-visualização",
   "ui.error_call_full": "A sala ao vivo está cheia.",
   "ui.error_call_locked": "A sala ao vivo está fechada.",
   "public.unavailable_title": "Ligação indisponível",

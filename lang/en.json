@@ -301,6 +301,8 @@
   "ui.live_still_closes": "Without an answer it closes in",
   "ui.live_stay": "Stay",
   "ui.live_closed_alone": "Live room closed — nobody came in.",
+  "ui.live_watchers_one": "{n} watching the preview",
+  "ui.live_watchers_other": "{n} watching the preview",
   "ui.error_call_full": "The live room is full.",
   "ui.error_call_locked": "The live room is locked.",
 

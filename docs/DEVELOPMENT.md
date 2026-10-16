@@ -177,7 +177,13 @@ Unraid and can stay.
   sender); a connection that fails is set up anew by the newcomer, three times
   in all. Alone in the room for 5 minutes (`ALONE_ASK`), a page asks "Still
   there?" and leaves 2 minutes later (`ALONE_WAIT`) without an answer; someone
-  coming in ends the question. A photo is a JPEG of the large (or first) picture, uploaded into the
+  coming in ends the question. The preview: a page outside (visible, HTTPS,
+  not locked) registers with `/api/call/watch` and offers a receive-only video
+  connection to the first member with a camera on (`signal` with
+  `preview: true`); that member answers with its camera at 240p, 10 fps,
+  150 kbit/s. At most 10 watchers; their number is `watchers` in the room's
+  card. `/api/state` carries `build`, a hash of `static/` — a page that sees
+  another one than it was loaded with reloads itself once it is idle. A photo is a JPEG of the large (or first) picture, uploaded into the
   shared files like any other. A certificate renewal waits until nobody is
   live. `drop-share` has none of this.
 * **Colour layouts**: `data-palette` on `<html>` (`gold`, `blue`, `violet`,

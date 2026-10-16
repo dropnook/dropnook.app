@@ -297,6 +297,8 @@
   "ui.live_still_closes": "Sans réponse, elle se ferme dans",
   "ui.live_stay": "Rester",
   "ui.live_closed_alone": "Salle en direct fermée — personne n’est venu.",
+  "ui.live_watchers_one": "{n} regarde l’aperçu",
+  "ui.live_watchers_other": "{n} regardent l’aperçu",
   "ui.error_call_full": "La salle en direct est pleine.",
   "ui.error_call_locked": "La salle en direct est verrouillée.",
   "public.unavailable_title": "Lien indisponible",

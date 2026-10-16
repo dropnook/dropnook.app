@@ -292,6 +292,8 @@
   "ui.live_still_closes": "Zonder antwoord sluit hij over",
   "ui.live_stay": "Blijven",
   "ui.live_closed_alone": "Liveruimte gesloten — er kwam niemand bij.",
+  "ui.live_watchers_one": "{n} kijkt mee in de voorvertoning",
+  "ui.live_watchers_other": "{n} kijken mee in de voorvertoning",
   "ui.error_call_full": "De liveruimte is vol.",
   "ui.error_call_locked": "De liveruimte is op slot.",
   "public.unavailable_title": "Link niet beschikbaar",

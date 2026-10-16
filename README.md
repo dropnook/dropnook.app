@@ -406,7 +406,10 @@ the smaller each picture is sent, so phones keep up. Picture and sound go
 straight from device to device (WebRTC); Drop only passes on the few messages
 that set the connections up, and nothing leaves your network. The live room
 needs [HTTPS](#https-in-your-network) — browsers give camera and microphone to
-nothing else; with [users](#users-optional) it belongs to the shared area.
+nothing else. Outside the room, the tile shows a small picture of it (no sound,
+240p); the eye at the top of the room shows how many watch, and a locked room
+shows none. After an update every open page loads itself again (not in the
+middle of the room or an upload); with [users](#users-optional) it belongs to the shared area.
 
 **On another device** — the QR button in the header (on computers and tablets)
 shows Drop's address as a QR code: point the phone's camera at it, and the page

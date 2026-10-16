@@ -192,8 +192,14 @@ check "live: too large refused"  test "$(python3 -c 'import json,sys; print(json
   | curl -s -o /dev/null -w '%{http_code}' -H "Host: $HOST" -H 'Content-Type: application/json' -d @- "http://$LAN/api/call/signal")" = 413
 check "live: microphone off shown" test "$(call signal "{\"peer\":\"$PB\",\"type\":\"state\",\"data\":{\"video\":false,\"audio\":false}}")" = 200
 check "live: … to everyone"      heard c '"audio": false'
+check "live: C watches the preview" test "$(call watch "{\"peer\":\"$PC\",\"on\":true}")" = 200
+check "live: the room sees one watching" heard a '"watchers": 1'
+check "live: preview offer to a member" test "$(call signal "{\"peer\":\"$PC\",\"to\":\"$ID_A\",\"type\":\"offer\",\"preview\":true,\"data\":{\"sdp\":\"v=0 preview\"}}")" = 200
+check "live: A gets it"          heard a 'v=0 preview'
+check "live: a watcher only reaches members" test "$(call signal "{\"peer\":\"$PC\",\"to\":\"$ID_C\",\"type\":\"offer\",\"preview\":true,\"data\":{}}")" = 404
 check "live: only the owner locks" test "$(call lock "{\"peer\":\"$PB\",\"locked\":true}")" = 403
 check "live: A locks"            test "$(call lock "{\"peer\":\"$PA\",\"locked\":true}")" = 200
+check "live: locked, no preview"  heard c '"type": "unwatch"'
 check "live: C cannot join then" test "$(call join "{\"peer\":\"$PC\"}")" = 423
 check "live: nor be nudged"      test "$(call nudge "{\"peer\":\"$PA\",\"to\":\"$ID_C\"}")" = 423
 call lock "{\"peer\":\"$PA\",\"locked\":false}" > /dev/null

@@ -285,6 +285,8 @@
   "ui.live_still_closes": "जवाब न मिलने पर बंद होने में",
   "ui.live_stay": "रुकें",
   "ui.live_closed_alone": "लाइव रूम बंद हुआ — कोई नहीं जुड़ा।",
+  "ui.live_watchers_one": "{n} व्यक्ति पूर्वावलोकन देख रहा है",
+  "ui.live_watchers_other": "{n} लोग पूर्वावलोकन देख रहे हैं",
   "ui.error_call_full": "लाइव रूम भरा हुआ है।",
   "ui.error_call_locked": "लाइव रूम बंद है।",
   "public.unavailable_title": "लिंक उपलब्ध नहीं",

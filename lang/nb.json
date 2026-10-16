@@ -295,6 +295,8 @@
   "ui.live_still_closes": "Uten svar lukkes det om",
   "ui.live_stay": "Bli",
   "ui.live_closed_alone": "Direkterommet er lukket — ingen kom inn.",
+  "ui.live_watchers_one": "{n} ser på forhåndsvisningen",
+  "ui.live_watchers_other": "{n} ser på forhåndsvisningen",
   "ui.error_call_full": "Direkterommet er fullt.",
   "ui.error_call_locked": "Direkterommet er låst.",
   "public.unavailable_title": "Lenken er ikke tilgjengelig",

@@ -275,6 +275,7 @@
   "ui.live_still_closes": "応答がない場合に閉じるまで",
   "ui.live_stay": "続ける",
   "ui.live_closed_alone": "ライブルームを閉じました — 誰も参加しませんでした。",
+  "ui.live_watchers_other": "{n} 人がプレビューを見ています",
   "ui.error_call_full": "ライブルームは満員です。",
   "ui.error_call_locked": "ライブルームはロックされています。",
   "public.unavailable_title": "リンクは利用できません",
