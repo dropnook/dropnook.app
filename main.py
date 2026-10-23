@@ -1238,7 +1238,8 @@ class Upload:
     """An upload in progress. Its state is also kept in a sidecar file, so a
     container restart in the middle of an upload costs nothing."""
 
-    def __init__(self, area: Area, uid: str, name: str, size: int, modified: Optional[int] = None):
+    def __init__(self, area: Area, uid: str, name: str, size: int, modified: Optional[int] = None,
+                 growing: bool = False):
         self.area = area
         self.id = uid
         self.name = name                    # cleaned, wanted name
@@ -1246,6 +1247,10 @@ class Upload:
         # When the browser says the file was last changed: a file of the same
         # name and size, but changed since, starts over instead of resuming.
         self.modified = modified
+        # A recording from the live room grows while it is made: its size is
+        # not known up front, its pieces come one after the other and are
+        # appended; size is what has come so far. See Live room.
+        self.growing = growing
         self.chunks: Set[int] = set()
         self.total = max(1, -(-size // CHUNK_SIZE)) if size else 1
         self.started = time.time()
@@ -1267,6 +1272,8 @@ class Upload:
 
     @property
     def received_bytes(self) -> int:
+        if self.growing:
+            return self.size
         done = len(self.chunks)
         if done >= self.total:
             return self.size
@@ -1285,7 +1292,7 @@ class Upload:
         with self.lock:
             payload = {"id": self.id, "name": self.name, "size": self.size,
                        "modified": self.modified, "chunks": sorted(self.chunks),
-                       "started": self.started, "active": self.active}
+                       "started": self.started, "active": self.active, "growing": self.growing}
             tmp = self.meta.with_name(f"{self.meta.name}.{uuid.uuid4().hex[:8]}.tmp")
             try:
                 with open(tmp, "w", encoding="utf-8") as f:
@@ -1311,7 +1318,7 @@ class Upload:
     def as_dict(self) -> dict:
         return {"id": self.id, "name": self.name, "size": self.size,
                 "received": self.received_bytes, "chunks": len(self.chunks),
-                "total": self.total}
+                "total": None if self.growing else self.total, "growing": self.growing}
 
 
 uploads: Dict[str, Upload] = {}
@@ -1331,8 +1338,10 @@ def restore_uploads(area: Area) -> None:
                 continue
             modified = data.get("modified")
             up = Upload(area, data["id"], clean_name(str(data["name"])), int(data["size"]),
-                        int(modified) if isinstance(modified, int) else None)
-            up.chunks = set(int(c) for c in data.get("chunks", []) if 0 <= int(c) < up.total)
+                        int(modified) if isinstance(modified, int) else None,
+                        data.get("growing") is True)
+            up.chunks = set(int(c) for c in data.get("chunks", [])
+                            if 0 <= int(c) and (up.growing or int(c) < up.total))
             up.started = float(data.get("started", time.time()))
             up.active = float(data.get("active", up.started))
             if up.part.exists():
@@ -2271,6 +2280,13 @@ async def events(request: Request) -> StreamingResponse:
 # Every page that can take part makes up a secret for itself and opens its
 # live updates with it (?peer=). Others only ever see a hash of it, so nobody
 # can speak for another page.
+#
+# A member may record the room as their browser shows and plays it — the
+# pictures drawn onto a canvas, the voices mixed, MediaRecorder; in the
+# browser, never here. The recording comes in like any other upload, in pieces
+# while it is made (a growing upload, see Upload), and the room's card says who
+# is recording, so everyone in the room sees it. Of picture and sound Drop
+# still sees nothing.
 
 LIVE_MAX = min(50, max(2, int(os.environ.get("LIVE_MAX", "10") or 10)))  # people in the room
 CALL_GRACE = 20                     # a page without live updates: this long until it is gone …
@@ -2284,12 +2300,14 @@ CALL_WATCHERS_MAX = 10              # pages that watch the small preview without
 CALL_TO_ONE = {"offer", "answer", "ice"}       # for one member
 CALL_TO_ALL = {"photo"}                        # for all the others
 CALL_STATE = "state"                           # camera and microphone on or off: into the room's card
+CALL_REC = "rec"                               # recording started or stopped: into the room's card
+RECORDING_IDLE = 5 * 60             # a recording without a new piece for so long is finished with what came
 PEER_SECRET = re.compile(r"^[A-Za-z0-9_-]{22,64}$")
 
 
 class Peer:
     __slots__ = ("id", "user", "address", "name", "device", "available", "queue", "seen",
-                 "video", "audio")
+                 "video", "audio", "recording")
 
     def __init__(self, pid: str, user: Optional[User], address: str):
         self.id, self.user, self.address = pid, user, address
@@ -2297,7 +2315,7 @@ class Peer:
         self.available = False
         self.queue: Optional[asyncio.Queue] = None
         self.seen = time.time()
-        self.video = self.audio = False
+        self.video = self.audio = self.recording = False
 
 
 class Room:
@@ -2365,7 +2383,7 @@ def peer_card(peer: Peer) -> dict:
 def room_card() -> Optional[dict]:
     if room is None:
         return None
-    return {"members": [{**peer_card(p), "video": p.video, "audio": p.audio}
+    return {"members": [{**peer_card(p), "video": p.video, "audio": p.audio, "recording": p.recording}
                         for p in room.members.values()],
             "owner": room.owner.id, "locked": room.locked, "max": LIVE_MAX,
             "started": int(room.started), "watchers": len(room.watchers)}
@@ -2420,7 +2438,7 @@ def leave_room(peer: Peer) -> None:
     if not in_room(peer):
         return
     del room.members[peer.id]
-    peer.video = peer.audio = False
+    peer.video = peer.audio = peer.recording = False
     if not room.members:
         for watcher in room.watchers.values():
             tell(watcher, {"type": "left", "from": peer.id, "preview": True})
@@ -2465,6 +2483,19 @@ async def watch_calls(interval: int = 5) -> None:
         for peer in list(peers.values()):
             if peer.queue is None and now - peer.seen > (CALL_GRACE_LIVE if in_room(peer) else CALL_GRACE):
                 drop_peer(peer)
+        # A recording whose page is gone without a word (the browser crashed,
+        # the battery died): what came is kept as the file.
+        for up in list(uploads.values()):
+            if up.growing and not up.finishing and now - up.active > RECORDING_IDLE:
+                try:
+                    name = await finish_upload(up)
+                except OSError as error:
+                    print(f"Recording {up.name}: could not be finished: {error}", flush=True)
+                    continue
+                if name:
+                    print(f"Recording {name} finished with what came — no piece for "
+                          f"{RECORDING_IDLE // 60} minutes.", flush=True)
+                announce_files(up.area)
 
 
 async def peer_body(request: Request) -> tuple:
@@ -2515,6 +2546,7 @@ async def call_join(request: Request) -> JSONResponse:
         unwatch(peer, announce=False)
         others = list(room.members.values())
         room.members[peer.id] = peer
+        peer.recording = False
         for other in others:
             tell(other, {"type": "joined", "from": peer_card(peer)})
     peer.video, peer.audio = body.get("video") is True, body.get("audio") is not False
@@ -2593,7 +2625,7 @@ async def call_signal(request: Request) -> JSONResponse:
     theirs; Drop only checks who may send what, and how much."""
     body, peer = await peer_body(request)
     kind = body.get("type")
-    if kind not in CALL_TO_ONE and kind not in CALL_TO_ALL and kind != CALL_STATE:
+    if kind not in CALL_TO_ONE and kind not in CALL_TO_ALL and kind not in (CALL_STATE, CALL_REC):
         raise HTTPException(400, "Unknown message")
     data = body.get("data")
     if len(json.dumps(data)) > CALL_SIGNAL_MAX:
@@ -2620,6 +2652,11 @@ async def call_signal(request: Request) -> JSONResponse:
     if kind == CALL_STATE:
         if isinstance(data, dict):
             peer.video, peer.audio = data.get("video") is True, data.get("audio") is True
+            announce_room()
+        return JSONResponse({"ok": True})
+    if kind == CALL_REC:
+        if isinstance(data, dict):
+            peer.recording = data.get("on") is True
             announce_room()
         return JSONResponse({"ok": True})
     for other in room.members.values():
@@ -2746,9 +2783,12 @@ async def upload_init(request: Request) -> JSONResponse:
     if not isinstance(body, dict):
         raise HTTPException(400, "Expected an object")
     name = clean_name(str(body.get("name", "")))
+    # A recording from the live room: no size yet, its pieces are appended as
+    # they come (see Upload). Never resumed — a new recording is a new file.
+    growing = body.get("growing") is True
     try:
-        size = int(body.get("size", 0))
-        modified = body.get("modified")
+        size = 0 if growing else int(body.get("size", 0))
+        modified = None if growing else body.get("modified")
         modified = int(modified) if modified is not None else None
     except (TypeError, ValueError, OverflowError):
         raise HTTPException(400, "Invalid size")
@@ -2758,7 +2798,7 @@ async def upload_init(request: Request) -> JSONResponse:
     # Same file, still open? Then resume instead of starting over. Same means
     # name, size and — when both times are known — when it was last changed.
     for up in uploads.values():
-        if up.area is area and up.name == name and up.size == size \
+        if not growing and not up.growing and up.area is area and up.name == name and up.size == size \
                 and (up.modified is None or modified is None or up.modified == modified) \
                 and not up.finishing and up.part.exists():
             up.active = time.time()
@@ -2768,10 +2808,11 @@ async def upload_init(request: Request) -> JSONResponse:
 
     # It has to fit. The files of uploads still running do not take their
     # space yet (sparse), so that is only checked here, against what is free.
-    if size > disk_space(area)["free"]:
+    # A recording has no size yet: room for one piece, checked again per piece.
+    if max(size, CHUNK_SIZE if growing else 0) > disk_space(area)["free"]:
         raise api_error(507, "no_space", "Not enough space")
 
-    up = Upload(area, uuid.uuid4().hex[:12], name, size, modified)
+    up = Upload(area, uuid.uuid4().hex[:12], name, size, modified, growing)
 
     def prepare():
         try:
@@ -2796,8 +2837,8 @@ async def upload_init(request: Request) -> JSONResponse:
 @app.get("/api/upload/{uid}")
 async def upload_status(uid: str, request: Request) -> JSONResponse:
     up = upload_for(uid, request)
-    return JSONResponse({"id": up.id, "received": up.contiguous(),
-                         "chunks": sorted(up.chunks), "total": up.total})
+    return JSONResponse({"id": up.id, "received": up.size if up.growing else up.contiguous(),
+                         "chunks": sorted(up.chunks), "total": None if up.growing else up.total})
 
 
 @app.put("/api/upload/{uid}/{index}")
@@ -2805,11 +2846,22 @@ async def upload_chunk(uid: str, index: int, request: Request) -> JSONResponse:
     up = upload_for(uid, request)
     if up.finishing:
         raise HTTPException(404, "Unknown upload")
-    if index < 0 or index >= up.total:
-        raise HTTPException(400, "Chunk outside the file")
-
-    expected = up.chunk_length(index)
-    offset = index * CHUNK_SIZE
+    if up.growing:
+        # Pieces of a recording come one after the other and are appended. One
+        # that already landed (its answer got lost on the way) is not written twice.
+        if 0 <= index < len(up.chunks):
+            return JSONResponse({"received": up.size})
+        if index != len(up.chunks):
+            raise HTTPException(409, "Piece out of order")
+        if disk_space(up.area)["free"] < CHUNK_SIZE:
+            raise api_error(507, "no_space", "Not enough space")
+        expected = None                  # whatever came, up to one chunk
+        offset = up.size
+    else:
+        if index < 0 or index >= up.total:
+            raise HTTPException(400, "Chunk outside the file")
+        expected = up.chunk_length(index)
+        offset = index * CHUNK_SIZE
     up.active = time.time()
     try:
         handle = await run_in_threadpool(open, up.part, "r+b")
@@ -2825,7 +2877,7 @@ async def upload_chunk(uid: str, index: int, request: Request) -> JSONResponse:
         async for piece in request.stream():
             if not piece:
                 continue
-            if written + len(buffer) + len(piece) > expected:
+            if written + len(buffer) + len(piece) > (CHUNK_SIZE if expected is None else expected):
                 # Never write past this chunk — that would overwrite the next one.
                 raise HTTPException(400, "Chunk larger than expected")
             buffer.extend(piece)
@@ -2841,32 +2893,40 @@ async def upload_chunk(uid: str, index: int, request: Request) -> JSONResponse:
     finally:
         await run_in_threadpool(handle.close)
 
-    if written != expected:
+    if expected is not None and written != expected:
         # Cut off on the way (proxy, flaky Wi-Fi): not done, the browser retries.
         raise HTTPException(400, f"Chunk incomplete: {written} of {expected} bytes")
+    if up.finishing:                     # finished meanwhile (given up as gone): too late
+        raise HTTPException(404, "Unknown upload")
+    if up.growing:
+        up.size += written
 
     up.chunks.add(index)
     up.active = time.time()
     await run_in_threadpool(up.save_meta)
 
     now = time.time()
-    if now - up.last_broadcast > 2.0 or len(up.chunks) == up.total:
+    if now - up.last_broadcast > 2.0 or (not up.growing and len(up.chunks) == up.total):
         up.last_broadcast = now
         hub.publish("upload", up.as_dict(), up.area)
 
-    return JSONResponse({"received": up.contiguous()})
+    return JSONResponse({"received": up.size if up.growing else up.contiguous()})
 
 
-@app.post("/api/upload/{uid}/done")
-async def upload_done(uid: str, request: Request) -> JSONResponse:
-    up = upload_for(uid, request)
-    if up.finishing:
-        raise HTTPException(404, "Unknown upload")
-    if len(up.chunks) < up.total:
-        raise HTTPException(409, f"{up.total - len(up.chunks)} chunks still missing")
+async def finish_upload(up: Upload) -> Optional[str]:
+    """Moves the finished file in under its name (or "name (2)"). None: a
+    recording nothing came for — then there is no file. OSError: not done,
+    it can be tried again."""
+    if up.growing and up.size == 0:
+        uploads.pop(up.id, None)
+        await run_in_threadpool(up.discard)
+        return None
     up.finishing = True                  # a second "done" must not move the file again
 
     def finish() -> str:
+        if up.growing:
+            with open(up.part, "r+b") as f:
+                f.truncate(up.size)      # a piece cut off on the way: not part of the file
         final = place(up.area, up.part, up.name)   # same directory: no copying
         try:
             up.meta.unlink()
@@ -2877,12 +2937,28 @@ async def upload_done(uid: str, request: Request) -> JSONResponse:
     try:
         name = await run_in_threadpool(finish)
     except FileNotFoundError:
-        uploads.pop(uid, None)
-        raise HTTPException(404, "Unknown upload")
+        uploads.pop(up.id, None)
+        raise
     except OSError:
         up.finishing = False             # it can be tried again
+        raise
+    uploads.pop(up.id, None)
+    return name
+
+
+@app.post("/api/upload/{uid}/done")
+async def upload_done(uid: str, request: Request) -> JSONResponse:
+    up = upload_for(uid, request)
+    if up.finishing:
+        raise HTTPException(404, "Unknown upload")
+    if not up.growing and len(up.chunks) < up.total:
+        raise HTTPException(409, f"{up.total - len(up.chunks)} chunks still missing")
+    try:
+        name = await finish_upload(up)
+    except FileNotFoundError:
+        raise HTTPException(404, "Unknown upload")
+    except OSError:
         raise HTTPException(500, "Could not finish the upload")
-    uploads.pop(uid, None)
     announce_files(up.area)
     return JSONResponse({"name": name})
 

@@ -370,6 +370,9 @@ h1,h2,h3{margin:0; font-weight:650; letter-spacing:-.01em}
 .row.running .row-name{color:var(--muted); cursor:default}
 .bar{height:3px; background:var(--line); border-radius:2px; margin-top:5px; overflow:hidden}
 .bar i{display:block; height:100%; background:var(--accent); transition:width .3s}
+/* A recording from the live room has no end yet: a bar that moves instead of filling. */
+.bar.busy i{width:30%; animation:slide 1.4s ease-in-out infinite}
+@keyframes slide{from{margin-inline-start:-30%}to{margin-inline-start:100%}}
 
 .empty{padding:34px 20px; text-align:center; color:var(--muted); font-size:13.5px; margin:0}
 .empty small{display:block; margin-top:6px; font-size:12px}
@@ -552,6 +555,12 @@ h1,h2,h3{margin:0; font-weight:650; letter-spacing:-.01em}
 .live-badge::before{content:""; width:7px; height:7px; border-radius:50%; background:#fff; animation:pulse 1.6s ease-in-out infinite}
 @keyframes pulse{50%{opacity:.35}}
 .live-flag{font-size:12px; color:var(--ink-2); background:var(--surface-2); border-radius:4px; padding:1px 7px}
+/* Someone is recording: red, with a pulsing dot — on the tile, at the top of the room, on their picture. */
+.live-flag.rec, .call-flag.rec, .rec-mark{display:inline-flex; align-items:center; gap:5px; color:#fff; background:#D2412F; font-weight:700}
+.live-flag.rec::before, .call-flag.rec::before, .rec-mark::before{content:""; width:7px; height:7px; border-radius:50%; background:#fff;
+  flex:none; animation:pulse 1.2s ease-in-out infinite}
+.rec-mark{font-size:10.5px; letter-spacing:.06em; border-radius:3px; padding:0 5px; flex:none}
+.rec-mark::before{width:6px; height:6px}
 .live-names{font-weight:600; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-top:3px}
 .live-actions{display:flex; gap:8px; flex:none; margin-inline-start:auto}
 .live-note{font-size:13px; color:var(--muted)}
@@ -632,6 +641,11 @@ h1,h2,h3{margin:0; font-weight:650; letter-spacing:-.01em}
 .call-btn.off svg{background:#E3EBEF; color:#0C1216}
 .call-btn.end svg{background:#D2412F; color:#fff}
 .call-btn.end:hover svg{background:#E04F3C}
+.call-btn.recording svg{background:#D2412F; color:#fff; animation:pulse 1.2s ease-in-out infinite}
+.call-btn.recording:hover:not(:disabled) svg{background:#E04F3C}
+/* While recording: the pictures the canvas copies from, out of sight but playing (display:none would stop them). */
+.rec-videos{position:fixed; top:0; inset-inline-start:-10000px; width:2px; height:2px; overflow:hidden; opacity:0; pointer-events:none}
+.rec-videos video{width:2px; height:2px}
 .call-btn:disabled{opacity:.4; cursor:default}
 .call-btn:focus-visible{outline:none}
 .call-btn:focus-visible svg{outline:2px solid #E3EBEF; outline-offset:3px}
@@ -649,11 +663,12 @@ h1,h2,h3{margin:0; font-weight:650; letter-spacing:-.01em}
 .call.mini .call-btn svg{width:40px; height:40px; padding:10px}
 .call.flash::after{content:""; position:absolute; inset:0; background:#fff; pointer-events:none; animation:flash .35s ease-out forwards; z-index:4}
 @keyframes flash{from{opacity:.85} to{opacity:0}}
+/* On a phone all eight buttons (with "Record") fit in one row at this size — even on a narrow one. */
 @media (max-width:560px){
-  .call-bar{gap:6px; padding-inline:8px}
+  .call-bar{gap:4px; padding-inline:8px}
   .call-btn{min-width:0; font-size:11px}
   .call-btn span{display:none}
-  .call-btn svg{width:48px; height:48px; padding:13px}
+  .call-btn svg{width:40px; height:40px; padding:10px}
   .call-grid.grid{padding-bottom:calc(84px + env(safe-area-inset-bottom)); gap:4px; padding-inline:4px}
 }
 

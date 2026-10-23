@@ -413,7 +413,12 @@ Ton*. Alle, die Drop offen haben, sehen dann über den Textfeldern eine
 Live-Kachel und kommen mit einem Klick dazu; bis zu 10 Personen (`LIVE_MAX` in
 der `.env`). Im Raum: stumm schalten, Kamera aus, zwischen vorderer und hinterer
 Kamera wechseln, *Foto* — ein Bild in den gemeinsamen Dateien — und *Einladen*,
-das jemanden anstupst, der Drop offen hat (dort klingelt es kurz). Wer den Raum
+das jemanden anstupst, der Drop offen hat (dort klingelt es kurz). *Aufnehmen*
+legt den Raum, wie du ihn siehst und hörst — alle Bilder im Raster mit Namen,
+alle Stimmen —, als Datei in die gemeinsamen Dateien (.webm, in Safari .mp4),
+Stück für Stück schon während der Aufnahme; alle im Raum sehen eine rote
+REC-Marke mit deinem Namen. Den Raum verlassen oder die Seite schliessen beendet
+die Aufnahme; was bis dahin hochgeladen war, bleibt. Wer den Raum
 geöffnet hat, kann ihn abschliessen; *Verkleinern* schiebt ihn in eine Ecke, und
 Drop bleibt darunter bedienbar. Wer 5 Minuten allein im Raum ist, wird gefragt
 *Noch da?* — ohne Antwort verlässt Drop ihn 2 Minuten später, und der Raum
@@ -484,8 +489,9 @@ grosse Uploads und Texte.
   Minuten ist ein Link für diese Zeit gesperrt.
 * Downloads sind immer Anhänge — eine geteilte HTML-Datei läuft nie im Browser.
   Abgelaufene Links verschwinden von selbst.
-* Den Live-Raum gibt es nur in `drop`: kein STUN- oder TURN-Server, keine
-  Aufzeichnung, nichts über den Reverse Proxy. Eine Seite kann im Raum nur für
+* Den Live-Raum gibt es nur in `drop`: kein STUN- oder TURN-Server, nichts über
+  den Reverse Proxy. Drop selbst zeichnet nie auf: *Aufnehmen* passiert im
+  Browser dessen, der es drückt, und alle im Raum sehen die REC-Marke. Eine Seite kann im Raum nur für
   sich selbst sprechen — sie weist sich mit einem Geheimnis aus, das nur sie
   kennt.
 
@@ -606,8 +612,9 @@ ungespeicherter Text wird nachgeschickt, sobald die Verbindung zurück ist.
   Uploads, die eine Woche lang niemand fortgesetzt hat. Den freien Platz oben
   rechts im Auge behalten; ein Upload, der nicht passt, wird abgelehnt.
 * Keine Uploads von aussen. Teilen geht nur in eine Richtung: hinaus.
-* Kein Live-Raum von ausserhalb deines Netzes (per VPN hinein geht es), keine
-  Aufzeichnung. Mehr als etwa 10 Personen mit Video mögen Handys nicht: Jede
+* Kein Live-Raum von ausserhalb deines Netzes (per VPN hinein geht es). Eine
+  Aufnahme ist die Sicht dessen, der aufnimmt; geht sein Gerät, endet sie.
+  Mehr als etwa 10 Personen mit Video mögen Handys nicht: Jede
   schickt ihr Bild an jede andere.
 
 ## Dropnook unterstützen

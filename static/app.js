@@ -1160,12 +1160,15 @@ function uploadRow(u) {
   li.appendChild(el('span'));                       // placeholder for the checkbox column
   const main = el('div', 'row-main');
   main.appendChild(el('div', 'row-name', u.name));
-  const percent = u.size ? Math.min(100, Math.round((u.received / u.size) * 100)) : 0;
-  main.appendChild(el('div', 'row-meta', t(u.own ? 'ui.uploading' : 'ui.uploading_elsewhere',
-    { percent, done: formatSize(u.received), total: formatSize(u.size) })));
-  const bar = el('div', 'bar');
+  // A recording from the live room has no size yet: what came so far, no percentage.
+  const percent = u.size && !u.growing ? Math.min(100, Math.round((u.received / u.size) * 100)) : 0;
+  main.appendChild(el('div', 'row-meta', u.growing
+    ? t(u.own ? 'ui.rec_uploading' : 'ui.rec_uploading_elsewhere', { done: formatSize(u.received) })
+    : t(u.own ? 'ui.uploading' : 'ui.uploading_elsewhere',
+      { percent, done: formatSize(u.received), total: formatSize(u.size) })));
+  const bar = el('div', 'bar' + (u.growing ? ' busy' : ''));
   const fill = el('i');
-  fill.style.width = percent + '%';
+  fill.style.width = u.growing ? '' : percent + '%';
   bar.appendChild(fill);
   main.appendChild(bar);
   li.appendChild(main);
@@ -1594,14 +1597,19 @@ function setupPaste() {
   });
 }
 
+/* "Screenshot 2026-10-23 14-05-33": the moment, fit for a file name. Also
+   for photos and recordings from the live room. */
+function fileStamp() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}-${p(d.getMinutes())}-${p(d.getSeconds())}`;
+}
+
 /* Screenshots arrive as "image.png" or without a name: give them one. */
 function pastedName(file, i) {
   if (file.name && !/^image\.\w+$/i.test(file.name)) return file;
   const ext = ((file.type || 'image/png').split('/')[1] || 'png').replace('jpeg', 'jpg').replace(/\+.*/, '');
-  const d = new Date();
-  const p = (n) => String(n).padStart(2, '0');
-  const stamp = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}-${p(d.getMinutes())}-${p(d.getSeconds())}`;
-  return new File([file], `${t('ui.screenshot')} ${stamp}${i ? ' ' + (i + 1) : ''}.${ext}`,
+  return new File([file], `${t('ui.screenshot')} ${fileStamp()}${i ? ' ' + (i + 1) : ''}.${ext}`,
     { type: file.type || 'image/png' });
 }
 
@@ -1614,6 +1622,7 @@ function dropOwnUploads() {
 function cancelUpload(id) {
   const own = ownUploads.get(id);
   if (own) own.cancelled = true;
+  if (recording && recording.entry.id === id) stopRecording();   // nothing more to send
   ownUploads.delete(id);
   fetch('/api/upload/' + id, { method: 'DELETE' }).catch(() => {});
   drawList();
@@ -2052,6 +2061,9 @@ function drawLiveTile() {
   head.append(el('span', 'live-badge', t('ui.live_badge')),
     el('span', 'live-count', t('ui.live_people', { n: r.members.length })));
   if (r.locked) head.appendChild(el('span', 'live-flag', t('ui.live_locked')));
+  r.members.filter((m) => m.recording).forEach((m) => {
+    head.appendChild(el('span', 'live-flag rec', t('ui.rec_who', { name: peerTitle(m) })));
+  });
   text.append(head, el('div', 'live-names', inside ? t('ui.live_you_in')
     : r.members.map(peerTitle).join(', ')));
 
@@ -2203,6 +2215,11 @@ function setRoom(next, quiet) {
   const l = live;
   if (l && l.joined) {
     if (!room || !memberOf(l.you)) { leaveLocally(t('ui.live_ended')); return; }
+    // Someone started recording: a word to everyone in the room, besides the mark.
+    const was = new Set((before ? before.members : []).filter((m) => m.recording).map((m) => m.id));
+    room.members.forEach((m) => {
+      if (m.recording && !was.has(m.id) && m.id !== l.you) toast(t('ui.rec_by', { name: peerTitle(m) }));
+    });
     // Someone gone whose leaving did not reach this page: let go of them too.
     l.links.forEach((k, id) => { if (!memberOf(id)) { closeLink(k); l.links.delete(id); } });
     tuneSenders();
@@ -2489,6 +2506,7 @@ function leaveLocally(message, warn) {
   const l = live;
   if (!l || l.ended) return;
   l.ended = true;
+  if (recording && recording.live === l) stopRecording();   // before its tracks stop: the file is finished in order
   l.links.forEach(closeLink);
   l.links.clear();
   l.watchers.forEach((pc) => { try { pc.close(); } catch (e) {} });
@@ -2831,10 +2849,7 @@ function takePhoto() {
   if (screen) { screen.classList.remove('flash'); void screen.offsetWidth; screen.classList.add('flash'); }
   canvas.toBlob(async (blob) => {
     if (!blob) { toast(t('ui.call_photo_none'), true); return; }
-    const d = new Date();
-    const p = (n) => String(n).padStart(2, '0');
-    const stamp = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}-${p(d.getMinutes())}-${p(d.getSeconds())}`;
-    const file = new File([blob], `${t('ui.call_photo')} ${stamp}.jpg`, { type: 'image/jpeg' });
+    const file = new File([blob], `${t('ui.call_photo')} ${fileStamp()}.jpg`, { type: 'image/jpeg' });
     try {
       await uploadFile(file, 'shared');
       toast(t('ui.call_photo_saved'));
@@ -2857,6 +2872,8 @@ const ICONS = {
   photo: '<path d="M4 8.5a2 2 0 0 1 2-2h2l1.5-2h5l1.5 2h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.5"/>',
   invite: '<circle cx="10" cy="8.5" r="3.5"/><path d="M3.5 19.5c.7-3.5 3.3-5.5 6.5-5.5s5.8 2 6.5 5.5M18.5 8v6M15.5 11h6"/>',
   leave: '<path d="M3.5 14.5c4.7-4.3 12.3-4.3 17 0l-2 2.5-3.3-1.3.3-2.5a10 10 0 0 0-7 0l.3 2.5L5.5 17z"/>',
+  rec: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.5" fill="currentColor" stroke="none"/>',
+  recStop: '<circle cx="12" cy="12" r="8"/><rect x="9" y="9" width="6" height="6" rx="1" fill="currentColor" stroke="none"/>',
 };
 
 function iconButton(icon, label, cls, action) {
@@ -2961,7 +2978,7 @@ function tileFor(l, key) {
   return tile;
 }
 
-function drawTile(tile, { person, stream, mirror, micOn, note, you }) {
+function drawTile(tile, { person, stream, mirror, micOn, note, you, rec }) {
   const video = tile.querySelector('video');
   if (video.srcObject !== stream) video.srcObject = stream;
   video.hidden = !stream;
@@ -2975,6 +2992,7 @@ function drawTile(tile, { person, stream, mirror, micOn, note, you }) {
   label.innerHTML = '';
   if (!micOn) label.insertAdjacentHTML('beforeend', `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS.micOff}</svg>`);
   label.appendChild(el('span', '', you ? t('ui.live_you') : person ? peerTitle(person) : ''));
+  if (rec) label.appendChild(el('b', 'rec-mark', t('ui.rec_badge')));
   const noteNode = tile.querySelector('.call-note');
   noteNode.textContent = note || '';
   noteNode.hidden = !note;
@@ -3010,7 +3028,7 @@ function drawCallScreen() {
     const video = k && m.video && k.remote.getVideoTracks().some((x) => !x.muted) ? k.remote : null;
     const note = !k || k.state === 'connecting' ? t('ui.call_connecting')
       : k.state === 'dropout' ? t('ui.call_reconnecting') : k.state === 'failed' ? t('ui.live_no_link') : '';
-    drawTile(tile, { person: m, stream: video, mirror: false, micOn: m.audio, note });
+    drawTile(tile, { person: m, stream: video, mirror: false, micOn: m.audio, note, rec: m.recording });
     tile.classList.toggle('failed', !!k && k.state === 'failed');
     if (k && !k.audio) {
       k.audio = document.createElement('audio');
@@ -3022,7 +3040,7 @@ function drawCallScreen() {
   });
   const meTile = tileFor(l, 'me');
   drawTile(meTile, { person: me, stream: mine, mirror: l.facing === 'user', micOn: l.micOn, you: true,
-    note: !l.cameraOn && l.stream ? t('ui.call_camera_is_off') : '' });
+    note: !l.cameraOn && l.stream ? t('ui.call_camera_is_off') : '', rec: !!(recording && recording.live === l) });
   tiles.push({ key: 'me', tile: meTile });
 
   // How they are laid out: alone, one other (large, this page small in the
@@ -3067,6 +3085,9 @@ function drawCallScreen() {
   top.innerHTML = '';
   top.append(el('span', 'live-badge', t('ui.live_badge')), el('span', 'call-status', ''));
   if (room && room.locked) top.appendChild(el('span', 'call-flag', t('ui.live_locked')));
+  roomMembers().filter((m) => m.recording).forEach((m) => {
+    top.appendChild(el('span', 'call-flag rec', t('ui.rec_who', { name: m.id === l.you ? t('ui.live_you') : peerTitle(m) })));
+  });
   if (room && room.watchers) {
     const watching = el('span', 'call-flag watching', '👁 ' + room.watchers);
     watching.title = t('ui.live_watchers', { n: room.watchers });
@@ -3091,11 +3112,302 @@ function drawCallScreen() {
   cam.disabled = !ready;
   bar.append(mic, cam);
   if (l.cameraOn && l.cameras > 1) bar.appendChild(iconButton('flip', t('ui.call_switch'), '', switchCamera));
+  const r = recording && recording.live === l ? recording : null;
+  const rec = iconButton(r ? 'recStop' : 'rec', t(r ? 'ui.call_record_stop' : 'ui.call_record'),
+    r ? 'recording' : '', toggleRecording);
+  rec.disabled = !l.joined || !canRecord() || (r && r.stopping);
+  if (!canRecord()) rec.title = t('ui.rec_unsupported');
   const invite = iconButton('invite', t('ui.live_invite'), '', showInvite);
   invite.disabled = !l.joined;
-  bar.append(iconButton('photo', t('ui.call_photo'), '', takePhoto), invite,
+  bar.append(iconButton('photo', t('ui.call_photo'), '', takePhoto), rec, invite,
     iconButton('shrink', t('ui.call_smaller'), '', () => setMini(true)),
     iconButton('leave', t('ui.live_leave'), 'end', leaveRoom));
+}
+
+// ---- Recording: the room as this page sees and hears it, as a file in the shared files
+/* In the browser, never on the server — Drop sees neither picture nor sound.
+   Every member's picture is drawn onto a canvas (a grid like the room's, with
+   names), every voice is mixed into one track, and MediaRecorder writes both
+   into a file. Who comes or goes during the recording appears or disappears
+   with the next frame. The pieces go up while the recording runs, as a
+   growing upload (see Upload in main.py), so the file is nearly complete when
+   it stops. The room's card says who is recording: everyone in the room sees
+   a REC mark with the name. Leaving the room or closing the page ends the
+   recording; what was uploaded by then stays. */
+const REC_WIDTH   = 1280;                       // the whole picture — phones draw this fast enough …
+const REC_HEIGHT  = 720;
+const REC_FPS     = 20;                         // … at this rate
+const REC_SLICE   = 2000;                       // ms of picture and sound per piece from the recorder
+const REC_PIECE   = 1024 * 1024;                // bytes gathered before a piece goes up …
+const REC_EVERY   = 8000;                       // … or ms since the last one went, whichever first
+const REC_TYPES   = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4'];
+const REC_COLOURS = { teal: '#1E9AA0', gold: '#F5A623', blue: '#3F7BE0', violet: '#8466DE', coral: '#E0607A' };
+let recording     = null;                       // this page's recording — until its file is finished, also after leaving
+
+const canRecord   = () => window.isSecureContext && 'MediaRecorder' in window && !!MediaRecorder.isTypeSupported
+  && 'captureStream' in HTMLCanvasElement.prototype && !!(window.AudioContext || window.webkitAudioContext);
+
+// What this browser can write: WebM where it can (Chrome, Firefox, Edge), MP4
+// in Safari. The file's extension follows.
+function recordingType() {
+  if (!canRecord()) return '';
+  return REC_TYPES.find((x) => MediaRecorder.isTypeSupported(x)) || '';
+}
+const recordingExt = (type) => (type.includes('mp4') ? 'mp4' : 'webm');
+
+function toggleRecording() {
+  if (recording) stopRecording(); else startRecording();
+}
+
+/* The room as one stream: the pictures of everyone in it drawn onto a canvas
+   REC_FPS times a second, in the order of the room's grid, this page last;
+   the voices through an AudioContext into one track. Pictures come from the
+   members' streams straight — not from the screen, which may be small or show
+   one of them large. */
+function composeRoom(l) {
+  const canvas = document.createElement('canvas');
+  canvas.width = REC_WIDTH;
+  canvas.height = REC_HEIGHT;
+  const paint = canvas.getContext('2d');
+  const Context = window.AudioContext || window.webkitAudioContext;
+  const audio = new Context();
+  const mix = audio.createMediaStreamDestination();
+  audio.resume().catch(() => {});
+  const voices = new Map();           // a stream with sound → its node in the mix
+  const videos = new Map();           // member → the <video> the canvas copies the picture from
+  const box = el('div', 'rec-videos');
+  box.setAttribute('aria-hidden', 'true');
+  document.body.appendChild(box);
+
+  function videoFor(id, stream) {
+    let v = videos.get(id);
+    if (!v) {
+      v = document.createElement('video');
+      v.muted = true;
+      v.autoplay = true;
+      v.playsInline = true;
+      v.setAttribute('playsinline', '');
+      box.appendChild(v);
+      videos.set(id, v);
+    }
+    if (v.srcObject !== stream) { v.srcObject = stream; if (stream) v.play().catch(() => {}); }
+    return v;
+  }
+
+  function hear(stream) {
+    if (voices.has(stream) || !stream.getAudioTracks().length) return;
+    try {
+      const node = audio.createMediaStreamSource(stream);
+      node.connect(mix);
+      voices.set(stream, node);
+    } catch (e) { /* no sound from this one */ }
+  }
+
+  function initial(person, x, y, radius) {
+    paint.fillStyle = REC_COLOURS[person.palette] || '#3A4A52';
+    paint.beginPath();
+    paint.arc(x, y, radius, 0, Math.PI * 2);
+    paint.fill();
+    paint.fillStyle = person.palette === 'gold' ? '#17130A' : '#fff';
+    paint.font = `600 ${Math.round(radius)}px system-ui, sans-serif`;
+    paint.textAlign = 'center';
+    paint.textBaseline = 'middle';
+    paint.fillText(peerInitial(person), x, y + radius * 0.06);
+  }
+
+  function label(text, x, y, w, h) {
+    const size = Math.max(12, Math.round(Math.min(w, h) * 0.055));
+    paint.font = `600 ${size}px system-ui, sans-serif`;
+    paint.textAlign = 'start';
+    paint.textBaseline = 'alphabetic';
+    const width = Math.min(paint.measureText(text).width + size, w - size);
+    paint.fillStyle = 'rgba(0,0,0,.55)';
+    paint.fillRect(x + size * 0.6, y + h - size * 2.1, width, size * 1.5);
+    paint.fillStyle = '#fff';
+    paint.fillText(text, x + size * 1.1, y + h - size, w - size * 2);
+  }
+
+  function frame() {
+    const me = memberOf(l.you) || { name: deviceName(), device: deviceLabel() };
+    const cells = roomMembers().filter((m) => m.id !== l.you).map((m) => {
+      const k = l.links.get(m.id);
+      return { id: m.id, person: m, picture: k && m.video ? k.remote : null, sound: k ? k.remote : null };
+    });
+    cells.push({ id: 'me', person: me, picture: l.cameraOn ? l.preview : null, sound: l.stream });
+    // Voices: everyone here now. A connection made anew brings a new stream.
+    const heard = new Set();
+    cells.forEach((c) => { if (c.sound) { hear(c.sound); heard.add(c.sound); } });
+    voices.forEach((node, stream) => { if (!heard.has(stream)) { node.disconnect(); voices.delete(stream); } });
+    videos.forEach((v, id) => { if (!cells.some((c) => c.id === id)) { v.srcObject = null; v.remove(); videos.delete(id); } });
+
+    const W = canvas.width;
+    const H = canvas.height;
+    paint.fillStyle = '#070B0D';
+    paint.fillRect(0, 0, W, H);
+    const n = cells.length;
+    const gap = n > 1 ? 6 : 0;
+    const cols = gridColumns(n, W, H);
+    const rows = Math.ceil(n / cols);
+    const cw = (W - gap * (cols - 1)) / cols;
+    const ch = (H - gap * (rows - 1)) / rows;
+    let shown = 0;
+    cells.forEach((c, i) => {
+      const x = (i % cols) * (cw + gap);
+      const y = Math.floor(i / cols) * (ch + gap);
+      paint.fillStyle = '#11181C';
+      paint.fillRect(x, y, cw, ch);
+      const v = c.picture ? videoFor(c.id, c.picture) : (videos.has(c.id) ? videoFor(c.id, null) : null);
+      if (v && c.picture && v.readyState >= 2 && v.videoWidth) {
+        // Whole, never cut: the picture fits into its cell, dark around it.
+        const s = Math.min(cw / v.videoWidth, ch / v.videoHeight);
+        const dw = v.videoWidth * s;
+        const dh = v.videoHeight * s;
+        paint.drawImage(v, x + (cw - dw) / 2, y + (ch - dh) / 2, dw, dh);
+        shown++;
+      } else {
+        initial(c.person, x + cw / 2, y + ch / 2, Math.min(cw, ch) * 0.16);
+      }
+      label(peerTitle(c.person), x, y, cw, ch);
+    });
+    const screen = $('#call');          // for tests and the curious
+    if (screen) { screen.dataset.recTiles = n; screen.dataset.recPictures = shown; screen.dataset.recVoices = voices.size; }
+  }
+
+  frame();
+  const timer = setInterval(frame, 1000 / REC_FPS);
+  const picture = canvas.captureStream(REC_FPS);
+  return {
+    stream: new MediaStream([...picture.getVideoTracks(), ...mix.stream.getAudioTracks()]),
+    stop() {
+      clearInterval(timer);
+      picture.getTracks().forEach((x) => x.stop());
+      voices.forEach((node) => node.disconnect());
+      voices.clear();
+      audio.close().catch(() => {});
+      videos.forEach((v) => { v.srcObject = null; });
+      box.remove();
+    },
+  };
+}
+
+async function startRecording() {
+  const l = live;
+  if (!l || !l.joined || !l.stream || l.ended || recording) return;
+  if (!window.isSecureContext) { showHttpsNote(); return; }
+  const type = recordingType();
+  if (!type) { toast(t('ui.rec_unsupported'), true); return; }
+  const name = `${t('ui.rec_name')} ${fileStamp()}.${recordingExt(type)}`;
+  const into = 'shared';                // like a photo: the room belongs to the shared area
+  const start = await fetch(withArea('/api/upload/init', into), {
+    method: 'POST', headers: { 'content-type': 'application/json; charset=utf-8' },
+    body: JSON.stringify({ name, growing: true }),
+  }).catch(() => null);
+  if (!start || !start.ok) {
+    toast(t('ui.rec_failed', { reason: t(start && start.status === 507 ? 'ui.error_no_space' : 'ui.upload_refused') }), true);
+    return;
+  }
+  const init = await start.json();
+  if (live !== l || l.ended || recording) {    // left, or pressed twice, while the server answered
+    fetch('/api/upload/' + init.id, { method: 'DELETE' }).catch(() => {});
+    return;
+  }
+  let composed = null;
+  let recorder;
+  try {
+    composed = composeRoom(l);
+    recorder = new MediaRecorder(composed.stream, { mimeType: type });
+    recorder.start(REC_SLICE);
+  } catch (e) {
+    if (composed) composed.stop();
+    fetch('/api/upload/' + init.id, { method: 'DELETE' }).catch(() => {});
+    toast(t('ui.rec_unsupported'), true);
+    return;
+  }
+  const entry = { id: init.id, area: into, name, size: 0, received: 0, growing: true, cancelled: false };
+  const r = recording = {
+    recorder, composed, entry, live: l, pending: [], pendingBytes: 0, flushed: Date.now(), index: 0,
+    chain: Promise.resolve(), stopping: false, ending: false, closed: false, failed: '',
+  };
+  ownUploads.set(entry.id, entry);
+  recorder.ondataavailable = (e) => {
+    if (e.data && e.data.size) { r.pending.push(e.data); r.pendingBytes += e.data.size; }
+    if (r.stopping || r.pendingBytes >= REC_PIECE || Date.now() - r.flushed >= REC_EVERY) flushRecording(r);
+  };
+  recorder.onerror = (e) => { r.failed = r.failed || (e.error && e.error.message) || 'MediaRecorder'; };
+  recorder.onstop = () => endRecording(r);
+  callPost('signal', { type: 'rec', data: { on: true } }).catch(() => {});
+  toast(t('ui.rec_started'));
+  drawList();
+  drawCallScreen();
+}
+
+// Stops the recorder; its last piece follows, then the file is finished.
+function stopRecording() {
+  const r = recording;
+  if (!r || r.stopping) return;
+  r.stopping = true;
+  if (r.recorder.state === 'inactive') endRecording(r);
+  else {
+    try { r.recorder.stop(); } catch (e) { endRecording(r); }
+  }
+  drawCallScreen();
+}
+
+// What the recorder gave so far goes up as the next piece, in order.
+function flushRecording(r) {
+  if (!r.pending.length) return;
+  const piece = new Blob(r.pending, { type: r.recorder.mimeType });
+  r.pending = [];
+  r.pendingBytes = 0;
+  r.flushed = Date.now();
+  const index = r.index++;
+  r.chain = r.chain.then(() => sendPiece(r, index, piece));
+}
+
+async function sendPiece(r, index, piece) {
+  for (let attempt = 1; !r.failed && !r.entry.cancelled; attempt++) {
+    try {
+      const response = await fetch(`/api/upload/${r.entry.id}/${index}`, {
+        method: 'PUT', headers: { 'content-type': 'application/octet-stream' }, body: piece,
+      });
+      if (response.status === 404) { r.entry.cancelled = true; break; }   // deleted meanwhile ("Delete all files")
+      if (response.status === 507) { r.failed = t('ui.error_no_space'); break; }
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      r.entry.received = r.entry.size = r.entry.received + piece.size;
+      drawList();
+      return;
+    } catch (e) {
+      if (attempt >= CHUNK_ATTEMPTS) { r.failed = t('ui.upload_interrupted'); break; }
+      await new Promise((res) => setTimeout(res, 700 * attempt));
+    }
+  }
+  stopRecording();                      // no use going on; what came is finished below
+}
+
+// After the recorder's last piece: the file is finished with what the server has.
+function endRecording(r) {
+  if (r.ending) return;
+  r.ending = true;
+  r.stopping = true;
+  r.composed.stop();
+  flushRecording(r);
+  r.chain = r.chain.then(() => finishRecording(r));
+}
+
+async function finishRecording(r) {
+  if (recording === r) recording = null;
+  ownUploads.delete(r.entry.id);
+  const l = r.live;
+  if (live === l && l.joined) callPost('signal', { type: 'rec', data: { on: false } }).catch(() => {});
+  drawList();
+  drawCallScreen();
+  if (r.entry.cancelled || r.closed) return;         // gone from the server, or "done" went with the page
+  const end = await fetch(`/api/upload/${r.entry.id}/done`, { method: 'POST' }).catch(() => null);
+  if (r.failed) toast(t('ui.rec_failed', { reason: r.failed }), true);
+  if (!end || !end.ok) { toast(t('ui.rec_failed', { reason: t('ui.upload_finish_failed') }), true); return; }
+  const data = await end.json();
+  if (data.name) toast(t('ui.rec_saved', { name: data.name }));
+  await loadState();
 }
 
 // ------------------------------------------------------------------ Connection
@@ -3265,6 +3577,11 @@ function wireButtons() {
   document.addEventListener('keydown', unlockSound);
   // Closed or reloaded in the room: the others hear of it at once.
   window.addEventListener('pagehide', () => {
+    // A recording ends with the page; what was uploaded is the file.
+    if (recording && !recording.entry.cancelled && !recording.closed) {
+      recording.closed = true;
+      fetch(`/api/upload/${recording.entry.id}/done`, { method: 'POST', keepalive: true }).catch(() => {});
+    }
     if (live && live.joined) {
       fetch('/api/call/leave', {
         method: 'POST', keepalive: true, headers: { 'content-type': 'application/json' },

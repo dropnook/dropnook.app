@@ -398,7 +398,12 @@ for yourself, put a file into `lang/` in the appdata folder — see
 fields and joins with one click; up to 10 people (`LIVE_MAX` in the `.env`). In
 the room: mute, camera off, switch between front and back camera, *Photo* — a
 picture saved to the shared files — and *Invite*, which nudges someone who has
-Drop open (it rings briefly there). Whoever opened the room can lock it;
+Drop open (it rings briefly there). *Record* saves the room as you see and
+hear it — every picture in a grid with names, every voice — as a file in the
+shared files (.webm; in Safari .mp4), uploaded piece by piece while you record;
+everyone in the room sees a red REC mark with your name. Leaving the room or
+closing the page ends the recording; what was uploaded by then stays. Whoever
+opened the room can lock it;
 *Smaller* moves it into a corner and Drop stays usable below. Alone for 5
 minutes, Drop asks *Still there?* — without an answer it leaves 2 minutes later
 and the room ends. The more people,
@@ -465,8 +470,9 @@ uploads and texts too large to handle.
   is locked for that time.
 * Downloads are always attachments — a shared HTML file never runs in the
   browser. Expired links disappear by themselves.
-* The live room exists only in `drop`: no STUN or TURN server, no recording,
-  nothing through the reverse proxy. A page can only speak for itself in the
+* The live room exists only in `drop`: no STUN or TURN server, nothing through
+  the reverse proxy. Drop never records: *Record* happens in the browser of
+  whoever pressed it, and everyone in the room sees the REC mark. A page can only speak for itself in the
   room — it identifies itself with a secret only it knows.
 
 ### PIN or password (optional)
@@ -579,7 +585,8 @@ typing; unsaved text is sent once the connection is back.
   continued for a week. Keep an eye on the free space shown at the top right;
   an upload that does not fit is refused.
 * No uploads from outside. Sharing works in one direction only: out.
-* No live room from outside your network (a VPN into it works), no recording.
+* No live room from outside your network (a VPN into it works). A recording is
+  the view of the one who records; when that device leaves, it ends.
   More than about 10 people with video is more than phones like: every one of
   them sends its picture to every other one.
 
