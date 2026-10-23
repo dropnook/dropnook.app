@@ -612,7 +612,7 @@ ungespeicherter Text wird nachgeschickt, sobald die Verbindung zurück ist.
 
 ## Dropnook unterstützen
 
-Dropnook ist kostenlos und bleibt es. Wenn es dir nützt, kannst du dich mit
+Wenn Dropnook dir nützt, kannst du dich mit
 einer Spende bedanken: **[paypal.me/dropnook](https://paypal.me/dropnook)**. Am besten ab 5 €
 (oder 5 CHF) — PayPal behält von jeder Zahlung einen festen Betrag plus ein
 paar Prozent ein, von einem einzelnen Euro kommt kaum etwas an.

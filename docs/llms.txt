@@ -1,6 +1,6 @@
 # Dropnook
 
-> Dropnook is free, open-source, self-hosted instant sharing for the home network — like AirDrop, but for every device and every operating system. Text fields, files of any size and screenshots (Ctrl+V) appear live on every phone, tablet and computer in the network, in the browser: no app, no login, no cloud. Single files or texts can be shared to the internet through expiring links, optionally with a password, served by a separate locked-down container. Made for Unraid (Docker Compose via the Compose Manager Plus plugin); runs on any Linux host with Docker Compose. License: AGPL-3.0. On the devices the page is simply called "Drop" (e.g. "Tower Drop", after the server's name).
+> Dropnook is self-hosted instant sharing for the home network — like AirDrop, but for every device and every operating system. Text fields, files of any size and screenshots (Ctrl+V) appear live on every phone, tablet and computer in the network, in the browser: no app, no login, no cloud. Single files or texts can be shared to the internet through expiring links, optionally with a password, served by a separate locked-down container. Made for Unraid (Docker Compose via the Compose Manager Plus plugin); runs on any Linux host with Docker Compose. License: AGPL-3.0. On the devices the page is simply called "Drop" (e.g. "Tower Drop", after the server's name).
 
 Key facts:
 
